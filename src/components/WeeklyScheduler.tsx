@@ -31,11 +31,8 @@ export const WeeklyScheduler: React.FC = () => {
         <div>
           <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
             <Calendar className="w-5 h-5 text-brand-600" />
-            Weekly Restocking Scheduler & Purchasing Rules
+            Weekly Restocking Scheduler
           </h2>
-          <p className="text-xs text-slate-500">
-            Configure scheduled run cadence, emergency restock policies, and autonomous budget limits.
-          </p>
         </div>
 
         <div className="text-right">
@@ -68,9 +65,6 @@ export const WeeklyScheduler: React.FC = () => {
               </option>
             ))}
           </select>
-          <span className="text-[11px] text-slate-400 block">
-            Scheduled bulk restocking cycle day
-          </span>
         </div>
 
         {/* Shopping Frequency */}
@@ -89,9 +83,6 @@ export const WeeklyScheduler: React.FC = () => {
             <option value="weekly">Weekly (Every 7 days)</option>
             <option value="biweekly">Bi-weekly (Every 14 days)</option>
           </select>
-          <span className="text-[11px] text-slate-400 block">
-            Agent gathers low stock items into one basket
-          </span>
         </div>
 
         {/* Emergency Restocking Preference */}
@@ -113,9 +104,6 @@ export const WeeklyScheduler: React.FC = () => {
             <option value="auto_order">Auto-Order Urgents Immediately</option>
             <option value="alert_only">Alert Only (Wait for weekly run)</option>
           </select>
-          <span className="text-[11px] text-slate-400 block">
-            Policy when items run out before weekly date
-          </span>
         </div>
 
         {/* Per-Cycle Budget */}
@@ -139,9 +127,6 @@ export const WeeklyScheduler: React.FC = () => {
               className="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white font-bold text-slate-800 focus:ring-2 focus:ring-brand-500"
             />
           </div>
-          <span className="text-[11px] text-slate-400 block">
-            Agent blocks or requests approval if exceeded
-          </span>
         </div>
       </div>
 

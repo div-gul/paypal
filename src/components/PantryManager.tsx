@@ -10,7 +10,6 @@ import {
   Trash2,
   AlertTriangle,
   CheckCircle,
-  HelpCircle,
   Shield,
   Layers,
   Search,
@@ -139,31 +138,16 @@ export const PantryManager: React.FC = () => {
         <div>
           <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
             <Layers className="w-5 h-5 text-brand-600" />
-            Consumption-Aware Household Pantry
+            Household Pantry Inventory
           </h2>
-          <p className="text-xs text-slate-500">
-            Estimated inventory and daily burn rates configured by the user. (Not physically sensed)
-          </p>
         </div>
 
         <button
           onClick={openAddModal}
           className="px-3.5 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
         >
-          <Plus className="w-4 h-4" /> Add Household Item
+          <Plus className="w-4 h-4" /> Add Item
         </button>
-      </div>
-
-      {/* Realistic Assumption Notice Badge */}
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2.5 text-xs text-amber-900">
-        <HelpCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-        <div>
-          <strong>User Estimation Disclaimer:</strong> All pantry quantities and depletion schedules are calculated from user-configured inventory levels and average daily consumption rates (
-          <code className="text-amber-800 bg-amber-100/60 px-1 py-0.5 rounded font-mono text-[11px]">
-            Days Remaining = Current Qty / Daily Consumption
-          </code>
-          ).
-        </div>
       </div>
 
       {/* Search & Category Filter */}

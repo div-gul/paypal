@@ -9,7 +9,6 @@ import {
   FileCheck2,
   CheckCircle,
   ArrowRight,
-  ShieldCheck,
   PackageCheck,
   ChevronDown,
   ChevronUp,
@@ -49,15 +48,12 @@ export const BasketOptimizer: React.FC = () => {
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
               <TrendingDown className="w-5 h-5 text-emerald-600" />
-              Delivery-Fee-Aware Basket Cost Optimizer
+              Basket Cost Optimizer
             </h2>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
               Integer Paise Precision
             </span>
           </div>
-          <p className="text-xs text-slate-500">
-            Multi-store final cost evaluation with independent store delivery, handling, and platform charges.
-          </p>
         </div>
 
         <button
@@ -85,9 +81,6 @@ export const BasketOptimizer: React.FC = () => {
                 </span>
                 <span className="font-bold text-slate-900">{recommendedStrategy.title}</span>
               </div>
-              <p className="text-xs text-emerald-900 mt-1 leading-relaxed font-medium">
-                {recommendedStrategy.recommendationReason}
-              </p>
             </div>
           </div>
 
@@ -129,10 +122,7 @@ export const BasketOptimizer: React.FC = () => {
                   )}
                 </div>
 
-                <h3 className="font-bold text-slate-900 text-xs mb-1 leading-snug">{strat.title}</h3>
-                <p className="text-[11px] text-slate-500 leading-tight mb-3 line-clamp-2">
-                  {strat.description}
-                </p>
+                <h3 className="font-bold text-slate-900 text-xs mb-2 leading-snug">{strat.title}</h3>
 
                 {/* Granular Cost Summary */}
                 <div className="space-y-1.5 text-[11px] py-2 border-t border-b border-slate-100 text-slate-600">
@@ -174,14 +164,9 @@ export const BasketOptimizer: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
           <div className="flex items-center gap-2">
             <PackageCheck className="w-5 h-5 text-brand-600" />
-            <div>
-              <h3 className="font-bold text-slate-900 text-sm">
-                Final Proposed Basket Items ({allFinalItems.length} Products • {allFinalItems.reduce((acc, i) => acc + i.quantity, 0)} Units)
-              </h3>
-              <p className="text-[11px] text-slate-500">
-                All products selected for purchase under <strong>{currentStrategy.title}</strong>
-              </p>
-            </div>
+            <h3 className="font-bold text-slate-900 text-sm">
+              Final Basket Items ({allFinalItems.length} Products • {allFinalItems.reduce((acc, i) => acc + i.quantity, 0)} Units)
+            </h3>
           </div>
 
           <div className="flex items-center gap-2">
@@ -264,15 +249,12 @@ export const BasketOptimizer: React.FC = () => {
 
       {/* Selected Strategy Store Orders Breakdown */}
       <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/60 pb-3">
+        <div className="flex items-center justify-between border-b border-slate-200/60 pb-3">
           <div className="flex items-center gap-2">
             <Store className="w-4 h-4 text-brand-600" />
             <h3 className="font-bold text-slate-900 text-sm">
-              Fulfillment Orders Breakdown ({currentStrategy.storeBaskets.length} Separate Store Order{currentStrategy.storeBaskets.length === 1 ? '' : 's'})
+              Fulfillment Orders ({currentStrategy.storeBaskets.length} Store Order{currentStrategy.storeBaskets.length === 1 ? '' : 's'})
             </h3>
-          </div>
-          <div className="text-xs text-slate-500">
-            Order-level fees calculated <strong>independently</strong> for each store
           </div>
         </div>
 
@@ -342,18 +324,13 @@ export const BasketOptimizer: React.FC = () => {
         </div>
 
         {/* Grand Total Summary */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-200">
-          <div className="text-xs text-slate-600 flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span>Autonomous policy verified: No duplicate delivery fees, user preferences respected.</span>
-          </div>
-
+        <div className="flex justify-end pt-3 border-t border-slate-200">
           <button
             onClick={() => openCheckoutModal(currentStrategy)}
             className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer transition"
           >
             <FileCheck2 className="w-4 h-4" />
-            <span>Review & Proceed to Checkout ({formatPaise(currentStrategy.grandTotalPaise)})</span>
+            <span>Proceed to Checkout ({formatPaise(currentStrategy.grandTotalPaise)})</span>
           </button>
         </div>
       </div>

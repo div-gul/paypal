@@ -10,14 +10,12 @@ import {
   Ban,
   ThumbsUp,
   ThumbsDown,
-  Info,
   Plus,
   Truck,
   PackagePlus,
   ShieldCheck,
 } from 'lucide-react';
 import { formatPaise } from '../services/currency';
-import { getDaysUntilNextShoppingRun } from '../services/restockScheduler';
 
 export const ShoppingAnalysis: React.FC = () => {
   const {
@@ -29,16 +27,9 @@ export const ShoppingAnalysis: React.FC = () => {
     removeFromBasket,
     approveAllUrgentItems,
     isAnalyzing,
-    simulationState,
-    schedulerConfig,
   } = useShopPilot();
 
   const [activeTab, setActiveTab] = useState<'all' | 'urgent' | 'weekly' | 'deferred' | 'approvals'>('all');
-
-  const daysUntilNextRun = getDaysUntilNextShoppingRun(
-    simulationState.simulatedDate,
-    schedulerConfig.nextShoppingDate
-  );
 
   const urgentCount = recommendations.filter(r => r.isUrgent || r.outcome === 'RESTOCK_NOW').length;
   const weeklyCount = recommendations.filter(r => r.outcome === 'INCLUDE_IN_WEEKLY_BASKET').length;
@@ -105,15 +96,12 @@ export const ShoppingAnalysis: React.FC = () => {
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-indigo-600" />
-              Autonomous Restock Decisions & AI Policy Evaluation
+              Restock Decisions
             </h2>
             {isAnalyzing && (
               <span className="w-3.5 h-3.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></span>
             )}
           </div>
-          <p className="text-xs text-slate-500">
-            Dynamically evaluated from current pantry depletion rates, scheduled shopping date, and store fee trade-offs.
-          </p>
         </div>
 
         {/* Global Quick Action: Approve All Pending Urgents */}
@@ -126,23 +114,6 @@ export const ShoppingAnalysis: React.FC = () => {
             <span>Approve & Add All Urgents ({approvalCount})</span>
           </button>
         )}
-      </div>
-
-      {/* Explanatory Banner: Why are urgent items handled with caution? */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-3.5 text-xs text-slate-700 space-y-1.5">
-        <div className="flex items-center gap-2 font-bold text-slate-900">
-          <Info className="w-4 h-4 text-blue-600 shrink-0" />
-          <span>How Urgent Items & Weekly Restocking Work</span>
-        </div>
-        <p className="text-slate-600 leading-relaxed">
-          • <strong>Why an urgent item isn't automatically mixed into the weekly basket:</strong> An urgent item will run out <em>before</em> your next weekly shopping run (in <strong>{daysUntilNextRun} days</strong>).
-          <br />
-          • <strong>Your Choices for Each Urgent Product:</strong>
-          <br />
-          &nbsp;&nbsp;1. <strong>🚀 Restock Now</strong>: Creates an immediate off-cycle order so you don't run out. (Subject to your emergency restock policy: requires approval to prevent unexpected standalone delivery fees).
-          <br />
-          &nbsp;&nbsp;2. <strong>📦 Bundle into Weekly Basket</strong>: If you don't mind waiting until your scheduled cycle date, you can bundle it into the weekly run to save delivery fees!
-        </p>
       </div>
 
       {/* Tab Filters */}
@@ -246,44 +217,27 @@ export const ShoppingAnalysis: React.FC = () => {
                     {getOutcomeBadge(rec.outcome, rec.requiresApproval, isApproved)}
                   </div>
 
-                  {/* Human-readable dynamic explanation */}
-                  <div className="text-xs text-slate-700 bg-white/80 border border-slate-200/80 rounded-lg p-2.5 flex items-start gap-2 shadow-2xs">
-                    <Info className="w-4 h-4 text-brand-600 shrink-0 mt-0.5" />
-                    <p className="leading-relaxed">
-                      <strong>Agent Rationale: </strong>
-                      {rec.reasoning}
-                    </p>
-                  </div>
-
-                  {/* Policy Approval Prompt if pending */}
-                  {isPending && rec.approvalReason && (
-                    <div className="bg-purple-100/90 border border-purple-300 rounded-lg p-3 text-xs text-purple-950 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <HelpCircle className="w-4 h-4 text-purple-700 shrink-0" />
-                        <span>
-                          <strong>User Policy Gate:</strong> {rec.approvalReason}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-purple-200">
-                        <button
-                          onClick={() => approveRecommendation(rec.itemId)}
-                          className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
-                        >
-                          <ThumbsUp className="w-3.5 h-3.5" /> Approve & Add to Basket Now
-                        </button>
-                        <button
-                          onClick={() => includeInWeeklyBasket(rec.itemId)}
-                          className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
-                        >
-                          <PackagePlus className="w-3.5 h-3.5" /> Bundle into Weekly Basket Instead
-                        </button>
-                        <button
-                          onClick={() => rejectRecommendation(rec.itemId)}
-                          className="px-3.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-rose-700 border border-rose-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <ThumbsDown className="w-3.5 h-3.5" /> Reject / Defer
-                        </button>
-                      </div>
+                  {/* Approval Actions */}
+                  {isPending && (
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <button
+                        onClick={() => approveRecommendation(rec.itemId)}
+                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <ThumbsUp className="w-3.5 h-3.5" /> Approve & Add to Basket
+                      </button>
+                      <button
+                        onClick={() => includeInWeeklyBasket(rec.itemId)}
+                        className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      >
+                        <PackagePlus className="w-3.5 h-3.5" /> Move to Weekly Basket
+                      </button>
+                      <button
+                        onClick={() => rejectRecommendation(rec.itemId)}
+                        className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-rose-700 border border-rose-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <ThumbsDown className="w-3.5 h-3.5" /> Defer
+                      </button>
                     </div>
                   )}
 

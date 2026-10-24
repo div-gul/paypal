@@ -126,7 +126,7 @@ export const CheckoutModal: React.FC = () => {
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-start gap-2.5 text-blue-900">
                 <AlertCircle className="w-4 h-4 text-paypal-lightBlue shrink-0 mt-0.5" />
                 <p>
-                  <strong>Autonomous Payment Sandbox:</strong> This demonstration simulates authorized checkout via PayPal sandbox credentials. Completing this step immediately adds the purchased goods to your pantry stock.
+                  <strong>Payment Sandbox:</strong> Simulated authorization via PayPal credentials.
                 </p>
               </div>
 

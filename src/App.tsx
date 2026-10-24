@@ -4,10 +4,10 @@ import { Header } from './components/Header';
 import { TimeMachine } from './components/TimeMachine';
 import { PantryManager } from './components/PantryManager';
 import { WeeklyScheduler } from './components/WeeklyScheduler';
+import { OverviewAnalytics } from './components/OverviewAnalytics';
 import { ShoppingAnalysis } from './components/ShoppingAnalysis';
 import { BasketOptimizer } from './components/BasketOptimizer';
 import { StoreComparison } from './components/StoreComparison';
-import { ActivityTimeline } from './components/ActivityTimeline';
 import { CheckoutModal } from './components/CheckoutModal';
 import { IntegrationInfoModal } from './components/IntegrationInfoModal';
 import {
@@ -15,12 +15,10 @@ import {
   Sparkles,
   TrendingDown,
   Calendar,
-  Store,
-  History,
   LayoutDashboard,
 } from 'lucide-react';
 
-type ActiveView = 'dashboard' | 'pantry' | 'scheduler' | 'analysis' | 'optimizer' | 'stores' | 'activity';
+type ActiveView = 'dashboard' | 'pantry' | 'scheduler' | 'analysis' | 'basket-stores';
 
 const MainLayout: React.FC = () => {
   const [activeView, setActiveView] = useState<ActiveView>('dashboard');
@@ -32,7 +30,7 @@ const MainLayout: React.FC = () => {
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Demonstration Time Machine Controls */}
+        {/* Simulation Clock Controls */}
         <TimeMachine />
 
         {/* View Navigation Tabs */}
@@ -46,7 +44,7 @@ const MainLayout: React.FC = () => {
             }`}
           >
             <LayoutDashboard className="w-4 h-4" />
-            <span>Full Agent Overview</span>
+            <span>Overview</span>
           </button>
 
           <button
@@ -58,7 +56,7 @@ const MainLayout: React.FC = () => {
             }`}
           >
             <Layers className="w-4 h-4" />
-            <span>Pantry Inventory</span>
+            <span>Pantry</span>
           </button>
 
           <button
@@ -70,7 +68,7 @@ const MainLayout: React.FC = () => {
             }`}
           >
             <Calendar className="w-4 h-4" />
-            <span>Weekly Scheduler</span>
+            <span>Scheduler</span>
           </button>
 
           <button
@@ -86,67 +84,37 @@ const MainLayout: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setActiveView('optimizer')}
+            onClick={() => setActiveView('basket-stores')}
             className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 ${
-              activeView === 'optimizer'
+              activeView === 'basket-stores'
                 ? 'bg-brand-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
             }`}
           >
             <TrendingDown className="w-4 h-4" />
-            <span>Basket Optimizer</span>
-          </button>
-
-          <button
-            onClick={() => setActiveView('stores')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 ${
-              activeView === 'stores'
-                ? 'bg-brand-600 text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-            }`}
-          >
-            <Store className="w-4 h-4" />
-            <span>Store Adapters & Catalog</span>
-          </button>
-
-          <button
-            onClick={() => setActiveView('activity')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0 ${
-              activeView === 'activity'
-                ? 'bg-brand-600 text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-            }`}
-          >
-            <History className="w-4 h-4" />
-            <span>Audit Log</span>
+            <span>Basket & Stores</span>
           </button>
         </div>
 
         {/* View Renderings */}
-        {activeView === 'dashboard' && (
-          <div className="space-y-6">
-            {/* Top Row: Scheduler and Proposed Basket Optimizer */}
-            <WeeklyScheduler />
-            <ShoppingAnalysis />
-            <BasketOptimizer />
-            <PantryManager />
-            <ActivityTimeline />
-          </div>
-        )}
+        {activeView === 'dashboard' && <OverviewAnalytics />}
 
         {activeView === 'pantry' && <PantryManager />}
         {activeView === 'scheduler' && <WeeklyScheduler />}
         {activeView === 'analysis' && <ShoppingAnalysis />}
-        {activeView === 'optimizer' && <BasketOptimizer />}
-        {activeView === 'stores' && <StoreComparison />}
-        {activeView === 'activity' && <ActivityTimeline />}
+        {activeView === 'basket-stores' && (
+          <div className="space-y-6">
+            <BasketOptimizer />
+            <StoreComparison />
+          </div>
+        )}
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
+      <footer className="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>ShopPilot AI — Autonomous Weekly Grocery Shopping Agent</span>
-          <span>Built for hackathon demonstration with simulated store adapters & PayPal sandbox.</span>
+          <span>College Hackathon Prototype</span>
         </div>
       </footer>
 

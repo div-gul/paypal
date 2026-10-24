@@ -80,23 +80,20 @@ export async function generateRestockRecommendations(
     // Case 1: Out of stock across all stores
     if (!selectedProduct) {
       outcome = 'BLOCKED';
-      reasoning = `Your ${item.name} requires restocking, but no acceptable in-stock product was found across Blinkit, Zepto, or Instamart${
-        !item.allowSubstitutions ? ' (substitutions are currently disallowed)' : ''
-      }. Restocking is blocked until inventory refreshes.`;
+      reasoning = `Out of stock across all stores${!item.allowSubstitutions ? ' (substitutions disallowed)' : ''}.`;
     }
     // Case 2: Immediate stockout right now (quantity = 0)
     else if (item.currentQuantity <= 0) {
       isUrgent = true;
 
-      // Check if substitution needs approval
       if (!selectedProduct.isExactBrandMatch && item.requireApprovalForBrandChange) {
         outcome = 'ASK_FOR_APPROVAL';
         requiresApproval = true;
-        approvalReason = `Brand substitution required: Preferred brand "${item.preferredBrand}" unavailable; proposing "${selectedProduct.brand}" at ${formatPaise(selectedProduct.pricePaise)}.`;
-        reasoning = `Your ${item.name} is completely out of stock (${item.stockoutDaysCount > 0 ? `empty for ${item.stockoutDaysCount} days` : '0 left'}). Proposed substitute "${selectedProduct.brand}" requires your approval.`;
+        approvalReason = `Brand substitution: "${selectedProduct.brand}".`;
+        reasoning = `Depleted (0 left). Proposed substitute "${selectedProduct.brand}" requires approval.`;
       } else {
         outcome = 'RESTOCK_NOW';
-        reasoning = `Your ${item.name} is completely depleted (0 ${item.unit} remaining). Immediate emergency restock is recommended rather than waiting ${daysUntilNextRun} days for the weekly run.`;
+        reasoning = `Depleted (0 left). Immediate emergency restock.`;
       }
     }
     // Case 3: Will run out BEFORE the next weekly shopping run
@@ -108,20 +105,20 @@ export async function generateRestockRecommendations(
       if (needsBrandApproval) {
         outcome = 'ASK_FOR_APPROVAL';
         requiresApproval = true;
-        approvalReason = `Proposed alternative brand "${selectedProduct.brand}" to replace preferred "${item.preferredBrand}".`;
-        reasoning = `Your ${item.name} has only ${item.currentQuantity} ${item.unit} remaining and is projected to run out in ${daysRemaining} days (before your next shopping run in ${daysUntilNextRun} days). Substitute brand requires your confirmation.`;
+        approvalReason = `Brand substitution: "${selectedProduct.brand}".`;
+        reasoning = `${item.name} will run out in ${daysRemaining}d (before run in ${daysUntilNextRun}d). Substitute brand requires approval.`;
       } else if (config.emergencyRestockPreference === 'ask_approval') {
         outcome = 'ASK_FOR_APPROVAL';
         requiresApproval = true;
-        approvalReason = `Early restock requested: Runs out in ${daysRemaining} days (next cycle is ${daysUntilNextRun} days away). Separate order incurs delivery fees.`;
-        reasoning = `Your ${item.name} is expected to run out in ${daysRemaining} days, before your next scheduled shopping run in ${daysUntilNextRun} days. An urgent standalone order incurs delivery fees; requesting approval per your emergency restock policy.`;
+        approvalReason = `Incurs separate delivery fee.`;
+        reasoning = `${item.name} will run out in ${daysRemaining}d (before run in ${daysUntilNextRun}d). Standalone order incurs delivery fee.`;
       } else if (config.emergencyRestockPreference === 'alert_only') {
         outcome = 'WAIT_UNTIL_NEXT_CYCLE';
-        reasoning = `Your ${item.name} will run out in ${daysRemaining} days (before the next shopping run in ${daysUntilNextRun} days). Flagged per policy (Alert Only: no automatic off-cycle order created).`;
+        reasoning = `${item.name} will run out in ${daysRemaining}d. Alert only per policy.`;
       } else {
         // Auto-order emergency
         outcome = 'RESTOCK_NOW';
-        reasoning = `Your ${item.name} is expected to run out in ${daysRemaining} days, before your next scheduled shopping run in ${daysUntilNextRun} days. An urgent early purchase is scheduled.`;
+        reasoning = `${item.name} will run out in ${daysRemaining}d (before run in ${daysUntilNextRun}d). Urgent restock scheduled.`;
       }
     }
     // Case 4: Stock will last until next run, but will be at or below minimum threshold
@@ -135,26 +132,26 @@ export async function generateRestockRecommendations(
       ) {
         outcome = 'ASK_FOR_APPROVAL';
         requiresApproval = true;
-        approvalReason = `Weekly budget limit of ${formatPaise(config.perCycleBudgetPaise)} exceeded by adding this item.`;
-        reasoning = `Your ${item.name} safely lasts until your scheduled run in ${daysUntilNextRun} days, but adding it will exceed your configured cycle budget (${formatPaise(config.perCycleBudgetPaise)}).`;
+        approvalReason = `Exceeds cycle budget cap of ${formatPaise(config.perCycleBudgetPaise)}.`;
+        reasoning = `Budget cap reached. Approval required.`;
       } else if (!selectedProduct.isExactBrandMatch && item.requireApprovalForBrandChange) {
         outcome = 'ASK_FOR_APPROVAL';
         requiresApproval = true;
-        approvalReason = `Proposed alternative brand "${selectedProduct.brand}" in weekly basket requires confirmation.`;
-        reasoning = `Your ${item.name} will reach safety threshold (${item.minStockThreshold} ${item.unit}) by next run. Proposing substitute brand "${selectedProduct.brand}" for the weekly basket.`;
+        approvalReason = `Substitute brand "${selectedProduct.brand}".`;
+        reasoning = `Low by next run. Substitute brand needs approval.`;
       } else {
         outcome = 'INCLUDE_IN_WEEKLY_BASKET';
         accumulatedBasketCostPaise += estimatedItemCostPaise;
-        const daysLeftStr = daysRemaining !== null ? `lasts ~${daysRemaining} days` : 'safe';
-        reasoning = `Your ${item.name} has ${item.currentQuantity} ${item.unit} remaining (${daysLeftStr}), safely lasting until your shopping run in ${daysUntilNextRun} days. Restocking is bundled into the weekly basket to eliminate standalone delivery fees.`;
+        const daysLeftStr = daysRemaining !== null ? `lasts ~${daysRemaining}d` : 'safe';
+        reasoning = `${item.name} ${daysLeftStr}, safe until run in ${daysUntilNextRun}d. Bundled into weekly basket.`;
       }
     }
     // Case 5: Plenty of stock remains, safely exceeding min threshold even after the run
     else {
       outcome = 'WAIT_UNTIL_NEXT_CYCLE';
       isUrgent = false;
-      const daysStr = daysRemaining !== null ? `${daysRemaining} days` : 'indefinitely';
-      reasoning = `Your ${item.name} is expected to last another ${daysStr} (projected ${projectedStockAtNextRun} ${item.unit} remaining at next run). Since your next shopping run is in ${daysUntilNextRun} days, there is no need to purchase it today.`;
+      const daysStr = daysRemaining !== null ? `~${daysRemaining}d` : 'safe';
+      reasoning = `${item.name} stock safe for ${daysStr}. Next run in ${daysUntilNextRun}d.`;
     }
 
     recommendations.push({

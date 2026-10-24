@@ -2,7 +2,7 @@ import React from 'react';
 import { useShopPilot } from '../context/ShopPilotContext';
 import { STORE_DEFINITIONS, MOCK_STORE_CATALOG } from '../adapters/mockStoreData';
 import { formatPaise } from '../services/currency';
-import { Store, AlertCircle, Info, Tag } from 'lucide-react';
+import { Store, Info, Tag } from 'lucide-react';
 import { StoreId } from '../types';
 
 export const StoreComparison: React.FC = () => {
@@ -17,36 +17,20 @@ export const StoreComparison: React.FC = () => {
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
               <Store className="w-5 h-5 text-amber-600" />
-              Grocery Store Adapter Catalog & Fee Matrix
+              Store Catalogs & Fee Comparison
             </h2>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
               Mock Store Adapters
             </span>
           </div>
-          <p className="text-xs text-slate-500">
-            Compare fee structures and catalog pricing across Blinkit, Zepto, and Swiggy Instamart mock adapters.
-          </p>
         </div>
 
         <button
           onClick={() => setShowDemoInfoModal(true)}
           className="text-xs font-semibold text-brand-700 hover:text-brand-800 flex items-center gap-1 cursor-pointer"
         >
-          <Info className="w-3.5 h-3.5" /> View Integration Boundaries
+          <Info className="w-3.5 h-3.5" /> Integration Boundaries
         </button>
-      </div>
-
-      {/* Demo Disclaimer */}
-      <div className="bg-amber-50/60 border border-amber-200 rounded-xl p-3 flex items-center justify-between gap-2 text-xs text-amber-900">
-        <div className="flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-          <span>
-            <strong>Simulated Store Data Notice:</strong> Demo mode — simulated store prices and availability. No real grocery platform APIs are queried.
-          </span>
-        </div>
-        <span className="text-[10px] font-mono uppercase bg-amber-200/80 px-2 py-0.5 rounded font-bold">
-          Data Mode: Mock
-        </span>
       </div>
 
       {/* Store Fee Specs Cards */}
