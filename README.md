@@ -50,6 +50,9 @@ ShopPilot AI solves this by tracking estimated household burn rates, forecasting
 
 ### Commands
 ```bash
+# Navigate to the frontend
+cd frontend
+
 # Install dependencies
 npm install
 
