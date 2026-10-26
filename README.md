@@ -1,95 +1,158 @@
-# ShopPilot AI — Autonomous Weekly Grocery Shopping Agent
+# ShopPilot AI — Autonomous Grocery Restocking & Multi-Store Basket Optimizer
 
-ShopPilot AI is a college hackathon prototype demonstrating an autonomous grocery agent that predicts household depletion, schedules weekly restocking, and optimizes final multi-store basket costs by accounting for independent delivery fees.
+ShopPilot AI is an autonomous grocery restocking agent developed for the PayPal AI Hackathon. It forecasts household grocery depletion, schedules weekly restocking to eliminate emergency order delivery fees, optimizes multi-store baskets with fee-aware integer-paise arithmetic, and executes policy-compliant checkout via PayPal Sandbox.
 
----
-
-## 1. Project Overview
-Most households suffer from "pantry blindness", making frequent emergency quick-commerce orders that multiply delivery and handling fees. Furthermore, picking the cheapest individual item across multiple apps often backfires when split delivery charges exceed item-level savings.
-
-ShopPilot AI solves this by tracking estimated household burn rates, forecasting when items will run out, deferring safe items to a scheduled weekly run to save fees, and optimizing multi-store baskets with exact integer-paise fee calculations.
+> **CRITICAL SANDBOX NOTICE**: All payment transactions are strictly executed in **PayPal Sandbox mode** (`PAYPAL_MODE=mock|sandbox`) using test sandbox credentials. **No real money moves, and no live credit/debit cards are charged.**
 
 ---
 
-## 2. Key Features
-- **Consumption-Aware Pantry**: Tracks household inventory with user-defined burn rates, calculating estimated days remaining ($ \text{Stock} / \text{Daily Burn} $).
-- **Weekly Restocking Scheduler**: Compares inventory against the next scheduled run date; defers safe items, bundles low items, and flags urgent runouts.
-- **Delivery-Fee-Aware Basket Optimizer**: Evaluates 4 purchasing strategies (Lowest Price Split, Single-Store Consolidation, Smart Split, Defer Non-Urgent) with independent per-store fees.
-- **Final Basket Itemization**: Provides a detailed, transparent breakdown of all products, quantities, prices, and store fulfillments in the chosen basket.
-- **Policy & Approval Rules**: Enforces budget limits and requires user sign-off before brand substitutions or emergency off-cycle orders.
-- **Demonstration Time Machine**: Fast-forwards time by 1, 3, or 7 days to simulate real-world inventory depletion and stockouts.
-- **Simulated PayPal Checkout**: Authenticates a sandbox transaction, generates order receipts, and automatically replenishes pantry inventory.
+## 1. Monorepo Architecture
+
+```
+paypal/
+├── frontend/             # React 19 + TypeScript + Vite + Tailwind CSS
+│   ├── src/components/   # UI components (Pantry, Optimizer, Time Machine, Health Badge)
+│   ├── src/context/      # React State Provider with localStorage fallback & backend proxy
+│   └── vite.config.ts    # Proxies /api -> http://localhost:3001
+├── backend/              # Node.js + Express + TypeScript + SQLite (better-sqlite3)
+│   ├── src/db/           # SQLite connection, WAL mode, schema migrations & idempotent seeds
+│   ├── src/repositories/ # 10 user-scoped repositories (users, pantry, policies, runs, etc.)
+│   ├── src/services/     # Three-tier business logic (Pantry, Policy, Run, Quote, Payment, AI)
+│   ├── src/routes/       # Zod-validated HTTP endpoints (no direct DB logic)
+│   └── src/adapters/     # Channel3 API adapter with fallback to mock catalog
+├── shared/               # Pure business logic shared across frontend and backend
+│   ├── types/            # Canonical domain types (PantryItem, StoreProduct, BasketStrategy)
+│   ├── services/         # Consumption engine, restock scheduler, basket optimizer, currency
+│   ├── adapters/         # Store adapter interfaces and fee calculation logic
+│   └── policy.ts         # Deterministic policy engine (spending caps, brand rules, blocked categories)
+└── package.json          # Monorepo root scripts (concurrent dev, unified test & build)
+```
 
 ---
 
-## 3. How It Works
-1. **Track Pantry**: User enters household items, preferred brands, current stock, and daily consumption rates.
-2. **Forecast Depletion**: System continuously calculates days remaining and projected stock at the next scheduled shopping date.
-3. **Autonomous Analysis**: Items running out before the run become urgent; items lasting safely are deferred to avoid standalone delivery fees.
-4. **Optimize Basket**: Adapter engine gathers store quotes (Blinkit, Zepto, Instamart) and computes independent delivery, handling, and minimum-order fees.
-5. **Review & Approve**: User approves brand changes or emergency orders, or manually adds/removes items from the basket.
-6. **Simulated Checkout**: PayPal sandbox payment is simulated, generating a transaction receipt and replenishing pantry levels.
-7. **Audit Trail**: Every decision, approval, and order is recorded into an immutable activity timeline.
-
----
-
-## 4. Tech Stack
-- **Frontend Framework**: React 19, TypeScript 5.7
-- **Styling**: Tailwind CSS 3.4, Lucide React Icons
-- **Build & Dev Tool**: Vite 6.2
-- **Testing**: Node 24 native ESM runner (`--experimental-strip-types`) with Vite SSR test bundle
-- **Persistence**: Browser `localStorage` API
-
----
-
-## 5. Getting Started
+## 2. Quick Start (Single Command)
 
 ### Prerequisites
-- Node.js `v20.x` or `v24.x`
-- npm `v10.x` or higher
+- **Node.js**: `v20.x` or `v22.x`
+- **npm**: `v10.x` or higher
 
-### Commands
+### 1. Setup Environment
 ```bash
-# Navigate to the frontend
-cd frontend
+# Copy example environment variables
+cp .env.example .env
+```
 
-# Install dependencies
+### 2. Install Dependencies
+```bash
 npm install
+npm --prefix backend install
+npm --prefix frontend install
+```
 
-# Start local development server (http://localhost:5173)
+### 3. Run Dev Server (Frontend + Backend)
+```bash
 npm run dev
+```
+- **Backend API**: [http://localhost:3001](http://localhost:3001)
+- **Frontend App**: [http://localhost:5173](http://localhost:5173) (or dynamic Vite port)
 
-# Run automated test suite
+### 4. Run Test Suites
+```bash
+# Run all tests across backend (Vitest) and frontend (autonomous suite)
 npm test
 
-# Build production bundle
+# Build production bundles for both backend and frontend
 npm run build
 ```
 
 ---
 
-## 6. Demo Guide
-1. **Examine the Pantry**: Note preloaded items like Milk (lasts 1.2 days at 0.5L/day) and Coffee (lasts 17.5 days).
-2. **Review Restock Decisions**: Milk is flagged as **URGENT** (runs out before the shopping run in 3 days), while Coffee is **DEFERRED**.
-3. **Compare Optimizer Strategies**: Strategy B (Single-Store) is recommended because Strategy A splits items across stores, multiplying delivery fees.
-4. **Inspect Final Basket Items**: Review the dedicated itemized table showing store fulfillments, unit prices, and quantities.
-5. **Advance Time**: Click **`+1 Day`** twice on the Time Machine. Watch Milk deplete to 0, triggering an automatic stockout alert.
-6. **Approve & Checkout**: Click **"Approve & Add to Basket"** for urgent items, click **"Checkout Proposed Basket"**, and authorize via the PayPal Sandbox modal to replenish stock.
+## 3. Environment Variables Reference
+
+All secrets reside exclusively on the backend. The frontend consumes the backend via Vite's proxy `/api`.
+
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `3001` | Express backend listening port |
+| `DATABASE_PATH` | `./data/shoppilot.db` | SQLite database file location (`:memory:` supported for tests) |
+| `PAYPAL_MODE` | `mock` | `mock` (simulated in-memory) or `sandbox` (PayPal sandbox API) |
+| `PAYPAL_CLIENT_ID` | `sandbox_client_id_placeholder` | PayPal Developer Sandbox App Client ID |
+| `PAYPAL_CLIENT_SECRET` | `sandbox_secret_placeholder` | PayPal Developer Sandbox App Secret |
+| `PAYPAL_WEBHOOK_ID` | `sandbox_webhook_id_placeholder` | PayPal Webhook verification ID |
+| `QUOTE_SOURCE` | `mock` | `mock` (static catalog), `channel3` (live API), or `hybrid` |
+| `CHANNEL3_API_KEY` | `""` | Optional API key for live grocery pricing from Channel3 |
+| `LLM_API_KEY` | `""` | Optional API key for external LLM parsing (falls back to deterministic NLP) |
 
 ---
 
-## 7. Current Limitations
-- **Simulated Grocery Data**: Store prices, catalogs, and availability for Blinkit, Zepto, and Swiggy Instamart are mock datasets behind `IGroceryStoreAdapter`. No live scraping or private quick-commerce APIs are used.
-- **Simulated Checkout**: The PayPal integration runs in a frontend simulation mode; no real money is processed and no live orders are placed.
-- **No Production Backend**: Operates as a client-side prototype using `localStorage`. There is no live PostgreSQL database, user authentication, or headless server cron.
-- **No Physical Sensing**: Inventory updates depend on user-configured estimates, not smart hardware or scales.
+## 4. Real vs. Simulated Transparency Table
+
+To maintain complete integrity for hackathon judges, here is the transparent breakdown:
+
+| Capability | Real | Simulated / Mocked | Explanation |
+|---|---|---|---|
+| **PayPal Checkout** | **Real** (Sandbox Mode) | — | Generates real PayPal order IDs, verifies capture state, handles raw webhook events. Sandbox accounts only; zero real money. |
+| **Store Pricing & Quotes** | **Real** (Channel3) | **Mock** (Local Catalog) | When `QUOTE_SOURCE=channel3` and an API key is provided, queries live quick-commerce items with USD-to-INR conversion (8,500 paise/$). Gracefully falls back to mock quotes on network timeout. |
+| **Integer-Paise Money Math** | **Real** | — | Floating point arithmetic is forbidden. All monetary math uses integer paise (`₹1.00 = 100 paise`), preventing roundoff leakage. |
+| **Depletion & Burning** | **Real** (Deterministic) | — | Mathematical consumption formulas ($ \text{Stock} / \text{Burn} $) accurately project stockout days. |
+| **Multi-Store Basket Optimization** | **Real** | — | Dynamically compares 4 basket strategies accounting for independent delivery, handling, and minimum-order fees. |
+| **AI Policy Parsing & Substitution** | **Real** (NLP Engine) | — | Server-side parser extracts budget caps, shopping days, and blocked categories. Substitutions are strictly validated against server candidate lists. |
+| **Store Fulfillment / Couriers** | — | **Simulated** | We do not dispatch real delivery riders or place live grocery orders with Blinkit/Zepto. |
 
 ---
 
-## 8. Future Roadmap
-- [ ] Build the backend and database.
-- [ ] Add secure user accounts and server-side policy enforcement.
-- [ ] Investigate authorized access to real grocery catalog, pricing, and availability data.
-- [ ] Implement background scheduling and notifications.
-- [ ] Integrate supported payment and ordering workflows.
-- [ ] Test and deploy the complete system.
+## 5. API Endpoint Reference
+
+All endpoints are scoped to `demo-user` via auth middleware and return errors in standard `{ error: { code, message, details? } }` format.
+
+### Health & State
+- `GET /api/health` — Backend health, service mode, active user ID.
+- `GET /api/state` — Complete hydrated state snapshot (clock, pantry, policy, latest run, stats).
+
+### Pantry Management
+- `GET /api/pantry` — List all user pantry items.
+- `POST /api/pantry` — Add new pantry item with burn rate and thresholds.
+- `GET /api/pantry/:id` — Fetch single pantry item.
+- `PUT /api/pantry/:id` — Update item details, target stock, or substitution preferences.
+- `DELETE /api/pantry/:id` — Remove item from pantry.
+- `POST /api/pantry/:id/adjust` — Adjust stock quantity (e.g. manual restock or manual consume).
+
+### Restock Policy & Time Machine
+- `GET /api/policy` — Get weekly scheduler configuration and spending caps.
+- `PUT /api/policy` — Update budget limits, per-order caps, preferred restock day, and blocked categories.
+- `POST /api/time/advance` — Fast-forward simulation clock by $N$ days, apply consumption depletion, and update stockout counters.
+
+### Restocking Runs & Basket Optimization
+- `POST /api/runs/plan` — Generate restock run, evaluate 4 basket strategies, and enforce policy rules (`auto_approved`, `needs_approval`, or `blocked`).
+- `GET /api/runs/:id` — Retrieve planned run details with line items.
+- `POST /api/runs/:id/approve` — User approves a run flagged with `needs_approval`.
+- `POST /api/runs/:id/reject` — User rejects a planned run.
+
+### Checkout & PayPal Integration
+- `POST /api/checkout/create-order` — Verify policy approval on server; initiate PayPal sandbox order.
+- `POST /api/checkout/capture` — Atomic capture transaction: updates run to `paid`, creates settled receipt, restocks pantry items, and logs audit trail. Idempotent on repeat.
+- `POST /api/webhooks/paypal` — Processes incoming PayPal webhook events with raw-body signature validation and idempotent tracking.
+
+### AI Endpoints (Server-Side, Validated)
+- `POST /api/ai/parse-policy` — Translates natural language into a proposed policy modification (proposal only; never auto-saved without user confirmation).
+- `POST /api/ai/substitute` — Selects closest in-stock alternative strictly from server-provided candidates; rejects hallucinations.
+
+---
+
+## 6. Testing & Quality Verification
+
+```bash
+# 1. Backend Vitest Suite (29 automated tests)
+npm --prefix backend test
+
+# 2. Frontend Autonomous Verification Suite (5 verification stages)
+npm --prefix frontend test
+
+# 3. Production Build Validation (TypeScript + Vite SSR + Vite Client)
+npm run build
+```
+
+---
+
+## 7. License & Hackathon Submission
+Developed for the **PayPal AI Hackathon 2026**. Licensed under the MIT License.

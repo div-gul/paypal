@@ -9,7 +9,7 @@ import {
   RestockRecommendation,
   SimulationState,
   WeeklySchedulerConfig,
-} from '../types';
+} from '@shared/types';
 import {
   DEFAULT_PANTRY_ITEMS,
   DEFAULT_SCHEDULER_CONFIG,
@@ -17,10 +17,10 @@ import {
   DEFAULT_ACTIVITY_LOG,
   StorageService,
 } from '../services/storageService';
-import { advancePantryState } from '../services/consumptionEngine';
-import { generateRestockRecommendations } from '../services/restockScheduler';
-import { optimizeBaskets } from '../services/basketOptimizer';
-import { formatPaise } from '../services/currency';
+import { advancePantryState } from '@shared/services/consumptionEngine';
+import { generateRestockRecommendations } from '@shared/services/restockScheduler';
+import { optimizeBaskets } from '@shared/services/basketOptimizer';
+import { formatPaise } from '@shared/services/currency';
 
 interface CheckoutModalDetails {
   isOpen: boolean;

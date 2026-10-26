@@ -10,6 +10,7 @@ import { BasketOptimizer } from './components/BasketOptimizer';
 import { StoreComparison } from './components/StoreComparison';
 import { CheckoutModal } from './components/CheckoutModal';
 import { IntegrationInfoModal } from './components/IntegrationInfoModal';
+import { BackendHealthBadge } from './components/BackendHealthBadge';
 import {
   Layers,
   Sparkles,
@@ -112,9 +113,16 @@ const MainLayout: React.FC = () => {
 
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>ShopPilot AI — Autonomous Weekly Grocery Shopping Agent</span>
-          <span>College Hackathon Prototype</span>
+        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4">
+            <span className="font-semibold text-slate-700">ShopPilot AI</span>
+            <span className="hidden sm:inline text-slate-300">•</span>
+            <span>Autonomous Restocking Agent</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <BackendHealthBadge />
+            <span className="text-[11px] text-slate-400">PayPal Hackathon</span>
+          </div>
         </div>
       </footer>
 

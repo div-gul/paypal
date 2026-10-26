@@ -26,3 +26,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Stale legacy server
+server/
+
+# SQLite databases
+backend/data/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
