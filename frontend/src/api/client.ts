@@ -54,8 +54,10 @@ export interface PlanRunResponse {
 
 export interface QuotesResponse {
   mode: string;
+  description?: string;
   totalQuotes: number;
   quotes: StoreProduct[];
+  webQuotes?: StoreProduct[];
 }
 
 export interface AiPolicyProposal {

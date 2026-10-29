@@ -92,7 +92,7 @@ To maintain complete integrity for hackathon judges, here is the transparent bre
 | Capability | Real | Simulated / Mocked | Explanation |
 |---|---|---|---|
 | **PayPal Checkout** | **Real** (Sandbox Mode) | — | Generates real PayPal order IDs, verifies capture state, handles raw webhook events. Sandbox accounts only; zero real money. |
-| **Store Pricing & Quotes** | **Real** (Channel3) | **Mock** (Local Catalog) | When `QUOTE_SOURCE=channel3` and an API key is provided, queries live quick-commerce items with USD-to-INR conversion (8,500 paise/$). Gracefully falls back to mock quotes on network timeout. |
+| **Store Pricing & Quotes** | **Real** (Channel3 Web Check) | **Mock** (Local Quick-Commerce Catalog) | Quick-commerce grocery quotes (Blinkit, Zepto, Instamart) power the autonomous basket optimizer with real fee mechanics. Channel3 provides real web product price checks for non-grocery items (under storeId `web`, separated into `webQuotes`), preventing irrelevant web listings from polluting the grocery optimizer. |
 | **Integer-Paise Money Math** | **Real** | — | Floating point arithmetic is forbidden. All monetary math uses integer paise (`₹1.00 = 100 paise`), preventing roundoff leakage. |
 | **Depletion & Burning** | **Real** (Deterministic) | — | Mathematical consumption formulas ($ \text{Stock} / \text{Burn} $) accurately project stockout days. |
 | **Multi-Store Basket Optimization** | **Real** | — | Dynamically compares 4 basket strategies accounting for independent delivery, handling, and minimum-order fees. |

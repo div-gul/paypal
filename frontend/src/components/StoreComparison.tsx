@@ -3,21 +3,34 @@ import { useShopPilot } from '../context/ShopPilotContext';
 import { STORE_DEFINITIONS, MOCK_STORE_CATALOG } from '../adapters/mockStoreData';
 import { formatPaise } from '../services/currency';
 import { Store, Info, Tag, Radio } from 'lucide-react';
-import { StoreId, StoreProduct } from '../types';
+import { StoreProduct, isNonGroceryItem } from '../types';
 import { api } from '../api/client';
 
 export const StoreComparison: React.FC = () => {
   const { pantryItems, setShowDemoInfoModal } = useShopPilot();
   const [catalogItems, setCatalogItems] = useState<StoreProduct[]>(MOCK_STORE_CATALOG);
+  const [webQuotes, setWebQuotes] = useState<StoreProduct[]>([]);
   const [quoteMode, setQuoteMode] = useState<string>('mock');
-  const stores: StoreId[] = ['blinkit', 'zepto', 'instamart'];
+  const stores: ('blinkit' | 'zepto' | 'instamart')[] = ['blinkit', 'zepto', 'instamart'];
+
+  // Restrict web panel strictly to non-grocery items (e.g. detergent, cleaning supplies)
+  // Completely hides web panel for edible grocery/food items
+  const nonGroceryWebQuotes = webQuotes.filter(wq => {
+    const matchedPantryItem = pantryItems.find(p => p.id === wq.pantryItemId);
+    return matchedPantryItem ? isNonGroceryItem(matchedPantryItem) : false;
+  });
 
   useEffect(() => {
     let isMounted = true;
     api.getQuotes()
       .then(res => {
-        if (isMounted && res.quotes && res.quotes.length > 0) {
-          setCatalogItems(res.quotes);
+        if (isMounted) {
+          if (res.quotes && res.quotes.length > 0) {
+            setCatalogItems(res.quotes);
+          }
+          if (res.webQuotes) {
+            setWebQuotes(res.webQuotes);
+          }
           if (res.mode) setQuoteMode(res.mode);
         }
       })
@@ -43,10 +56,16 @@ export const StoreComparison: React.FC = () => {
               className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
                 quoteMode === 'channel3'
                   ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                  : quoteMode === 'hybrid'
+                  ? 'bg-blue-100 text-blue-900 border-blue-300'
                   : 'bg-amber-100 text-amber-900 border-amber-300'
               }`}
             >
-              {quoteMode === 'channel3' ? 'Live Channel3 Pricing' : 'Mock Store Adapters'}
+              {quoteMode === 'channel3'
+                ? 'Live Channel3 Pricing'
+                : quoteMode === 'hybrid'
+                ? 'Hybrid: Live Channel3 + Local Stores'
+                : 'Mock Store Adapters'}
             </span>
           </div>
         </div>
@@ -199,6 +218,51 @@ export const StoreComparison: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      {/* Channel3 Web Product Price Checks (Strictly non-grocery household items) */}
+      {nonGroceryWebQuotes.length > 0 && (
+        <div className="pt-2 border-t border-slate-100 space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <Radio className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
+              Real Web Product Price Checks (Channel3) &mdash; Household Supplies
+            </h3>
+            <span className="text-[10px] text-slate-500">
+              Web price benchmark for non-grocery essentials (e.g. detergents, cleaners); hidden for food.
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+            {nonGroceryWebQuotes.map(wq => (
+              <div key={wq.id} className="p-2.5 rounded-lg border border-slate-200 bg-slate-50/50 flex flex-col justify-between text-xs">
+                <div>
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <span className="text-[10px] font-bold text-blue-800 bg-blue-100 px-1.5 py-0.2 rounded">
+                      {wq.retailer || 'Other retailers'}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {wq.currency || 'USD'}
+                    </span>
+                  </div>
+                  <div className="font-semibold text-slate-900 truncate" title={wq.name}>
+                    {wq.name}
+                  </div>
+                  <div className="text-[10px] text-slate-500">
+                    Brand: {wq.brand || 'Unbranded'}
+                  </div>
+                </div>
+
+                <div className="mt-2 pt-1 border-t border-slate-200 flex items-center justify-between font-mono">
+                  <span className="text-[10px] text-slate-500">Web Price:</span>
+                  <span className="font-bold text-slate-900">
+                    {formatPaise(wq.pricePaise)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

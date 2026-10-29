@@ -2,9 +2,16 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { z } from 'zod';
 
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 // Load environment variables from repository root .env or local .env
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
-dotenv.config(); // fallback to current working directory .env
+dotenv.config();
 
 const ConfigSchema = z.object({
   PORT: z.coerce.number().default(3001),

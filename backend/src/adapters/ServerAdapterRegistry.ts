@@ -2,7 +2,7 @@ import { IGroceryStoreAdapter } from '@shared/adapters/types';
 import { BlinkitAdapter } from '@shared/adapters/BlinkitAdapter';
 import { ZeptoAdapter } from '@shared/adapters/ZeptoAdapter';
 import { InstamartAdapter } from '@shared/adapters/InstamartAdapter';
-import { PantryItem, StoreId, StoreProduct } from '@shared/types';
+import { PantryItem, StoreId, StoreProduct, isNonGroceryItem } from '@shared/types';
 import { Channel3Adapter } from './Channel3Adapter.js';
 import { config } from '../config.js';
 
@@ -44,59 +44,81 @@ export class ServerAdapterRegistry {
   }
 
   async getQuotesForPantryItem(item: PantryItem, userId: string = 'demo-user'): Promise<StoreProduct[]> {
-    const cacheKey = `item:${item.id}:${item.preferredBrand}:${this.quoteSource}`;
-    const cached = this.getFromCache(cacheKey);
-    if (cached) return cached;
-
-    let quotes: StoreProduct[] = [];
-
-    if (this.quoteSource === 'channel3' && this.channel3Adapter) {
-      try {
-        const prod = await this.channel3Adapter.getProductForPantryItem(item, userId);
-        if (prod) {
-          quotes = [{ ...prod, pantryItemId: item.id, source: 'channel3' }];
-        } else {
-          console.warn(`[QuoteService] Channel3 returned no results for "${item.name}". Falling back to mock.`);
-          quotes = await this.getMockQuotes(item);
-        }
-      } catch (err) {
-        console.warn(`[QuoteService] Channel3 error for "${item.name}":`, err instanceof Error ? err.message : err);
-        console.warn(`[QuoteService] Falling back to mock adapter.`);
-        quotes = await this.getMockQuotes(item);
-      }
-    } else if (this.quoteSource === 'hybrid' && this.channel3Adapter) {
-      try {
-        const prod = await this.channel3Adapter.getProductForPantryItem(item, userId);
-        if (prod) {
-          quotes.push({ ...prod, pantryItemId: item.id, source: 'channel3' });
-        }
-      } catch (err) {
-        console.warn(`[QuoteService] Channel3 hybrid query error for "${item.name}":`, err instanceof Error ? err.message : err);
-      }
-
-      // Add mock quotes for comprehensive multi-store comparison
-      const mockQuotes = await this.getMockQuotes(item);
-      for (const mq of mockQuotes) {
-        if (!quotes.some(q => q.storeId === mq.storeId)) {
-          quotes.push(mq);
-        }
-      }
-    } else {
-      // Mock mode default
-      quotes = await this.getMockQuotes(item);
-    }
-
-    this.setCache(cacheKey, quotes);
+    const { quotes } = await this.getQuotesWithWebSeparation(item, userId);
     return quotes;
   }
 
-  async getAllQuotes(pantryItems: PantryItem[], userId: string = 'demo-user'): Promise<StoreProduct[]> {
-    const results: StoreProduct[] = [];
-    for (const item of pantryItems) {
-      const itemQuotes = await this.getQuotesForPantryItem(item, userId);
-      results.push(...itemQuotes);
+  async getQuotesWithWebSeparation(
+    item: PantryItem,
+    userId: string = 'demo-user'
+  ): Promise<{ quotes: StoreProduct[]; webQuotes: StoreProduct[] }> {
+    const cacheKey = `item-v2:${item.id}:${item.preferredBrand}:${this.quoteSource}`;
+    const cached = this.cache.get(cacheKey);
+    if (cached && Date.now() <= cached.expiresAt) {
+      const q = cached.data.filter(p => p.storeId !== 'web');
+      const w = cached.data.filter(p => p.storeId === 'web');
+      return { quotes: q, webQuotes: w };
     }
-    return results;
+
+    let quotes: StoreProduct[] = [];
+    let webQuotes: StoreProduct[] = [];
+
+    // 1. Get mock quick-commerce quotes
+    const mockQuotes = await this.getMockQuotes(item);
+
+    // 2. Query Channel3 if configured (strictly for non-grocery items: detergent, cleaning supplies, etc.)
+    if (isNonGroceryItem(item) && (this.quoteSource === 'channel3' || this.quoteSource === 'hybrid') && this.channel3Adapter) {
+      try {
+        const prod = await this.channel3Adapter.getProductForPantryItem(item, userId);
+        if (prod) {
+          const webProduct: StoreProduct = {
+            ...prod,
+            pantryItemId: item.id,
+            storeId: 'web',
+            source: 'channel3',
+          };
+          webQuotes.push(webProduct);
+        }
+      } catch (err) {
+        console.warn(`[QuoteService] Channel3 query error for "${item.name}":`, err instanceof Error ? err.message : err);
+      }
+    }
+
+    if (this.quoteSource === 'channel3') {
+      // In channel3-only mode, if a valid web quote exists it is the web quote; mock quotes used only as fallback
+      if (webQuotes.length > 0) {
+        quotes = [...mockQuotes];
+      } else {
+        quotes = [...mockQuotes];
+      }
+    } else {
+      // Hybrid or mock mode: quick-commerce stores are strictly mock, web quotes are separate
+      quotes = [...mockQuotes];
+    }
+
+    // Cache all combined
+    this.cache.set(cacheKey, {
+      data: [...quotes, ...webQuotes],
+      expiresAt: Date.now() + this.ttlMs,
+    });
+
+    return { quotes, webQuotes };
+  }
+
+  async getAllQuotes(
+    pantryItems: PantryItem[],
+    userId: string = 'demo-user'
+  ): Promise<{ quotes: StoreProduct[]; webQuotes: StoreProduct[] }> {
+    const allQuotes: StoreProduct[] = [];
+    const allWebQuotes: StoreProduct[] = [];
+
+    for (const item of pantryItems) {
+      const { quotes, webQuotes } = await this.getQuotesWithWebSeparation(item, userId);
+      allQuotes.push(...quotes);
+      allWebQuotes.push(...webQuotes);
+    }
+
+    return { quotes: allQuotes, webQuotes: allWebQuotes };
   }
 
   private async getMockQuotes(item: PantryItem): Promise<StoreProduct[]> {

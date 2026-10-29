@@ -19,7 +19,7 @@ describe('GET /api/health', () => {
       expect(data.user).toEqual({ id: 'demo-user' });
       expect(data.mode).toBeDefined();
       expect(data.mode.paypal).toBe('mock');
-      expect(data.mode.quotes).toBe('mock');
+      expect(['mock', 'hybrid', 'channel3']).toContain(data.mode.quotes);
     } finally {
       server.close();
     }

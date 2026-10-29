@@ -1,4 +1,5 @@
-export type StoreId = 'blinkit' | 'zepto' | 'instamart';
+export type QuickCommerceStoreId = 'blinkit' | 'zepto' | 'instamart';
+export type StoreId = QuickCommerceStoreId | 'web';
 
 export type ProductCategory = 
   | 'Dairy'
@@ -8,7 +9,50 @@ export type ProductCategory =
   | 'Pantry Staples'
   | 'Breakfast & Cereals'
   | 'Snacks'
-  | 'Personal Care';
+  | 'Personal Care'
+  | 'Household Essentials';
+
+export const FOOD_PRODUCT_CATEGORIES: ReadonlySet<string> = new Set([
+  'Dairy',
+  'Bakery & Bread',
+  'Fresh Produce',
+  'Beverages',
+  'Pantry Staples',
+  'Breakfast & Cereals',
+  'Snacks',
+]);
+
+/**
+ * Checks whether an item is a non-grocery item (detergent, cleaning supplies, personal care)
+ * rather than an edible grocery/food item.
+ */
+export function isNonGroceryItem(item: { category?: string; name?: string }): boolean {
+  if (item.category && FOOD_PRODUCT_CATEGORIES.has(item.category)) {
+    return false;
+  }
+  const lowerCat = (item.category || '').toLowerCase();
+  const lowerName = (item.name || '').toLowerCase();
+  if (
+    lowerCat.includes('care') ||
+    lowerCat.includes('household') ||
+    lowerCat.includes('cleaning') ||
+    lowerCat.includes('supplies')
+  ) {
+    return true;
+  }
+  const nonGroceryKeywords = [
+    'detergent',
+    'cleaner',
+    'cleaning',
+    'wash',
+    'bleach',
+    'soap',
+    'laundry',
+    'sponge',
+    'paper towel',
+  ];
+  return nonGroceryKeywords.some(kw => lowerName.includes(kw));
+}
 
 export type UnitOfMeasurement = 'L' | 'kg' | 'g' | 'ml' | 'packs' | 'pcs' | 'units' | 'eggs';
 
@@ -94,6 +138,8 @@ export interface StoreProduct {
   stockQuantity: number;
   isExactBrandMatch: boolean;
   source?: QuoteSource;
+  retailer?: string;
+  currency?: string;
 }
 
 export type BasketStrategyType =

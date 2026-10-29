@@ -171,7 +171,7 @@ describe('Phase 3: Core API Endpoints', () => {
     const data: any = await res.json();
     expect(data.quotes.length).toBeGreaterThan(0);
     expect(data.quotes[0].source).toBeDefined();
-  });
+  }, 20000);
 
   it('POST /api/runs/plan generates run and enforces state machine transitions', async () => {
     // 1. Plan run
