@@ -38,6 +38,8 @@ export function runMigrations(db: Database.Database): void {
       require_approval_for_brand_change INTEGER NOT NULL DEFAULT 1,
       last_restocked_date TEXT NOT NULL,
       stockout_days_count INTEGER NOT NULL DEFAULT 0,
+      quantity_step REAL NOT NULL DEFAULT 1,
+      allow_fractions INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       PRIMARY KEY (id, user_id)
@@ -78,6 +80,8 @@ export function runMigrations(db: Database.Database): void {
       discount_paise INTEGER NOT NULL DEFAULT 0,
       decision_reasons TEXT NOT NULL DEFAULT '[]',
       selected_strategy_details TEXT, -- full strategy snapshot JSON
+      all_strategies TEXT, -- all calculated strategies JSON
+      order_id TEXT,
       simulated_date TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -168,4 +172,25 @@ export function runMigrations(db: Database.Database): void {
     );
     CREATE INDEX IF NOT EXISTS idx_webhook_events_user_id ON webhook_events(user_id);
   `);
+
+  try { db.exec('ALTER TABLE runs ADD COLUMN order_id TEXT;'); } catch {}
+  try { db.exec('ALTER TABLE runs ADD COLUMN all_strategies TEXT;'); } catch {}
+  try { db.exec('CREATE INDEX IF NOT EXISTS idx_runs_order_id ON runs(order_id);'); } catch {}
+
+  try { db.exec('ALTER TABLE pantry_items ADD COLUMN quantity_step REAL;'); } catch {}
+  try { db.exec('ALTER TABLE pantry_items ADD COLUMN allow_fractions INTEGER;'); } catch {}
+  try {
+    db.exec(`
+      UPDATE pantry_items SET
+        quantity_step = CASE
+          WHEN LOWER(unit) IN ('pcs', 'packs', 'units', 'eggs', 'loaf', 'pack', 'dozen') THEN 1
+          ELSE 0.5
+        END,
+        allow_fractions = CASE
+          WHEN LOWER(unit) IN ('pcs', 'packs', 'units', 'eggs', 'loaf', 'pack', 'dozen') THEN 0
+          ELSE 1
+        END
+      WHERE quantity_step IS NULL OR allow_fractions IS NULL;
+    `);
+  } catch {}
 }

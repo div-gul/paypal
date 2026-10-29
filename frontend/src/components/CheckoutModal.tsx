@@ -10,11 +10,13 @@ import {
   ArrowRight,
   PackageCheck,
   AlertCircle,
+  AlertTriangle,
 } from 'lucide-react';
 
 export const CheckoutModal: React.FC = () => {
-  const { checkoutModal, closeCheckoutModal, confirmSimulatedPayment } = useShopPilot();
+  const { checkoutModal, closeCheckoutModal, confirmSimulatedPayment, activeRun } = useShopPilot();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   if (!checkoutModal.isOpen || !checkoutModal.strategy) {
     return null;
@@ -25,11 +27,18 @@ export const CheckoutModal: React.FC = () => {
 
   const handlePay = async () => {
     setIsProcessing(true);
-    // Simulate realistic 1.5s network roundtrip to PayPal Sandbox
-    await new Promise(resolve => setTimeout(resolve, 1200));
-    setIsProcessing(false);
-    await confirmSimulatedPayment(strategy);
+    setErrorMessage(null);
+    try {
+      await confirmSimulatedPayment(strategy);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Payment capture failed');
+    } finally {
+      setIsProcessing(false);
+    }
   };
+
+  const decisionReasons: string[] = activeRun?.decisionReasons || [];
+  const runStatus: string = activeRun?.status || 'ready';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
@@ -63,6 +72,15 @@ export const CheckoutModal: React.FC = () => {
 
         {/* Modal Content */}
         <div className="p-6 overflow-y-auto space-y-5 text-xs">
+          {errorMessage && (
+            <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 flex items-start gap-2.5 text-rose-800">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div>
+                <strong>Checkout Error:</strong> {errorMessage}
+              </div>
+            </div>
+          )}
+
           {isOrderPlaced ? (
             /* Phase 2: Order Placed & Restock Confirmed */
             <div className="space-y-4 text-center py-3">
@@ -126,8 +144,48 @@ export const CheckoutModal: React.FC = () => {
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex items-start gap-2.5 text-blue-900">
                 <AlertCircle className="w-4 h-4 text-paypal-lightBlue shrink-0 mt-0.5" />
                 <p>
-                  <strong>Payment Sandbox:</strong> Simulated authorization via PayPal credentials.
+                  <strong>Payment Sandbox:</strong> Server-side authorized transaction through PayPal Sandbox mock provider.
                 </p>
+              </div>
+
+              {/* Server Policy Check & Reasons */}
+              <div className="bg-slate-50 rounded-xl border border-slate-200 p-3.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 font-bold text-slate-800 text-xs">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Server-Side Policy Evaluation</span>
+                  </span>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
+                      runStatus === 'needs_approval'
+                        ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                        : runStatus === 'approved' || runStatus === 'ready'
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : 'bg-slate-100 text-slate-700 border border-slate-300'
+                    }`}
+                  >
+                    {runStatus.replace('_', ' ')}
+                  </span>
+                </div>
+
+                {decisionReasons.length > 0 ? (
+                  <ul className="text-[11px] text-slate-600 space-y-1 list-disc list-inside">
+                    {decisionReasons.map((reason, idx) => (
+                      <li key={idx}>{reason}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-[11px] text-slate-600">
+                    All items verified against household restock thresholds, cycle budget, and substitution policies.
+                  </p>
+                )}
+
+                {runStatus === 'needs_approval' && (
+                  <div className="flex items-center gap-1 text-[11px] text-amber-800 font-medium pt-1">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>Run has pending policy approvals. Authorizing will clear approval and capture order.</span>
+                  </div>
+                )}
               </div>
 
               {/* Strategy Details */}
@@ -193,33 +251,33 @@ export const CheckoutModal: React.FC = () => {
                 </div>
               </div>
 
-              {/* Safe Guard & Approval Validation */}
-              <div className="flex items-center gap-2 text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-[11px]">
-                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>
-                  Policy check: All items have been verified against household restock thresholds and brand substitution policies.
-                </span>
+              {/* 
+                ======================================================================
+                SLOT: Live PayPal JavaScript SDK Buttons
+                Mount <PayPalButtons createOrder={...} onApprove={...} /> here when
+                connecting live PayPal Sandbox credentials with client SDK.
+                ======================================================================
+              */}
+              <div id="paypal-button-container" className="pt-1">
+                <button
+                  onClick={handlePay}
+                  disabled={isProcessing}
+                  className="w-full py-3.5 px-4 rounded-xl bg-paypal-yellow hover:bg-yellow-400 text-slate-900 font-extrabold text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isProcessing ? (
+                    <span className="flex items-center gap-2 text-slate-900">
+                      <span className="w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></span>
+                      Authorizing Order via Backend Checkout API...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <span className="font-black italic text-paypal-blue">PayPal</span>
+                      <span>Pay {formatPaise(strategy.grandTotalPaise)} (Server Order & Capture)</span>
+                      <ArrowRight className="w-4 h-4 text-slate-900" />
+                    </span>
+                  )}
+                </button>
               </div>
-
-              {/* PayPal Sandbox Action Button */}
-              <button
-                onClick={handlePay}
-                disabled={isProcessing}
-                className="w-full py-3.5 px-4 rounded-xl bg-paypal-yellow hover:bg-yellow-400 text-slate-900 font-extrabold text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                {isProcessing ? (
-                  <span className="flex items-center gap-2 text-slate-900">
-                    <span className="w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></span>
-                    Authorizing PayPal Sandbox Transaction...
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <span className="font-black italic text-paypal-blue">PayPal</span>
-                    <span>Pay {formatPaise(strategy.grandTotalPaise)} (Sandbox)</span>
-                    <ArrowRight className="w-4 h-4 text-slate-900" />
-                  </span>
-                )}
-              </button>
             </div>
           )}
         </div>

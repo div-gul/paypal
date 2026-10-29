@@ -63,7 +63,12 @@ export const PantryManager: React.FC = () => {
 
   const openEditModal = (item: PantryItem) => {
     setEditingItem(item);
-    setFormData(item);
+    const isCountable = ['pcs', 'packs', 'units', 'eggs', 'loaf', 'pack', 'dozen'].includes(item.unit.toLowerCase());
+    setFormData({
+      ...item,
+      quantityStep: item.quantityStep !== undefined ? item.quantityStep : (isCountable ? 1 : 0.5),
+      allowFractions: item.allowFractions !== undefined ? item.allowFractions : !isCountable,
+    });
     setIsAddingNew(false);
   };
 
@@ -81,13 +86,32 @@ export const PantryManager: React.FC = () => {
       targetStock: 3,
       allowSubstitutions: true,
       requireApprovalForBrandChange: true,
+      quantityStep: 0.5,
+      allowFractions: true,
     });
     setIsAddingNew(true);
+  };
+
+  const handleUnitChange = (newUnit: UnitOfMeasurement) => {
+    const isCountable = ['pcs', 'packs', 'units', 'eggs', 'loaf', 'pack', 'dozen'].includes(newUnit.toLowerCase());
+    const step = isCountable ? 1 : 0.5;
+    const allowFractions = !isCountable;
+    setFormData(prev => ({
+      ...prev,
+      unit: newUnit,
+      quantityStep: step,
+      allowFractions,
+    }));
   };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name?.trim()) return;
+
+    const unit = (formData.unit as UnitOfMeasurement) || 'units';
+    const isCountable = ['pcs', 'packs', 'units', 'eggs', 'loaf', 'pack', 'dozen'].includes(unit.toLowerCase());
+    const quantityStep = formData.quantityStep !== undefined ? formData.quantityStep : (isCountable ? 1 : 0.5);
+    const allowFractions = formData.allowFractions !== undefined ? formData.allowFractions : !isCountable;
 
     if (isAddingNew) {
       addPantryItem({
@@ -95,13 +119,15 @@ export const PantryManager: React.FC = () => {
         category: (formData.category as ProductCategory) || 'Pantry Staples',
         preferredBrand: formData.preferredBrand?.trim() || 'Generic / Local',
         preferredPackageSize: formData.preferredPackageSize?.trim() || '1 Unit',
-        unit: (formData.unit as UnitOfMeasurement) || 'units',
+        unit,
         currentQuantity: Math.max(0, Number(formData.currentQuantity) || 0),
         averageDailyConsumption: Math.max(0, Number(formData.averageDailyConsumption) || 0),
         minStockThreshold: Math.max(0, Number(formData.minStockThreshold) || 0),
         targetStock: Math.max(1, Number(formData.targetStock) || 1),
         allowSubstitutions: !!formData.allowSubstitutions,
         requireApprovalForBrandChange: !!formData.requireApprovalForBrandChange,
+        quantityStep,
+        allowFractions,
       });
       setIsAddingNew(false);
     } else if (editingItem) {
@@ -111,13 +137,15 @@ export const PantryManager: React.FC = () => {
         category: (formData.category as ProductCategory) || editingItem.category,
         preferredBrand: formData.preferredBrand?.trim() || editingItem.preferredBrand,
         preferredPackageSize: formData.preferredPackageSize?.trim() || editingItem.preferredPackageSize,
-        unit: (formData.unit as UnitOfMeasurement) || editingItem.unit,
+        unit,
         currentQuantity: Math.max(0, Number(formData.currentQuantity) || 0),
         averageDailyConsumption: Math.max(0, Number(formData.averageDailyConsumption) || 0),
         minStockThreshold: Math.max(0, Number(formData.minStockThreshold) || 0),
         targetStock: Math.max(1, Number(formData.targetStock) || 1),
         allowSubstitutions: !!formData.allowSubstitutions,
         requireApprovalForBrandChange: !!formData.requireApprovalForBrandChange,
+        quantityStep,
+        allowFractions,
       });
       setEditingItem(null);
     }
@@ -178,8 +206,31 @@ export const PantryManager: React.FC = () => {
       </div>
 
       {/* Pantry Grid Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
-        {filteredItems.map(item => {
+      {filteredItems.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center space-y-3">
+          <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
+            <Layers className="w-6 h-6" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="font-bold text-slate-900 text-sm">No Pantry Items Found</h3>
+            <p className="text-xs text-slate-500">
+              {pantryItems.length === 0
+                ? "Your pantry inventory is currently empty. Add items to begin autonomous tracking and restocking."
+                : "No items match your active search filter."}
+            </p>
+          </div>
+          {pantryItems.length === 0 && (
+            <button
+              onClick={openAddModal}
+              className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold inline-flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <Plus className="w-4 h-4" /> Add First Item
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+          {filteredItems.map(item => {
           const health = evaluateItemStockHealth(item, schedulerConfig.urgentThresholdDays);
           const rec = recommendations.find(r => r.itemId === item.id);
           const isInBasket =
@@ -244,28 +295,46 @@ export const PantryManager: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-[10px] text-slate-500 block uppercase font-medium">In Pantry</span>
-                    <div className="text-base font-extrabold text-slate-900 font-mono">
-                      {item.currentQuantity} <span className="text-xs font-medium text-slate-500">{item.unit}</span>
-                    </div>
+                    {(() => {
+                      const isCountable = ['pcs', 'packs', 'units', 'eggs', 'loaf', 'pack', 'dozen'].includes(item.unit.toLowerCase());
+                      const allowFractions = item.allowFractions !== undefined ? item.allowFractions : !isCountable;
+                      const displayQty = allowFractions ? item.currentQuantity : Math.floor(item.currentQuantity);
+
+                      return (
+                        <div
+                          className="text-base font-extrabold text-slate-900 font-mono cursor-help"
+                          title={!allowFractions ? `Exact stock: ${item.currentQuantity} ${item.unit}` : undefined}
+                        >
+                          {displayQty} <span className="text-xs font-medium text-slate-500">{item.unit}</span>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Quick Quantity Adjusters */}
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => quickAdjustQuantity(item.id, -0.5)}
-                      title="Consume 0.5 units"
-                      className="w-6 h-6 rounded bg-white hover:bg-slate-200 border border-slate-300 text-slate-700 font-bold text-xs flex items-center justify-center cursor-pointer"
-                    >
-                      -
-                    </button>
-                    <button
-                      onClick={() => quickAdjustQuantity(item.id, 0.5)}
-                      title="Add 0.5 units"
-                      className="w-6 h-6 rounded bg-white hover:bg-slate-200 border border-slate-300 text-slate-700 font-bold text-xs flex items-center justify-center cursor-pointer"
-                    >
-                      +
-                    </button>
-                  </div>
+                  {(() => {
+                    const isCountable = ['pcs', 'packs', 'units', 'eggs', 'loaf', 'pack', 'dozen'].includes(item.unit.toLowerCase());
+                    const step = item.quantityStep !== undefined ? item.quantityStep : (isCountable ? 1 : 0.5);
+
+                    return (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => quickAdjustQuantity(item.id, -step)}
+                          title={`Consume ${step} ${item.unit}`}
+                          className="w-6 h-6 rounded bg-white hover:bg-slate-200 border border-slate-300 text-slate-700 font-bold text-xs flex items-center justify-center cursor-pointer"
+                        >
+                          -
+                        </button>
+                        <button
+                          onClick={() => quickAdjustQuantity(item.id, step)}
+                          title={`Add ${step} ${item.unit}`}
+                          className="w-6 h-6 rounded bg-white hover:bg-slate-200 border border-slate-300 text-slate-700 font-bold text-xs flex items-center justify-center cursor-pointer"
+                        >
+                          +
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Consumption & Target specs */}
@@ -347,6 +416,7 @@ export const PantryManager: React.FC = () => {
           );
         })}
       </div>
+      )}
 
       {/* Edit / Add Modal */}
       {(isAddingNew || editingItem) && (
@@ -389,7 +459,7 @@ export const PantryManager: React.FC = () => {
                   <label className="block text-slate-700 font-semibold mb-1">Unit of Measurement</label>
                   <select
                     value={formData.unit}
-                    onChange={e => setFormData({ ...formData, unit: e.target.value as UnitOfMeasurement })}
+                    onChange={e => handleUnitChange(e.target.value as UnitOfMeasurement)}
                     className="w-full px-3 py-2 border rounded-lg border-slate-300"
                   >
                     {UNITS.map(u => (
@@ -428,7 +498,8 @@ export const PantryManager: React.FC = () => {
                   <label className="block text-slate-700 font-semibold mb-1">Current Stock</label>
                   <input
                     type="number"
-                    step="0.01"
+                    step={formData.quantityStep ?? 1}
+                    inputMode={formData.allowFractions ? 'decimal' : 'numeric'}
                     min="0"
                     value={formData.currentQuantity ?? 0}
                     onChange={e => setFormData({ ...formData, currentQuantity: parseFloat(e.target.value) || 0 })}
@@ -441,6 +512,7 @@ export const PantryManager: React.FC = () => {
                   <input
                     type="number"
                     step="0.01"
+                    inputMode="decimal"
                     min="0"
                     value={formData.averageDailyConsumption ?? 0}
                     onChange={e => setFormData({ ...formData, averageDailyConsumption: parseFloat(e.target.value) || 0 })}
@@ -452,7 +524,8 @@ export const PantryManager: React.FC = () => {
                   <label className="block text-slate-700 font-semibold mb-1">Min Safe Stock</label>
                   <input
                     type="number"
-                    step="0.01"
+                    step={formData.quantityStep ?? 1}
+                    inputMode={formData.allowFractions ? 'decimal' : 'numeric'}
                     min="0"
                     value={formData.minStockThreshold ?? 0}
                     onChange={e => setFormData({ ...formData, minStockThreshold: parseFloat(e.target.value) || 0 })}
@@ -464,8 +537,9 @@ export const PantryManager: React.FC = () => {
                   <label className="block text-slate-700 font-semibold mb-1">Target Restock</label>
                   <input
                     type="number"
-                    step="0.01"
-                    min="1"
+                    step={formData.quantityStep ?? 1}
+                    inputMode={formData.allowFractions ? 'decimal' : 'numeric'}
+                    min={formData.quantityStep ?? 1}
                     value={formData.targetStock ?? 1}
                     onChange={e => setFormData({ ...formData, targetStock: parseFloat(e.target.value) || 1 })}
                     className="w-full px-3 py-2 border rounded-lg border-slate-300"
@@ -496,6 +570,33 @@ export const PantryManager: React.FC = () => {
                     Require explicit user approval before switching to an alternate brand
                   </span>
                 </label>
+
+                {/* Advanced Options */}
+                <details className="mt-2 pt-2 border-t border-slate-100 text-slate-600">
+                  <summary className="font-semibold text-slate-700 cursor-pointer hover:text-slate-900 select-none">
+                    Advanced Settings
+                  </summary>
+                  <div className="pt-2 pl-2 space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!formData.allowFractions}
+                        onChange={e => {
+                          const allowed = e.target.checked;
+                          setFormData({
+                            ...formData,
+                            allowFractions: allowed,
+                            quantityStep: allowed ? 0.5 : 1,
+                          });
+                        }}
+                        className="rounded text-brand-600 focus:ring-brand-500 w-4 h-4"
+                      />
+                      <span className="font-semibold text-slate-700">
+                        Allow half quantities (0.5 steps)
+                      </span>
+                    </label>
+                  </div>
+                </details>
               </div>
 
               {/* Modal Actions */}

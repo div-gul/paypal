@@ -17,12 +17,16 @@ import {
   TrendingDown,
   Calendar,
   LayoutDashboard,
+  AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
+import { useShopPilot } from './context/ShopPilotContext';
 
 type ActiveView = 'dashboard' | 'pantry' | 'scheduler' | 'analysis' | 'basket-stores';
 
 const MainLayout: React.FC = () => {
   const [activeView, setActiveView] = useState<ActiveView>('dashboard');
+  const { isLoading, error, clearError, reloadState } = useShopPilot();
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-['Inter',sans-serif]">
@@ -31,6 +35,40 @@ const MainLayout: React.FC = () => {
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        {/* Error Alert Banner */}
+        {error && (
+          <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-center justify-between gap-3 text-rose-900 shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+              <div className="text-xs">
+                <strong>Backend Sync Error:</strong> {error}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => reloadState()}
+                className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Retry
+              </button>
+              <button
+                onClick={clearError}
+                className="text-xs text-rose-700 hover:text-rose-900 px-2 py-1 cursor-pointer"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Global Loading Bar */}
+        {isLoading && (
+          <div className="bg-brand-50 border border-brand-200 rounded-xl p-3 flex items-center justify-center gap-2 text-brand-900 text-xs font-medium">
+            <span className="w-3.5 h-3.5 border-2 border-brand-600 border-t-transparent rounded-full animate-spin"></span>
+            <span>Syncing state with backend server...</span>
+          </div>
+        )}
+
         {/* Simulation Clock Controls */}
         <TimeMachine />
 

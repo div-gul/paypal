@@ -27,6 +27,8 @@ export interface PantryItem {
   requireApprovalForBrandChange: boolean;
   lastRestockedDate: string;
   stockoutDaysCount: number; // 0 if stock > 0, otherwise number of days empty
+  quantityStep?: number;
+  allowFractions?: boolean;
 }
 
 export type RestockDecisionOutcome =
@@ -54,6 +56,12 @@ export interface RestockRecommendation {
   requiresApproval: boolean;
   approvalStatus: 'pending' | 'approved' | 'rejected';
   approvalReason?: string;
+  isSubstitution?: boolean;
+  isPriceSpike?: boolean;
+  priceSpikePercent?: number;
+  isEmergencyStockout?: boolean;
+  quantityStep?: number;
+  allowFractions?: boolean;
 }
 
 export interface StoreInfo {

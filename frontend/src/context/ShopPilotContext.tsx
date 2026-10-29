@@ -1,11 +1,10 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useTransition } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
   ActivityLogItem,
   BasketItem,
   BasketStrategyResult,
   BasketStrategyType,
   PantryItem,
-  RestockDecisionOutcome,
   RestockRecommendation,
   SimulationState,
   WeeklySchedulerConfig,
@@ -15,14 +14,10 @@ import {
   DEFAULT_SCHEDULER_CONFIG,
   DEFAULT_SIMULATION_STATE,
   DEFAULT_ACTIVITY_LOG,
-  StorageService,
-} from '../services/storageService';
-import { advancePantryState } from '@shared/services/consumptionEngine';
-import { generateRestockRecommendations } from '@shared/services/restockScheduler';
-import { optimizeBaskets } from '@shared/services/basketOptimizer';
-import { formatPaise } from '@shared/services/currency';
+} from '@shared/services/defaults';
+import { api, PlanRunOverrides } from '../api/client';
 
-interface CheckoutModalDetails {
+export interface CheckoutModalDetails {
   isOpen: boolean;
   strategy?: BasketStrategyResult;
   orderId?: string;
@@ -30,11 +25,12 @@ interface CheckoutModalDetails {
   itemsPurchased?: BasketItem[];
 }
 
-interface ShopPilotContextType {
+export interface ShopPilotContextType {
   // State
   pantryItems: PantryItem[];
   schedulerConfig: WeeklySchedulerConfig;
   simulationState: SimulationState;
+  activeRun: any | null;
   recommendations: RestockRecommendation[];
   optimizationResult: {
     strategies: BasketStrategyResult[];
@@ -43,17 +39,21 @@ interface ShopPilotContextType {
   selectedStrategyType: BasketStrategyType;
   activityLog: ActivityLogItem[];
   isAnalyzing: boolean;
+  isLoading: boolean;
+  error: string | null;
   checkoutModal: CheckoutModalDetails;
   showDemoInfoModal: boolean;
 
   // Actions
-  updatePantryItem: (item: PantryItem) => void;
-  addPantryItem: (item: Omit<PantryItem, 'id' | 'lastRestockedDate' | 'stockoutDaysCount'>) => void;
-  deletePantryItem: (id: string) => void;
-  quickAdjustQuantity: (id: string, delta: number) => void;
-  updateSchedulerConfig: (config: Partial<WeeklySchedulerConfig>) => void;
+  updatePantryItem: (item: PantryItem) => Promise<void>;
+  addPantryItem: (item: Omit<PantryItem, 'id' | 'lastRestockedDate' | 'stockoutDaysCount'>) => Promise<void>;
+  deletePantryItem: (id: string) => Promise<void>;
+  quickAdjustQuantity: (id: string, delta: number) => Promise<void>;
+  updateSchedulerConfig: (config: Partial<WeeklySchedulerConfig>) => Promise<void>;
   advanceTime: (days: number) => Promise<void>;
   runShoppingAnalysis: () => Promise<void>;
+  approveRun: () => Promise<void>;
+  rejectRun: () => Promise<void>;
   approveRecommendation: (itemId: string) => void;
   rejectRecommendation: (itemId: string) => void;
   includeInWeeklyBasket: (itemId: string) => void;
@@ -64,22 +64,22 @@ interface ShopPilotContextType {
   openCheckoutModal: (strategy: BasketStrategyResult) => void;
   closeCheckoutModal: () => void;
   confirmSimulatedPayment: (strategy: BasketStrategyResult) => Promise<void>;
-  resetToInitialDemo: () => void;
+  resetToInitialDemo: () => Promise<void>;
   setShowDemoInfoModal: (show: boolean) => void;
+  clearError: () => void;
+  reloadState: (overrides?: PlanRunOverrides) => Promise<void>;
 }
 
 const ShopPilotContext = createContext<ShopPilotContextType | null>(null);
 
 export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [pantryItems, setPantryItems] = useState<PantryItem[]>(() => StorageService.getPantry());
-  const [schedulerConfig, setSchedulerConfig] = useState<WeeklySchedulerConfig>(() =>
-    StorageService.getSchedulerConfig()
-  );
-  const [simulationState, setSimulationState] = useState<SimulationState>(() =>
-    StorageService.getSimulationState()
-  );
-  const [activityLog, setActivityLog] = useState<ActivityLogItem[]>(() => StorageService.getActivityLog());
+  // Domain state initialized with sensible defaults while server state loads
+  const [pantryItems, setPantryItems] = useState<PantryItem[]>(DEFAULT_PANTRY_ITEMS);
+  const [schedulerConfig, setSchedulerConfig] = useState<WeeklySchedulerConfig>(DEFAULT_SCHEDULER_CONFIG);
+  const [simulationState, setSimulationState] = useState<SimulationState>(DEFAULT_SIMULATION_STATE);
+  const [activityLog, setActivityLog] = useState<ActivityLogItem[]>(DEFAULT_ACTIVITY_LOG);
 
+  const [activeRun, setActiveRun] = useState<any | null>(null);
   const [recommendations, setRecommendations] = useState<RestockRecommendation[]>([]);
   const [optimizationResult, setOptimizationResult] = useState<{
     strategies: BasketStrategyResult[];
@@ -90,471 +90,298 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     'STRATEGY_B_SINGLE_STORE'
   );
 
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [, startTransition] = useTransition();
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
   const [checkoutModal, setCheckoutModal] = useState<CheckoutModalDetails>({ isOpen: false });
   const [showDemoInfoModal, setShowDemoInfoModal] = useState(false);
 
-  // Helper to log auditable events
-  const logEvent = useCallback(
-    (
-      type: ActivityLogItem['type'],
-      title: string,
-      description: string,
-      statusBadge?: string,
-      badgeColor?: ActivityLogItem['badgeColor']
-    ) => {
-      const newEntry: ActivityLogItem = {
-        id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-        timestamp: new Date().toISOString(),
-        simulatedDate: simulationState.simulatedDate,
-        type,
-        title,
-        description,
-        statusBadge,
-        badgeColor: badgeColor || 'blue',
+  // In-memory basket toggle overrides (Decision 2: do NOT mutate pantry items)
+  const basketOverridesRef = useRef<{ includeItemIds: string[]; excludeItemIds: string[] }>({
+    includeItemIds: [],
+    excludeItemIds: [],
+  });
+  const selectedStrategyTypeRef = useRef<BasketStrategyType>('STRATEGY_B_SINGLE_STORE');
+
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
+  /**
+   * Synchronize all domain state from the server:
+   * 1. GET /api/state (pantry, policy, clock, activeRun, recentAuditLog)
+   * 2. POST /api/runs/plan (recommendations, all 4 strategies, recommendedStrategy)
+   */
+  const reloadState = useCallback(async (overrides?: PlanRunOverrides) => {
+    try {
+      setError(null);
+      const effectiveOverrides: PlanRunOverrides = overrides || {
+        includeItemIds: basketOverridesRef.current.includeItemIds,
+        excludeItemIds: basketOverridesRef.current.excludeItemIds,
+        strategy: selectedStrategyTypeRef.current,
       };
 
-      setActivityLog(prev => {
-        const updated = [newEntry, ...prev.slice(0, 99)]; // Keep latest 100 entries
-        StorageService.saveActivityLog(updated);
-        return updated;
+      const [stateRes, planRes] = await Promise.all([
+        api.getState(),
+        api.planRun(effectiveOverrides),
+      ]);
+
+      setPantryItems(stateRes.pantry);
+      setSchedulerConfig(stateRes.policy);
+      setSimulationState(stateRes.clock);
+      setActivityLog(stateRes.recentAuditLog);
+
+      setActiveRun(planRes.run);
+      setRecommendations(planRes.recommendations);
+      setOptimizationResult({
+        strategies: planRes.strategies,
+        recommendedStrategy: planRes.recommendedStrategy,
       });
+
+      if (planRes.run?.selectedStrategy) {
+        setSelectedStrategyType(planRes.run.selectedStrategy);
+        selectedStrategyTypeRef.current = planRes.run.selectedStrategy;
+      } else if (planRes.recommendedStrategy) {
+        setSelectedStrategyType(planRes.recommendedStrategy.type);
+        selectedStrategyTypeRef.current = planRes.recommendedStrategy.type;
+      }
+    } catch (err: any) {
+      console.error('Failed to sync state with backend API:', err);
+      setError(err.message || 'Failed to sync with backend server');
+    }
+  }, []);
+
+  // Hydrate state on initial mount
+  useEffect(() => {
+    let isMounted = true;
+    const init = async () => {
+      setIsLoading(true);
+      await reloadState();
+      if (isMounted) {
+        setIsLoading(false);
+      }
+    };
+    init();
+    return () => {
+      isMounted = false;
+    };
+  }, [reloadState]);
+
+  // Update pantry item via API
+  const updatePantryItem = useCallback(
+    async (updated: PantryItem) => {
+      try {
+        await api.updatePantryItem(updated.id, updated);
+        await reloadState();
+      } catch (err: any) {
+        setError(err.message || 'Failed to update pantry item');
+      }
     },
-    [simulationState.simulatedDate]
+    [reloadState]
   );
 
-  // Compute recommendations and basket optimization
-  const refreshAnalysis = useCallback(
-    async (currentPantry: PantryItem[], currentConfig: WeeklySchedulerConfig, currentSim: SimulationState) => {
+  // Add new pantry item via API
+  const addPantryItem = useCallback(
+    async (itemData: Omit<PantryItem, 'id' | 'lastRestockedDate' | 'stockoutDaysCount'>) => {
+      try {
+        await api.createPantryItem(itemData);
+        await reloadState();
+      } catch (err: any) {
+        setError(err.message || 'Failed to add pantry item');
+      }
+    },
+    [reloadState]
+  );
+
+  // Delete pantry item via API
+  const deletePantryItem = useCallback(
+    async (id: string) => {
+      try {
+        await api.deletePantryItem(id);
+        await reloadState();
+      } catch (err: any) {
+        setError(err.message || 'Failed to delete pantry item');
+      }
+    },
+    [reloadState]
+  );
+
+  // Quick adjust quantity (+/- button) via API
+  const quickAdjustQuantity = useCallback(
+    async (id: string, delta: number) => {
+      try {
+        await api.adjustPantryQuantity(id, delta);
+        await reloadState();
+      } catch (err: any) {
+        setError(err.message || 'Failed to adjust quantity');
+      }
+    },
+    [reloadState]
+  );
+
+  // Update policy / scheduler configuration via API
+  const updateSchedulerConfig = useCallback(
+    async (updates: Partial<WeeklySchedulerConfig>) => {
+      try {
+        await api.updatePolicy(updates);
+        await reloadState();
+      } catch (err: any) {
+        setError(err.message || 'Failed to update restock policy');
+      }
+    },
+    [reloadState]
+  );
+
+  // Advance simulation time via API
+  const advanceTime = useCallback(
+    async (days: number) => {
       setIsAnalyzing(true);
       try {
-        const recs = await generateRestockRecommendations({
-          simulatedDate: currentSim.simulatedDate,
-          config: currentConfig,
-          pantryItems: currentPantry,
-        });
-
-        const opt = optimizeBaskets({
-          recommendations: recs,
-          pantryItems: currentPantry,
-        });
-
-        startTransition(() => {
-          setRecommendations(recs);
-          setOptimizationResult(opt);
-          if (opt.recommendedStrategy) {
-            setSelectedStrategyType(opt.recommendedStrategy.type);
-          }
-        });
-      } catch (err) {
-        console.error('Error generating analysis:', err);
+        const validDays = (days === 1 || days === 3 || days === 7 ? days : 1) as 1 | 3 | 7;
+        await api.advanceTime(validDays);
+        await reloadState();
+      } catch (err: any) {
+        setError(err.message || 'Failed to advance simulation time');
       } finally {
         setIsAnalyzing(false);
       }
     },
-    []
-  );
-
-  // Initial analysis on mount
-  useEffect(() => {
-    refreshAnalysis(pantryItems, schedulerConfig, simulationState);
-  }, []);
-
-  // Update pantry item
-  const updatePantryItem = useCallback(
-    (updated: PantryItem) => {
-      setPantryItems(prev => {
-        const next = prev.map(item => (item.id === updated.id ? updated : item));
-        StorageService.savePantry(next);
-        refreshAnalysis(next, schedulerConfig, simulationState);
-        return next;
-      });
-
-      logEvent(
-        'pantry_updated',
-        `Pantry Updated: ${updated.name}`,
-        `Stock: ${updated.currentQuantity} ${updated.unit}, Daily Consumption: ${updated.averageDailyConsumption} ${updated.unit}/day. Min stock: ${updated.minStockThreshold} ${updated.unit}.`,
-        'Edited',
-        'blue'
-      );
-    },
-    [schedulerConfig, simulationState, refreshAnalysis, logEvent]
-  );
-
-  // Add new pantry item
-  const addPantryItem = useCallback(
-    (itemData: Omit<PantryItem, 'id' | 'lastRestockedDate' | 'stockoutDaysCount'>) => {
-      const newItem: PantryItem = {
-        ...itemData,
-        id: `item-${Date.now()}`,
-        lastRestockedDate: simulationState.simulatedDate,
-        stockoutDaysCount: 0,
-      };
-
-      setPantryItems(prev => {
-        const next = [...prev, newItem];
-        StorageService.savePantry(next);
-        refreshAnalysis(next, schedulerConfig, simulationState);
-        return next;
-      });
-
-      logEvent(
-        'pantry_updated',
-        `Added to Pantry: ${newItem.name}`,
-        `Configured initial stock of ${newItem.currentQuantity} ${newItem.unit} (${newItem.preferredBrand}).`,
-        'New Item',
-        'emerald'
-      );
-    },
-    [simulationState, schedulerConfig, refreshAnalysis, logEvent]
-  );
-
-  // Delete pantry item
-  const deletePantryItem = useCallback(
-    (id: string) => {
-      setPantryItems(prev => {
-        const target = prev.find(p => p.id === id);
-        const next = prev.filter(p => p.id !== id);
-        StorageService.savePantry(next);
-        refreshAnalysis(next, schedulerConfig, simulationState);
-
-        if (target) {
-          logEvent(
-            'pantry_updated',
-            `Removed: ${target.name}`,
-            `Removed ${target.name} from autonomous inventory tracking.`,
-            'Deleted',
-            'rose'
-          );
-        }
-        return next;
-      });
-    },
-    [schedulerConfig, simulationState, refreshAnalysis, logEvent]
-  );
-
-  // Quick adjust quantity (+/- button)
-  const quickAdjustQuantity = useCallback(
-    (id: string, delta: number) => {
-      setPantryItems(prev => {
-        const next = prev.map(p => {
-          if (p.id !== id) return p;
-          const newQty = Math.max(0, Math.round((p.currentQuantity + delta) * 100) / 100);
-          return {
-            ...p,
-            currentQuantity: newQty,
-            stockoutDaysCount: newQty === 0 ? p.stockoutDaysCount + 1 : 0,
-          };
-        });
-        StorageService.savePantry(next);
-        refreshAnalysis(next, schedulerConfig, simulationState);
-        return next;
-      });
-    },
-    [schedulerConfig, simulationState, refreshAnalysis]
-  );
-
-  // Update scheduler settings
-  const updateSchedulerConfig = useCallback(
-    (updates: Partial<WeeklySchedulerConfig>) => {
-      setSchedulerConfig(prev => {
-        const next = { ...prev, ...updates };
-        StorageService.saveSchedulerConfig(next);
-        refreshAnalysis(pantryItems, next, simulationState);
-        return next;
-      });
-
-      logEvent(
-        'policy_applied',
-        'Restocking Policy Updated',
-        `Schedule or budget configuration modified. Budget: ${formatPaise(
-          updates.perCycleBudgetPaise ?? schedulerConfig.perCycleBudgetPaise
-        )}. Emergency policy: ${updates.emergencyRestockPreference ?? schedulerConfig.emergencyRestockPreference}.`,
-        'Policy Saved',
-        'purple'
-      );
-    },
-    [pantryItems, simulationState, schedulerConfig, refreshAnalysis, logEvent]
-  );
-
-  // Advance simulation time
-  const advanceTime = useCallback(
-    async (days: number) => {
-      if (days <= 0) return;
-
-      const currentDate = new Date(simulationState.simulatedDate);
-      currentDate.setDate(currentDate.getDate() + days);
-      const newSimDateIso = currentDate.toISOString();
-
-      const newSimulationState: SimulationState = {
-        simulatedDate: newSimDateIso,
-        daysElapsed: simulationState.daysElapsed + days,
-        cycleCount: simulationState.cycleCount + (days >= 7 ? 1 : 0),
-      };
-
-      // Advance pantry consumption
-      const updatedPantry = advancePantryState(pantryItems, days);
-
-      // Check if scheduled run was passed
-      const nextRunDate = new Date(schedulerConfig.nextShoppingDate);
-      let updatedSchedulerConfig = { ...schedulerConfig };
-
-      if (currentDate >= nextRunDate) {
-        // Shopping run date reached! Move next scheduled date ahead by 7 or 14 days
-        const daysToNext = schedulerConfig.shoppingFrequency === 'weekly' ? 7 : 14;
-        const advancedShoppingDate = new Date(nextRunDate);
-        advancedShoppingDate.setDate(advancedShoppingDate.getDate() + daysToNext);
-        updatedSchedulerConfig.nextShoppingDate = advancedShoppingDate.toISOString();
-        StorageService.saveSchedulerConfig(updatedSchedulerConfig);
-        setSchedulerConfig(updatedSchedulerConfig);
-      }
-
-      // Check for stockouts that just occurred
-      updatedPantry.forEach(item => {
-        const oldItem = pantryItems.find(p => p.id === item.id);
-        if (oldItem && oldItem.currentQuantity > 0 && item.currentQuantity === 0) {
-          logEvent(
-            'stockout_warning',
-            `Stockout Alert: ${item.name}`,
-            `Item has completely run out (0 ${item.unit} remaining). Urgent restocking required!`,
-            'Stockout',
-            'red'
-          );
-        }
-      });
-
-      // Save state
-      setPantryItems(updatedPantry);
-      setSimulationState(newSimulationState);
-      StorageService.savePantry(updatedPantry);
-      StorageService.saveSimulationState(newSimulationState);
-
-      const simDateFormatted = currentDate.toLocaleDateString('en-IN', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-      });
-
-      logEvent(
-        'time_advanced',
-        `Time Fast-Forwarded +${days} Day${days > 1 ? 's' : ''}`,
-        `Household consumption applied. Simulated date is now ${simDateFormatted}. Pantry stock depleted accordingly.`,
-        `+${days}d Sim`,
-        'indigo'
-      );
-
-      // Refresh analysis with new state
-      await refreshAnalysis(updatedPantry, updatedSchedulerConfig, newSimulationState);
-    },
-    [simulationState, pantryItems, schedulerConfig, refreshAnalysis, logEvent]
+    [reloadState]
   );
 
   // Manual trigger for shopping analysis
   const runShoppingAnalysis = useCallback(async () => {
-    await refreshAnalysis(pantryItems, schedulerConfig, simulationState);
-    logEvent(
-      'analysis_run',
-      'Autonomous Restock Analysis Run',
-      'Evaluated current inventory, consumption burn rates, and mock store inventories for Blinkit, Zepto, and Instamart.',
-      'Refreshed',
-      'blue'
-    );
-  }, [pantryItems, schedulerConfig, simulationState, refreshAnalysis, logEvent]);
+    setIsAnalyzing(true);
+    try {
+      await reloadState();
+    } catch (err: any) {
+      setError(err.message || 'Failed to run shopping analysis');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }, [reloadState]);
 
-  // Approval actions
-  const approveRecommendation = useCallback(
-    (itemId: string) => {
-      setRecommendations(prev => {
-        const next = prev.map(r => {
-          if (r.itemId !== itemId) return r;
-          const pantry = pantryItems.find(p => p.id === itemId);
-          const neededQty =
-            r.recommendedQuantity > 0
-              ? r.recommendedQuantity
-              : Math.max(1, Math.ceil((pantry?.targetStock || 2) - (pantry?.currentQuantity || 0)));
-          return {
-            ...r,
-            approvalStatus: 'approved' as const,
-            requiresApproval: false,
-            outcome: (r.isUrgent ? 'RESTOCK_NOW' : 'INCLUDE_IN_WEEKLY_BASKET') as RestockDecisionOutcome,
-            recommendedQuantity: neededQty,
-          };
-        });
-        const opt = optimizeBaskets({ recommendations: next, pantryItems });
-        setOptimizationResult(opt);
-        return next;
-      });
+  // Strategy switching (Decision 4: store chosen strategy on run and update totals & policy)
+  const handleSetSelectedStrategyType = useCallback(
+    async (type: BasketStrategyType) => {
+      setSelectedStrategyType(type);
+      selectedStrategyTypeRef.current = type;
 
-      const item = pantryItems.find(p => p.id === itemId);
-      logEvent(
-        'approval_granted',
-        `Substitution / Purchase Approved: ${item ? item.name : itemId}`,
-        'User manually approved proposed brand substitution or off-cycle emergency purchase.',
-        'Approved',
-        'emerald'
-      );
+      if (activeRun?.id) {
+        try {
+          const res = await api.changeRunStrategy(activeRun.id, type);
+          setActiveRun(res.run);
+          setRecommendations(res.recommendations);
+          setOptimizationResult({
+            strategies: res.strategies,
+            recommendedStrategy: res.recommendedStrategy,
+          });
+          const auditRes = await api.getAuditLog();
+          setActivityLog(auditRes.logs);
+        } catch (err: any) {
+          setError(err.message || 'Failed to change run strategy');
+        }
+      } else {
+        await reloadState({ ...basketOverridesRef.current, strategy: type });
+      }
     },
-    [pantryItems, logEvent]
+    [activeRun, reloadState]
   );
 
+  // Run-level approvals (Decision 3: approvals are run-level)
+  const approveRun = useCallback(async () => {
+    if (!activeRun?.id) return;
+    setIsLoading(true);
+    try {
+      const res = await api.approveRun(activeRun.id);
+      setActiveRun(res.run);
+      const auditRes = await api.getAuditLog();
+      setActivityLog(auditRes.logs);
+    } catch (err: any) {
+      setError(err.message || 'Failed to approve run');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [activeRun]);
+
+  const rejectRun = useCallback(async () => {
+    if (!activeRun?.id) return;
+    setIsLoading(true);
+    try {
+      const res = await api.rejectRun(activeRun.id);
+      setActiveRun(res.run);
+      const auditRes = await api.getAuditLog();
+      setActivityLog(auditRes.logs);
+    } catch (err: any) {
+      setError(err.message || 'Failed to reject run');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [activeRun]);
+
+  // Basket overrides (Decision 2: do NOT mutate pantry items, pass overrides to plan)
   const includeInWeeklyBasket = useCallback(
     (itemId: string) => {
-      setRecommendations(prev => {
-        const next = prev.map(r => {
-          if (r.itemId !== itemId) return r;
-          const pantry = pantryItems.find(p => p.id === itemId);
-          const neededQty =
-            r.recommendedQuantity > 0
-              ? r.recommendedQuantity
-              : Math.max(1, Math.ceil((pantry?.targetStock || 2) - (pantry?.currentQuantity || 0)));
-          return {
-            ...r,
-            outcome: 'INCLUDE_IN_WEEKLY_BASKET' as const,
-            approvalStatus: 'approved' as const,
-            requiresApproval: false,
-            recommendedQuantity: neededQty,
-            reasoning: `Manually bundled into the weekly shopping basket by user to consolidate delivery fees.`,
-          };
-        });
-        const opt = optimizeBaskets({ recommendations: next, pantryItems });
-        setOptimizationResult(opt);
-        return next;
+      const newInclude = Array.from(new Set([...basketOverridesRef.current.includeItemIds, itemId]));
+      const newExclude = basketOverridesRef.current.excludeItemIds.filter(id => id !== itemId);
+      basketOverridesRef.current = { includeItemIds: newInclude, excludeItemIds: newExclude };
+      reloadState({
+        includeItemIds: newInclude,
+        excludeItemIds: newExclude,
+        strategy: selectedStrategyTypeRef.current,
       });
-
-      const item = pantryItems.find(p => p.id === itemId);
-      logEvent(
-        'recommendation_made',
-        `Added to Weekly Basket: ${item ? item.name : itemId}`,
-        'User explicitly bundled item into weekly scheduled basket.',
-        'Weekly Basket',
-        'emerald'
-      );
     },
-    [pantryItems, logEvent]
+    [reloadState]
   );
 
   const includeInUrgentBasket = useCallback(
     (itemId: string) => {
-      setRecommendations(prev => {
-        const next = prev.map(r => {
-          if (r.itemId !== itemId) return r;
-          const pantry = pantryItems.find(p => p.id === itemId);
-          const neededQty =
-            r.recommendedQuantity > 0
-              ? r.recommendedQuantity
-              : Math.max(1, Math.ceil((pantry?.targetStock || 2) - (pantry?.currentQuantity || 0)));
-          return {
-            ...r,
-            outcome: 'RESTOCK_NOW' as const,
-            approvalStatus: 'approved' as const,
-            requiresApproval: false,
-            recommendedQuantity: neededQty,
-            isUrgent: true,
-            reasoning: `Approved for immediate off-cycle emergency order.`,
-          };
-        });
-        const opt = optimizeBaskets({ recommendations: next, pantryItems });
-        setOptimizationResult(opt);
-        return next;
+      const newInclude = Array.from(new Set([...basketOverridesRef.current.includeItemIds, itemId]));
+      const newExclude = basketOverridesRef.current.excludeItemIds.filter(id => id !== itemId);
+      basketOverridesRef.current = { includeItemIds: newInclude, excludeItemIds: newExclude };
+      reloadState({
+        includeItemIds: newInclude,
+        excludeItemIds: newExclude,
+        strategy: selectedStrategyTypeRef.current,
       });
-
-      const item = pantryItems.find(p => p.id === itemId);
-      logEvent(
-        'recommendation_made',
-        `Added to Immediate Urgent Order: ${item ? item.name : itemId}`,
-        'User scheduled immediate urgent restock for item.',
-        'Restock Now',
-        'red'
-      );
     },
-    [pantryItems, logEvent]
+    [reloadState]
   );
 
   const removeFromBasket = useCallback(
     (itemId: string) => {
-      setRecommendations(prev => {
-        const next = prev.map(r => {
-          if (r.itemId !== itemId) return r;
-          return {
-            ...r,
-            outcome: 'WAIT_UNTIL_NEXT_CYCLE' as const,
-            recommendedQuantity: 0,
-            reasoning: `Manually deferred by user from current restock basket.`,
-          };
-        });
-        const opt = optimizeBaskets({ recommendations: next, pantryItems });
-        setOptimizationResult(opt);
-        return next;
+      const newInclude = basketOverridesRef.current.includeItemIds.filter(id => id !== itemId);
+      const newExclude = Array.from(new Set([...basketOverridesRef.current.excludeItemIds, itemId]));
+      basketOverridesRef.current = { includeItemIds: newInclude, excludeItemIds: newExclude };
+      reloadState({
+        includeItemIds: newInclude,
+        excludeItemIds: newExclude,
+        strategy: selectedStrategyTypeRef.current,
       });
-
-      const item = pantryItems.find(p => p.id === itemId);
-      logEvent(
-        'recommendation_made',
-        `Deferred: ${item ? item.name : itemId}`,
-        'User removed item from active shopping basket.',
-        'Deferred',
-        'blue'
-      );
     },
-    [pantryItems, logEvent]
+    [reloadState]
   );
 
-  const approveAllUrgentItems = useCallback(() => {
-    setRecommendations(prev => {
-      const next = prev.map(r => {
-        if (!r.isUrgent && r.outcome !== 'ASK_FOR_APPROVAL') return r;
-        const pantry = pantryItems.find(p => p.id === r.itemId);
-        const neededQty =
-          r.recommendedQuantity > 0
-            ? r.recommendedQuantity
-            : Math.max(1, Math.ceil((pantry?.targetStock || 2) - (pantry?.currentQuantity || 0)));
-        return {
-          ...r,
-          approvalStatus: 'approved' as const,
-          requiresApproval: false,
-          outcome: 'RESTOCK_NOW' as const,
-          recommendedQuantity: neededQty,
-        };
-      });
-      const opt = optimizeBaskets({ recommendations: next, pantryItems });
-      setOptimizationResult(opt);
-      return next;
-    });
-
-    logEvent(
-      'approval_granted',
-      'Approved All Urgent Restock Items',
-      'All urgent inventory items approved and added into active order basket.',
-      'All Urgents Approved',
-      'emerald'
-    );
-  }, [pantryItems, logEvent]);
+  const approveRecommendation = useCallback(
+    (_itemId: string) => {
+      approveRun();
+    },
+    [approveRun]
+  );
 
   const rejectRecommendation = useCallback(
     (itemId: string) => {
-      setRecommendations(prev => {
-        const next = prev.map(r =>
-          r.itemId === itemId ? { ...r, approvalStatus: 'rejected' as const, outcome: 'BLOCKED' as const } : r
-        );
-        const opt = optimizeBaskets({ recommendations: next, pantryItems });
-        setOptimizationResult(opt);
-        return next;
-      });
-
-      const item = pantryItems.find(p => p.id === itemId);
-      logEvent(
-        'approval_rejected',
-        `Recommendation Rejected: ${item ? item.name : itemId}`,
-        'User rejected proposed substitution or urgent restocking item.',
-        'Rejected',
-        'rose'
-      );
+      removeFromBasket(itemId);
     },
-    [pantryItems, logEvent]
+    [removeFromBasket]
   );
 
-  // Checkout Modal triggers
+  const approveAllUrgentItems = useCallback(() => {
+    approveRun();
+  }, [approveRun]);
+
+  // Checkout modal controls
   const openCheckoutModal = useCallback((strategy: BasketStrategyResult) => {
     setCheckoutModal({
       isOpen: true,
@@ -566,75 +393,55 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setCheckoutModal({ isOpen: false });
   }, []);
 
-  // Confirm Simulated Checkout
+  // Confirm Simulated Checkout using Backend Checkout API
   const confirmSimulatedPayment = useCallback(
     async (strategy: BasketStrategyResult) => {
-      const orderId = `PAYPAL-MOCK-${Math.floor(100000 + Math.random() * 900000)}`;
-      const allPurchasedItems: BasketItem[] = [];
+      setIsLoading(true);
+      try {
+        let runId = activeRun?.id;
+        if (!runId) {
+          const planRes = await api.planRun({ strategy: strategy.type });
+          runId = planRes.run.id;
+        }
 
-      // Collect all items across store baskets
-      strategy.storeBaskets.forEach(basket => {
-        basket.items.forEach(item => {
-          allPurchasedItems.push(item);
+        const orderRes = await api.createCheckoutOrder(runId);
+        await api.captureCheckoutOrder(orderRes.orderId, runId);
+
+        // Refresh state from server to reflect restocked pantry & receipts
+        await reloadState();
+
+        const allPurchasedItems = strategy.storeBaskets.flatMap(b => b.items);
+
+        setCheckoutModal({
+          isOpen: true,
+          strategy,
+          orderId: orderRes.orderId,
+          timestamp: new Date().toLocaleTimeString(),
+          itemsPurchased: allPurchasedItems,
         });
-      });
-
-      // Update pantry inventory
-      setPantryItems(prev => {
-        const next = prev.map(pantryItem => {
-          const purchased = allPurchasedItems.find(b => b.pantryItemId === pantryItem.id);
-          if (purchased) {
-            // Restore inventory to targetStock or add purchased quantity
-            const addedQty = purchased.quantity;
-            const updatedStock = Math.round((pantryItem.currentQuantity + addedQty) * 100) / 100;
-            return {
-              ...pantryItem,
-              currentQuantity: Math.max(pantryItem.targetStock, updatedStock),
-              lastRestockedDate: simulationState.simulatedDate,
-              stockoutDaysCount: 0,
-            };
-          }
-          return pantryItem;
-        });
-
-        StorageService.savePantry(next);
-        // Refresh analysis with replenished pantry
-        refreshAnalysis(next, schedulerConfig, simulationState);
-        return next;
-      });
-
-      // Log checkout event
-      const storeNames = strategy.storeBaskets.map(b => b.storeName).join(' + ');
-      logEvent(
-        'checkout_completed',
-        `Simulated PayPal Checkout Complete (${orderId})`,
-        `Successfully placed order across ${storeNames} for ${formatPaise(
-          strategy.grandTotalPaise
-        )}. ${allPurchasedItems.length} pantry items replenished to target levels.`,
-        'Paid ₹',
-        'emerald'
-      );
-
-      setCheckoutModal({
-        isOpen: true,
-        strategy,
-        orderId,
-        timestamp: new Date().toLocaleTimeString(),
-        itemsPurchased: allPurchasedItems,
-      });
+      } catch (err: any) {
+        setError(err.message || 'Checkout failed');
+        throw err;
+      } finally {
+        setIsLoading(false);
+      }
     },
-    [simulationState, schedulerConfig, refreshAnalysis, logEvent]
+    [activeRun, reloadState]
   );
 
-  // Reset demo
-  const resetToInitialDemo = useCallback(() => {
-    StorageService.resetAll();
-    setPantryItems(DEFAULT_PANTRY_ITEMS);
-    setSchedulerConfig(DEFAULT_SCHEDULER_CONFIG);
-    setSimulationState(DEFAULT_SIMULATION_STATE);
-    setActivityLog(DEFAULT_ACTIVITY_LOG);
-    refreshAnalysis(DEFAULT_PANTRY_ITEMS, DEFAULT_SCHEDULER_CONFIG, DEFAULT_SIMULATION_STATE);
-  }, [refreshAnalysis]);
+  // Reset demo via POST /api/state/reset (Decision 1)
+  const resetToInitialDemo = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      await api.resetState();
+      basketOverridesRef.current = { includeItemIds: [], excludeItemIds: [] };
+      await reloadState({ includeItemIds: [], excludeItemIds: [] });
+    } catch (err: any) {
+      setError(err.message || 'Failed to reset state');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [reloadState]);
 
   return (
     <ShopPilotContext.Provider
@@ -642,11 +449,14 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         pantryItems,
         schedulerConfig,
         simulationState,
+        activeRun,
         recommendations,
         optimizationResult,
         selectedStrategyType,
         activityLog,
         isAnalyzing,
+        isLoading,
+        error,
         checkoutModal,
         showDemoInfoModal,
         updatePantryItem,
@@ -656,18 +466,22 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         updateSchedulerConfig,
         advanceTime,
         runShoppingAnalysis,
+        approveRun,
+        rejectRun,
         approveRecommendation,
         rejectRecommendation,
         includeInWeeklyBasket,
         includeInUrgentBasket,
         removeFromBasket,
         approveAllUrgentItems,
-        setSelectedStrategyType,
+        setSelectedStrategyType: handleSetSelectedStrategyType,
         openCheckoutModal,
         closeCheckoutModal,
         confirmSimulatedPayment,
         resetToInitialDemo,
         setShowDemoInfoModal,
+        clearError,
+        reloadState,
       }}
     >
       {children}

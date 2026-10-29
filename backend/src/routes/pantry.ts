@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getDatabase } from '../db/connection.js';
 import { PantryService } from '../services/PantryService.js';
 import { ProductCategory, UnitOfMeasurement } from '@shared/types';
+import { AppError } from '../middleware/errorHandler.js';
 
 export const pantryRouter = Router();
 
@@ -33,6 +34,8 @@ const CreatePantryItemSchema = z.object({
   allowSubstitutions: z.boolean().default(true),
   requireApprovalForBrandChange: z.boolean().default(true),
   lastRestockedDate: z.string().optional(),
+  quantityStep: z.number().positive().optional(),
+  allowFractions: z.boolean().optional(),
 });
 
 const UpdatePantryItemSchema = CreatePantryItemSchema.partial();
@@ -40,6 +43,45 @@ const UpdatePantryItemSchema = CreatePantryItemSchema.partial();
 const AdjustQuantitySchema = z.object({
   delta: z.number(),
 });
+
+function validateStockRules(
+  currentQuantity?: number,
+  targetStock?: number,
+  minStockThreshold?: number,
+  unit?: string,
+  quantityStep?: number,
+  allowFractions?: boolean
+) {
+  const isCountable = unit ? ['pcs', 'packs', 'units', 'eggs', 'loaf', 'pack', 'dozen'].includes(unit.toLowerCase()) : false;
+  const effectiveStep = quantityStep ?? (isCountable ? 1 : 0.5);
+  const effectiveFractions = allowFractions ?? !isCountable;
+
+  const checkField = (name: string, val?: number) => {
+    if (val === undefined) return;
+    const stepsRatio = val / effectiveStep;
+    if (Math.abs(Math.round(stepsRatio) - stepsRatio) > 1e-5) {
+      throw new AppError(
+        'INVALID_QUANTITY_STEP',
+        `${name} ${val} must be a multiple of quantity step ${effectiveStep}`,
+        400
+      );
+    }
+    if (!effectiveFractions) {
+      const isInteger = Math.abs(Math.round(val) - val) < 1e-5;
+      if (!isInteger) {
+        throw new AppError(
+          'INVALID_QUANTITY_STEP',
+          `${name} cannot be fractional when allowFractions is false`,
+          400
+        );
+      }
+    }
+  };
+
+  checkField('currentQuantity', currentQuantity);
+  checkField('targetStock', targetStock);
+  checkField('minStockThreshold', minStockThreshold);
+}
 
 pantryRouter.get('/pantry', (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -65,8 +107,21 @@ pantryRouter.get('/pantry/:id', (req: Request, res: Response, next: NextFunction
 pantryRouter.post('/pantry', (req: Request, res: Response, next: NextFunction) => {
   try {
     const validated = CreatePantryItemSchema.parse(req.body);
+    validateStockRules(
+      validated.currentQuantity,
+      validated.targetStock,
+      validated.minStockThreshold,
+      validated.unit,
+      validated.quantityStep,
+      validated.allowFractions
+    );
+
     const pantryService = new PantryService(getDatabase());
     const itemId = validated.id || `item-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+
+    const isCountable = ['pcs', 'packs', 'units', 'eggs', 'loaf', 'pack', 'dozen'].includes(validated.unit.toLowerCase());
+    const quantityStep = validated.quantityStep ?? (isCountable ? 1 : 0.5);
+    const allowFractions = validated.allowFractions ?? !isCountable;
 
     const created = pantryService.createItem(req.user!.id, {
       id: itemId,
@@ -82,6 +137,8 @@ pantryRouter.post('/pantry', (req: Request, res: Response, next: NextFunction) =
       allowSubstitutions: validated.allowSubstitutions ?? true,
       requireApprovalForBrandChange: validated.requireApprovalForBrandChange ?? true,
       lastRestockedDate: validated.lastRestockedDate || new Date().toISOString(),
+      quantityStep,
+      allowFractions,
     });
 
     res.status(201).json({ item: created });
@@ -95,6 +152,21 @@ pantryRouter.put('/pantry/:id', (req: Request, res: Response, next: NextFunction
     const id = req.params.id as string;
     const validated = UpdatePantryItemSchema.parse(req.body);
     const pantryService = new PantryService(getDatabase());
+    const existing = pantryService.getItem(req.user!.id, id);
+
+    const unit = validated.unit ?? existing.unit;
+    const quantityStep = validated.quantityStep ?? existing.quantityStep;
+    const allowFractions = validated.allowFractions ?? existing.allowFractions;
+
+    validateStockRules(
+      validated.currentQuantity,
+      validated.targetStock,
+      validated.minStockThreshold,
+      unit,
+      quantityStep,
+      allowFractions
+    );
+
     const updated = pantryService.updateItem(req.user!.id, id, validated);
     res.json({ item: updated });
   } catch (err) {

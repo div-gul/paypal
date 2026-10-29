@@ -6,15 +6,45 @@ import { RunItemRepository } from '../repositories/RunItemRepository.js';
 
 export const runsRouter = Router();
 
+const StrategyTypeSchema = z.enum([
+  'STRATEGY_A_LOWEST_PRICE',
+  'STRATEGY_B_SINGLE_STORE',
+  'STRATEGY_C_SMART_SPLIT',
+  'STRATEGY_D_DEFER_NON_URGENT',
+]);
+
+const PlanRunInputSchema = z.object({
+  includeItemIds: z.array(z.string()).optional(),
+  excludeItemIds: z.array(z.string()).optional(),
+  strategy: StrategyTypeSchema.optional(),
+});
+
+const ChangeStrategyInputSchema = z.object({
+  strategy: StrategyTypeSchema,
+});
+
 const LimitQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
 runsRouter.post('/runs/plan', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const overrides = req.body && Object.keys(req.body).length > 0 ? PlanRunInputSchema.parse(req.body) : undefined;
     const runService = new RunService(getDatabase());
-    const planResult = await runService.planRun(req.user!.id);
+    const planResult = await runService.planRun(req.user!.id, overrides);
     res.status(201).json(planResult);
+  } catch (err) {
+    next(err);
+  }
+});
+
+runsRouter.put('/runs/:id/strategy', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const { strategy } = ChangeStrategyInputSchema.parse(req.body);
+    const runService = new RunService(getDatabase());
+    const result = await runService.selectRunStrategy(req.user!.id, id, strategy);
+    res.json(result);
   } catch (err) {
     next(err);
   }

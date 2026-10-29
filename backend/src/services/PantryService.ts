@@ -45,7 +45,46 @@ export class PantryService {
 
   adjustQuantity(userId: string, id: string, delta: number): PantryItem {
     const item = this.getItem(userId, id);
-    const newQty = Math.max(0, Math.round((item.currentQuantity + delta) * 100) / 100);
+    const step = item.quantityStep ?? (['pcs', 'packs', 'units', 'eggs', 'loaf', 'pack', 'dozen'].includes(item.unit.toLowerCase()) ? 1 : 0.5);
+    const allowFractions = item.allowFractions ?? !['pcs', 'packs', 'units', 'eggs', 'loaf', 'pack', 'dozen'].includes(item.unit.toLowerCase());
+
+    // Validate delta is a multiple of step
+    const stepsRatio = delta / step;
+    if (Math.abs(Math.round(stepsRatio) - stepsRatio) > 1e-5) {
+      throw new AppError(
+        'INVALID_QUANTITY_STEP',
+        `Quantity adjustment delta ${delta} must be a multiple of the item's quantity step ${step}`,
+        400
+      );
+    }
+
+    // Validate allowFractions
+    if (!allowFractions) {
+      const isIntegerDelta = Math.abs(Math.round(delta) - delta) < 1e-5;
+      if (!isIntegerDelta) {
+        throw new AppError(
+          'INVALID_QUANTITY_STEP',
+          `Fractional quantities are not allowed for countable item "${item.name}" (${item.unit})`,
+          400
+        );
+      }
+    }
+
+    const rawNewQty = item.currentQuantity + delta;
+    let newQty = Math.max(0, Math.round(rawNewQty * 1000) / 1000);
+
+    if (!allowFractions) {
+      const isIntegerResult = Math.abs(Math.round(newQty) - newQty) < 1e-5;
+      if (!isIntegerResult) {
+        throw new AppError(
+          'INVALID_QUANTITY_STEP',
+          `Resulting quantity ${newQty} cannot be fractional for item "${item.name}"`,
+          400
+        );
+      }
+      newQty = Math.round(newQty);
+    }
+
     const updated = {
       ...item,
       currentQuantity: newQty,
@@ -54,3 +93,4 @@ export class PantryService {
     return this.pantryRepo.update(userId, updated);
   }
 }
+

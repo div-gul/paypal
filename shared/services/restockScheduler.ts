@@ -83,7 +83,13 @@ export async function generateRestockRecommendations(
       }
     }
     const neededDeficit = Math.max(0, item.targetStock - projectedStockAtNextRun);
-    const neededQtyUnits = Math.max(1, Math.ceil(neededDeficit / packSize));
+    const isCountable = ['pcs', 'packs', 'units', 'eggs', 'loaf', 'pack', 'dozen'].includes((item.unit || '').toLowerCase());
+    const allowFractions = item.allowFractions !== undefined ? item.allowFractions : !isCountable;
+    let rawNeeded = neededDeficit / packSize;
+    if (!allowFractions) {
+      rawNeeded = Math.ceil(rawNeeded);
+    }
+    const neededQtyUnits = Math.max(1, Math.ceil(rawNeeded));
     const estimatedItemCostPaise = selectedProduct ? selectedProduct.pricePaise * neededQtyUnits : 0;
 
     let outcome: RestockDecisionOutcome = 'WAIT_UNTIL_NEXT_CYCLE';
@@ -187,6 +193,8 @@ export async function generateRestockRecommendations(
       requiresApproval,
       approvalStatus: requiresApproval ? 'pending' : 'approved',
       approvalReason,
+      quantityStep: item.quantityStep !== undefined ? item.quantityStep : (isCountable ? 1 : 0.5),
+      allowFractions,
     });
   }
 

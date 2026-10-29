@@ -17,11 +17,22 @@ interface PantryItemRow {
   require_approval_for_brand_change: number;
   last_restocked_date: string;
   stockout_days_count: number;
+  quantity_step: number;
+  allow_fractions: number;
   created_at: string;
   updated_at: string;
 }
 
+function getDefaultStepAndFractions(unit: string): { quantityStep: number; allowFractions: boolean } {
+  const countable = ['pcs', 'packs', 'units', 'eggs', 'loaf', 'pack', 'dozen'].includes(unit.toLowerCase());
+  return {
+    quantityStep: countable ? 1 : 0.5,
+    allowFractions: !countable,
+  };
+}
+
 function rowToItem(row: PantryItemRow): PantryItem {
+  const defaults = getDefaultStepAndFractions(row.unit);
   return {
     id: row.id,
     name: row.name,
@@ -37,6 +48,8 @@ function rowToItem(row: PantryItemRow): PantryItem {
     requireApprovalForBrandChange: Boolean(row.require_approval_for_brand_change),
     lastRestockedDate: row.last_restocked_date,
     stockoutDaysCount: row.stockout_days_count,
+    quantityStep: row.quantity_step !== null && row.quantity_step !== undefined ? row.quantity_step : defaults.quantityStep,
+    allowFractions: row.allow_fractions !== null && row.allow_fractions !== undefined ? Boolean(row.allow_fractions) : defaults.allowFractions,
   };
 }
 
@@ -57,14 +70,19 @@ export class PantryRepository {
 
   create(userId: string, item: Omit<PantryItem, 'stockoutDaysCount'>): PantryItem {
     const now = new Date().toISOString();
+    const defaults = getDefaultStepAndFractions(item.unit);
+    const quantityStep = item.quantityStep !== undefined ? item.quantityStep : defaults.quantityStep;
+    const allowFractions = item.allowFractions !== undefined ? item.allowFractions : defaults.allowFractions;
+
     const stmt = this.db.prepare(`
       INSERT INTO pantry_items (
         id, user_id, name, category, preferred_brand, preferred_package_size,
         unit, current_quantity, average_daily_consumption, min_stock_threshold,
         target_stock, allow_substitutions, require_approval_for_brand_change,
-        last_restocked_date, stockout_days_count, created_at, updated_at
+        last_restocked_date, stockout_days_count, quantity_step, allow_fractions,
+        created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       RETURNING *
     `);
 
@@ -84,6 +102,8 @@ export class PantryRepository {
       item.requireApprovalForBrandChange ? 1 : 0,
       item.lastRestockedDate || now,
       0,
+      quantityStep,
+      allowFractions ? 1 : 0,
       now,
       now
     ) as PantryItemRow;
@@ -93,6 +113,10 @@ export class PantryRepository {
 
   update(userId: string, item: PantryItem): PantryItem {
     const now = new Date().toISOString();
+    const defaults = getDefaultStepAndFractions(item.unit);
+    const quantityStep = item.quantityStep !== undefined ? item.quantityStep : defaults.quantityStep;
+    const allowFractions = item.allowFractions !== undefined ? item.allowFractions : defaults.allowFractions;
+
     const stmt = this.db.prepare(`
       UPDATE pantry_items
       SET name = ?,
@@ -108,6 +132,8 @@ export class PantryRepository {
           require_approval_for_brand_change = ?,
           last_restocked_date = ?,
           stockout_days_count = ?,
+          quantity_step = ?,
+          allow_fractions = ?,
           updated_at = ?
       WHERE user_id = ? AND id = ?
       RETURNING *
@@ -127,6 +153,8 @@ export class PantryRepository {
       item.requireApprovalForBrandChange ? 1 : 0,
       item.lastRestockedDate,
       item.stockoutDaysCount,
+      quantityStep,
+      allowFractions ? 1 : 0,
       now,
       userId,
       item.id

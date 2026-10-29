@@ -80,7 +80,12 @@ export const ActivityTimeline: React.FC = () => {
 
       {/* Timeline List */}
       <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-        {filteredLog.map(item => {
+        {filteredLog.length === 0 ? (
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-8 text-center text-slate-500 text-xs">
+            No activity events recorded yet. Simulation steps, restock runs, and approvals will appear here.
+          </div>
+        ) : (
+          filteredLog.map(item => {
           const simDateStr = new Date(item.simulatedDate).toLocaleDateString('en-IN', {
             month: 'short',
             day: 'numeric',
@@ -114,7 +119,8 @@ export const ActivityTimeline: React.FC = () => {
               </div>
             </div>
           );
-        })}
+        })
+      )}
       </div>
     </div>
   );

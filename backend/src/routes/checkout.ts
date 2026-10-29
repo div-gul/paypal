@@ -11,7 +11,7 @@ const CreateOrderSchema = z.object({
 
 const CaptureOrderSchema = z.object({
   orderId: z.string().min(1),
-  runId: z.string().min(1),
+  runId: z.string().optional(),
 });
 
 checkoutRouter.post('/checkout/create-order', async (req: Request, res: Response, next: NextFunction) => {

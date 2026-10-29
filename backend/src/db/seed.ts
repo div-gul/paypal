@@ -40,9 +40,9 @@ export function seedDatabase(db: Database.Database, userId: string = 'demo-user'
       id, user_id, name, category, preferred_brand, preferred_package_size,
       unit, current_quantity, average_daily_consumption, min_stock_threshold,
       target_stock, allow_substitutions, require_approval_for_brand_change,
-      last_restocked_date, stockout_days_count, created_at, updated_at
+      last_restocked_date, stockout_days_count, quantity_step, allow_fractions, created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id, user_id) DO NOTHING
   `);
 
@@ -88,6 +88,12 @@ export function seedDatabase(db: Database.Database, userId: string = 'demo-user'
 
     // 4. Seed Pantry Items
     for (const item of DEFAULT_PANTRY_ITEMS) {
+      const isCountable = ['pcs', 'packs', 'units', 'eggs', 'loaf', 'pack', 'dozen'].includes(item.unit.toLowerCase());
+      const defaultStep = isCountable ? 1 : 0.5;
+      const defaultAllowFractions = !isCountable;
+      const step = item.quantityStep !== undefined ? item.quantityStep : defaultStep;
+      const allowFractions = item.allowFractions !== undefined ? item.allowFractions : defaultAllowFractions;
+
       insertPantryItem.run(
         item.id,
         userId,
@@ -104,6 +110,8 @@ export function seedDatabase(db: Database.Database, userId: string = 'demo-user'
         item.requireApprovalForBrandChange ? 1 : 0,
         item.lastRestockedDate,
         item.stockoutDaysCount || 0,
+        step,
+        allowFractions ? 1 : 0,
         now,
         now
       );

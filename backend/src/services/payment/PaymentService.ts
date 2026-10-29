@@ -94,8 +94,8 @@ export class PaymentService {
     // 2. Call Payment Provider
     const orderResult = await this.provider.createOrder(run);
 
-    // 3. Mark run as payment_pending
-    const updatedRun = this.runRepo.updateStatus(userId, runId, 'payment_pending');
+    // 3. Mark run as payment_pending and record order_id
+    const updatedRun = this.runRepo.setOrderId(userId, runId, orderResult.orderId);
 
     return {
       ...orderResult,
@@ -106,7 +106,7 @@ export class PaymentService {
   async captureCheckoutOrder(
     userId: string,
     orderId: string,
-    runId: string
+    clientRunId?: string
   ): Promise<{
     success: boolean;
     receipt: ReceiptRecord;
@@ -125,10 +125,19 @@ export class PaymentService {
       };
     }
 
-    const run = this.runRepo.getById(userId, runId);
+    // 2. Derive run from stored order and verify user ownership (never trust clientRunId alone)
+    const run = this.runRepo.findByOrderId(orderId);
     if (!run) {
-      throw new AppError('RUN_NOT_FOUND', `Run "${runId}" not found for capture`, 404);
+      throw new AppError('ORDER_NOT_FOUND', `No restock run found for order "${orderId}"`, 404);
     }
+    if (run.userId !== userId) {
+      throw new AppError('UNAUTHORIZED', `Order "${orderId}" does not belong to the authenticated user`, 403);
+    }
+    if (clientRunId && run.id !== clientRunId) {
+      throw new AppError('RUN_MISMATCH', `Supplied runId "${clientRunId}" does not match order record`, 400);
+    }
+
+    const runId = run.id;
 
     // Ensure run is ready for capture
     if (run.status !== 'payment_pending' && run.status !== 'approved' && run.status !== 'auto_approved') {

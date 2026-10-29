@@ -1,13 +1,33 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useShopPilot } from '../context/ShopPilotContext';
 import { STORE_DEFINITIONS, MOCK_STORE_CATALOG } from '../adapters/mockStoreData';
 import { formatPaise } from '../services/currency';
-import { Store, Info, Tag } from 'lucide-react';
-import { StoreId } from '../types';
+import { Store, Info, Tag, Radio } from 'lucide-react';
+import { StoreId, StoreProduct } from '../types';
+import { api } from '../api/client';
 
 export const StoreComparison: React.FC = () => {
   const { pantryItems, setShowDemoInfoModal } = useShopPilot();
+  const [catalogItems, setCatalogItems] = useState<StoreProduct[]>(MOCK_STORE_CATALOG);
+  const [quoteMode, setQuoteMode] = useState<string>('mock');
   const stores: StoreId[] = ['blinkit', 'zepto', 'instamart'];
+
+  useEffect(() => {
+    let isMounted = true;
+    api.getQuotes()
+      .then(res => {
+        if (isMounted && res.quotes && res.quotes.length > 0) {
+          setCatalogItems(res.quotes);
+          if (res.mode) setQuoteMode(res.mode);
+        }
+      })
+      .catch(() => {
+        // Fallback gracefully to default catalog
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-5">
@@ -19,8 +39,14 @@ export const StoreComparison: React.FC = () => {
               <Store className="w-5 h-5 text-amber-600" />
               Store Catalogs & Fee Comparison
             </h2>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
-              Mock Store Adapters
+            <span
+              className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                quoteMode === 'channel3'
+                  ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                  : 'bg-amber-100 text-amber-900 border-amber-300'
+              }`}
+            >
+              {quoteMode === 'channel3' ? 'Live Channel3 Pricing' : 'Mock Store Adapters'}
             </span>
           </div>
         </div>
@@ -98,16 +124,54 @@ export const StoreComparison: React.FC = () => {
           </thead>
           <tbody className="divide-y divide-slate-200 bg-white">
             {pantryItems.map(item => {
-              const catalogItems = MOCK_STORE_CATALOG.filter(p => p.pantryItemId === item.id);
-              const bl = catalogItems.find(p => p.storeId === 'blinkit');
-              const zp = catalogItems.find(p => p.storeId === 'zepto');
-              const im = catalogItems.find(p => p.storeId === 'instamart');
+              const matchedItems = catalogItems.filter(p => p.pantryItemId === item.id);
+              const bl = matchedItems.find(p => p.storeId === 'blinkit');
+              const zp = matchedItems.find(p => p.storeId === 'zepto');
+              const im = matchedItems.find(p => p.storeId === 'instamart');
 
               // Find lowest price among in-stock options
               const inStockPrices = [bl, zp, im]
                 .filter(p => p && p.inStock)
                 .map(p => p!.pricePaise);
               const minPrice = inStockPrices.length > 0 ? Math.min(...inStockPrices) : Infinity;
+
+              const renderStoreCell = (product?: StoreProduct) => {
+                if (!product) {
+                  return <span className="text-slate-400 italic">Unavailable</span>;
+                }
+
+                const isLive = product.source === 'channel3';
+
+                return (
+                  <div>
+                    <div className="flex items-center gap-1.5 font-mono flex-wrap">
+                      <span
+                        className={`font-bold ${
+                          product.pricePaise === minPrice ? 'text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded' : 'text-slate-800'
+                        }`}
+                      >
+                        {formatPaise(product.pricePaise)}
+                      </span>
+                      {product.pricePaise === minPrice && (
+                        <Tag className="w-3 h-3 text-emerald-600 shrink-0" />
+                      )}
+                      {/* Quote source badge */}
+                      {isLive ? (
+                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-0.5">
+                          <Radio className="w-2.5 h-2.5 text-emerald-600 animate-pulse" /> Live price
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-medium px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                          Simulated
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-400 block truncate max-w-[150px]" title={product.name}>
+                      {product.brand} {product.isExactBrandMatch ? '(Match)' : '(Sub)'}
+                    </span>
+                  </div>
+                );
+              };
 
               return (
                 <tr key={item.id} className="hover:bg-slate-50 transition">
@@ -122,79 +186,13 @@ export const StoreComparison: React.FC = () => {
                   </td>
 
                   {/* Blinkit cell */}
-                  <td className="p-3">
-                    {bl ? (
-                      <div>
-                        <div className="flex items-center gap-1.5 font-mono">
-                          <span
-                            className={`font-bold ${
-                              bl.pricePaise === minPrice ? 'text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded' : 'text-slate-800'
-                            }`}
-                          >
-                            {formatPaise(bl.pricePaise)}
-                          </span>
-                          {bl.pricePaise === minPrice && (
-                            <Tag className="w-3 h-3 text-emerald-600 shrink-0" />
-                          )}
-                        </div>
-                        <span className="text-[10px] text-slate-400 block truncate max-w-[140px]" title={bl.name}>
-                          {bl.brand} {bl.isExactBrandMatch ? '(Match)' : '(Sub)'}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-slate-400 italic">Unavailable</span>
-                    )}
-                  </td>
+                  <td className="p-3">{renderStoreCell(bl)}</td>
 
                   {/* Zepto cell */}
-                  <td className="p-3">
-                    {zp ? (
-                      <div>
-                        <div className="flex items-center gap-1.5 font-mono">
-                          <span
-                            className={`font-bold ${
-                              zp.pricePaise === minPrice ? 'text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded' : 'text-slate-800'
-                            }`}
-                          >
-                            {formatPaise(zp.pricePaise)}
-                          </span>
-                          {zp.pricePaise === minPrice && (
-                            <Tag className="w-3 h-3 text-emerald-600 shrink-0" />
-                          )}
-                        </div>
-                        <span className="text-[10px] text-slate-400 block truncate max-w-[140px]" title={zp.name}>
-                          {zp.brand} {zp.isExactBrandMatch ? '(Match)' : '(Sub)'}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-slate-400 italic">Unavailable</span>
-                    )}
-                  </td>
+                  <td className="p-3">{renderStoreCell(zp)}</td>
 
                   {/* Instamart cell */}
-                  <td className="p-3">
-                    {im ? (
-                      <div>
-                        <div className="flex items-center gap-1.5 font-mono">
-                          <span
-                            className={`font-bold ${
-                              im.pricePaise === minPrice ? 'text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded' : 'text-slate-800'
-                            }`}
-                          >
-                            {formatPaise(im.pricePaise)}
-                          </span>
-                          {im.pricePaise === minPrice && (
-                            <Tag className="w-3 h-3 text-emerald-600 shrink-0" />
-                          )}
-                        </div>
-                        <span className="text-[10px] text-slate-400 block truncate max-w-[140px]" title={im.name}>
-                          {im.brand} {im.isExactBrandMatch ? '(Match)' : '(Sub)'}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-slate-400 italic">Unavailable</span>
-                    )}
-                  </td>
+                  <td className="p-3">{renderStoreCell(im)}</td>
                 </tr>
               );
             })}
