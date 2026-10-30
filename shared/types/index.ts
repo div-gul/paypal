@@ -10,6 +10,7 @@ export type ProductCategory =
   | 'Breakfast & Cereals'
   | 'Snacks'
   | 'Personal Care'
+  | 'Household'
   | 'Household Essentials';
 
 export const FOOD_PRODUCT_CATEGORIES: ReadonlySet<string> = new Set([

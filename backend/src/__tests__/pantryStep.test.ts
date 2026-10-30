@@ -79,7 +79,7 @@ describe('Pantry Quantity Steps, Fractions & Validation', () => {
     // 1. Fetch eggs item
     const getRes = await fetch(`${baseUrl}/api/pantry/item-eggs`);
     expect(getRes.status).toBe(200);
-    const { item: initialEggs } = await getRes.json();
+    const { item: initialEggs } = (await getRes.json()) as any;
     const initialQty = initialEggs.currentQuantity;
 
     // 2. Adjust +1
@@ -120,7 +120,7 @@ describe('Pantry Quantity Steps, Fractions & Validation', () => {
   it('fractional adjust (+0.5 and -0.5) works for milk (allowFractions=true, step=0.5)', async () => {
     const getRes = await fetch(`${baseUrl}/api/pantry/item-milk`);
     expect(getRes.status).toBe(200);
-    const { item: initialMilk } = await getRes.json();
+    const { item: initialMilk } = (await getRes.json()) as any;
     const initialQty = initialMilk.currentQuantity;
 
     // +0.5
@@ -194,7 +194,7 @@ describe('Pantry Quantity Steps, Fractions & Validation', () => {
       }),
     });
     expect(validCreate.status).toBe(201);
-    const { item: createdItem } = await validCreate.json();
+    const { item: createdItem } = (await validCreate.json()) as any;
     expect(createdItem.quantityStep).toBe(1);
     expect(createdItem.allowFractions).toBe(false);
 
@@ -222,14 +222,14 @@ describe('Pantry Quantity Steps, Fractions & Validation', () => {
 
     const pantryRes = await fetch(`${baseUrl}/api/pantry/item-milk`);
     expect(pantryRes.status).toBe(200);
-    const { item: milkItem } = await pantryRes.json();
+    const { item: milkItem } = (await pantryRes.json()) as any;
     // Milk daily consumption is 0.5 L/day, initial 0.6 -> 0.1 L
     expect(milkItem.currentQuantity).toBeCloseTo(0.1, 2);
 
     // Bread is countable, consumption is 0.5 packs/day, initial 1 -> 0.5 internally
     const breadRes = await fetch(`${baseUrl}/api/pantry/item-bread`);
     expect(breadRes.status).toBe(200);
-    const { item: breadItem } = await breadRes.json();
+    const { item: breadItem } = (await breadRes.json()) as any;
     expect(breadItem.currentQuantity).toBe(0.5);
 
     // Floor display test (as done on frontend)

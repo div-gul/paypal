@@ -321,6 +321,11 @@ export class RunService {
   approveRun(userId: string, runId: string): RunRecord {
     const run = this.getRunById(userId, runId);
 
+    // Idempotent: If already approved, return immediately
+    if (run.status === 'approved') {
+      return run;
+    }
+
     // Validate state transition
     if (run.status !== 'needs_approval') {
       throw new AppError(

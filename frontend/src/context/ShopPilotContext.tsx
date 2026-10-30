@@ -16,6 +16,7 @@ import {
   DEFAULT_ACTIVITY_LOG,
 } from '@shared/services/defaults';
 import { api, PlanRunOverrides } from '../api/client';
+import { getFriendlyErrorMessage } from '../lib/errorHelper';
 
 export interface CheckoutModalDetails {
   isOpen: boolean;
@@ -148,9 +149,23 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     } catch (err: any) {
       console.error('Failed to sync state with backend API:', err);
-      setError(err.message || 'Failed to sync with backend server');
+      setError(getFriendlyErrorMessage(err));
     }
   }, []);
+
+  // Debounced auto-plan to prevent race conditions during rapid user adjustments
+  const autoPlanTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const debouncedAutoPlan = useCallback(
+    (overrides?: PlanRunOverrides) => {
+      if (autoPlanTimerRef.current) {
+        clearTimeout(autoPlanTimerRef.current);
+      }
+      autoPlanTimerRef.current = setTimeout(() => {
+        reloadState(overrides);
+      }, 300);
+    },
+    [reloadState]
+  );
 
   // Hydrate state on initial mount
   useEffect(() => {
@@ -165,6 +180,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     init();
     return () => {
       isMounted = false;
+      if (autoPlanTimerRef.current) clearTimeout(autoPlanTimerRef.current);
     };
   }, [reloadState]);
 
@@ -175,7 +191,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         await api.updatePantryItem(updated.id, updated);
         await reloadState();
       } catch (err: any) {
-        setError(err.message || 'Failed to update pantry item');
+        setError(getFriendlyErrorMessage(err));
       }
     },
     [reloadState]
@@ -188,7 +204,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         await api.createPantryItem(itemData);
         await reloadState();
       } catch (err: any) {
-        setError(err.message || 'Failed to add pantry item');
+        setError(getFriendlyErrorMessage(err));
       }
     },
     [reloadState]
@@ -201,7 +217,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         await api.deletePantryItem(id);
         await reloadState();
       } catch (err: any) {
-        setError(err.message || 'Failed to delete pantry item');
+        setError(getFriendlyErrorMessage(err));
       }
     },
     [reloadState]
@@ -212,12 +228,12 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     async (id: string, delta: number) => {
       try {
         await api.adjustPantryQuantity(id, delta);
-        await reloadState();
+        debouncedAutoPlan();
       } catch (err: any) {
-        setError(err.message || 'Failed to adjust quantity');
+        setError(getFriendlyErrorMessage(err));
       }
     },
-    [reloadState]
+    [debouncedAutoPlan]
   );
 
   // Update policy / scheduler configuration via API
@@ -227,7 +243,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         await api.updatePolicy(updates);
         await reloadState();
       } catch (err: any) {
-        setError(err.message || 'Failed to update restock policy');
+        setError(getFriendlyErrorMessage(err));
       }
     },
     [reloadState]
@@ -242,7 +258,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         await api.advanceTime(validDays);
         await reloadState();
       } catch (err: any) {
-        setError(err.message || 'Failed to advance simulation time');
+        setError(getFriendlyErrorMessage(err));
       } finally {
         setIsAnalyzing(false);
       }
@@ -256,7 +272,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     try {
       await reloadState();
     } catch (err: any) {
-      setError(err.message || 'Failed to run shopping analysis');
+      setError(getFriendlyErrorMessage(err));
     } finally {
       setIsAnalyzing(false);
     }
@@ -280,7 +296,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           const auditRes = await api.getAuditLog();
           setActivityLog(auditRes.logs);
         } catch (err: any) {
-          setError(err.message || 'Failed to change run strategy');
+          setError(getFriendlyErrorMessage(err));
         }
       } else {
         await reloadState({ ...basketOverridesRef.current, strategy: type });
@@ -294,12 +310,33 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (!activeRun?.id) return;
     setIsLoading(true);
     try {
-      const res = await api.approveRun(activeRun.id);
-      setActiveRun(res.run);
+      // 1. Immediately mark all recommendations as approved in local state
+      setRecommendations(prev =>
+        prev.map(r => ({ ...r, requiresApproval: false, approvalStatus: 'approved' as const }))
+      );
+
+      // 2. Call backend if run is not yet approved
+      if (activeRun.status !== 'approved') {
+        const res = await api.approveRun(activeRun.id);
+        setActiveRun(res.run);
+      } else {
+        setActiveRun({ ...activeRun, status: 'approved' });
+      }
+
       const auditRes = await api.getAuditLog();
       setActivityLog(auditRes.logs);
     } catch (err: any) {
-      setError(err.message || 'Failed to approve run');
+      if (
+        err?.message?.toLowerCase().includes('already approved') ||
+        err?.message?.toLowerCase().includes('cannot be approved from status')
+      ) {
+        setRecommendations(prev =>
+          prev.map(r => ({ ...r, requiresApproval: false, approvalStatus: 'approved' as const }))
+        );
+        setActiveRun({ ...activeRun, status: 'approved' });
+      } else {
+        setError(getFriendlyErrorMessage(err));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -314,7 +351,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const auditRes = await api.getAuditLog();
       setActivityLog(auditRes.logs);
     } catch (err: any) {
-      setError(err.message || 'Failed to reject run');
+      setError(getFriendlyErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -364,14 +401,42 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   );
 
   const approveRecommendation = useCallback(
-    (_itemId: string) => {
-      approveRun();
+    async (itemId: string) => {
+      // 1. Update this recommendation to approved
+      let hasOtherPending = false;
+      setRecommendations(prev => {
+        const next = prev.map(r =>
+          r.itemId === itemId
+            ? { ...r, requiresApproval: false, approvalStatus: 'approved' as const }
+            : r
+        );
+        hasOtherPending = next.some(
+          r =>
+            r.itemId !== itemId &&
+            (r.requiresApproval || r.isSubstitution) &&
+            r.approvalStatus !== 'approved' &&
+            r.approvalStatus !== 'rejected'
+        );
+        return next;
+      });
+
+      // 2. If no other items need approval, approve the run on backend
+      if (!hasOtherPending && activeRun?.id) {
+        await approveRun();
+      }
     },
-    [approveRun]
+    [activeRun, approveRun]
   );
 
   const rejectRecommendation = useCallback(
     (itemId: string) => {
+      setRecommendations(prev =>
+        prev.map(r =>
+          r.itemId === itemId
+            ? { ...r, requiresApproval: false, approvalStatus: 'rejected' as const }
+            : r
+        )
+      );
       removeFromBasket(itemId);
     },
     [removeFromBasket]
@@ -420,7 +485,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           itemsPurchased: allPurchasedItems,
         });
       } catch (err: any) {
-        setError(err.message || 'Checkout failed');
+        setError(getFriendlyErrorMessage(err));
         throw err;
       } finally {
         setIsLoading(false);
@@ -437,7 +502,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       basketOverridesRef.current = { includeItemIds: [], excludeItemIds: [] };
       await reloadState({ includeItemIds: [], excludeItemIds: [] });
     } catch (err: any) {
-      setError(err.message || 'Failed to reset state');
+      setError(getFriendlyErrorMessage(err));
     } finally {
       setIsLoading(false);
     }

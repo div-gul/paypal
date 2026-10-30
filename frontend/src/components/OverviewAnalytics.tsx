@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useShopPilot } from '../context/ShopPilotContext';
 import { formatPaise } from '../services/currency';
-import { MOCK_STORE_CATALOG } from '../adapters/mockStoreData';
+import { api } from '../api/client';
+import { StoreProduct } from '../types';
 import {
   TrendingDown,
   Sparkles,
@@ -21,17 +22,32 @@ export const OverviewAnalytics: React.FC = () => {
     optimizationResult,
   } = useShopPilot();
 
+  const [quotes, setQuotes] = useState<StoreProduct[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    api.getQuotes()
+      .then(res => {
+        if (isMounted && res.quotes) {
+          setQuotes(res.quotes);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const currentStrategy = optimizationResult?.recommendedStrategy;
   const currentSpendPaise = currentStrategy?.grandTotalPaise || 0;
 
-  // 1. Calculate Average Cycle Spend based on 7-day household burn rate & mock unit prices
+  // 1. Calculate Average Cycle Spend based on 7-day household burn rate & real quote unit prices
   let averageCycleSpendPaise = 0;
   pantryItems.forEach(item => {
     const dailyBurn = item.averageDailyConsumption || 0;
     const weeklyQuantity = dailyBurn * 7;
-    // Find unit price in catalog
-    const product = MOCK_STORE_CATALOG.find(p => p.pantryItemId === item.id);
-    const unitPrice = product ? product.pricePaise : 5000;
+    const product = quotes.find(p => p.pantryItemId === item.id);
+    const unitPrice = product ? product.pricePaise : 12000;
     averageCycleSpendPaise += Math.round(weeklyQuantity * unitPrice);
   });
 
@@ -77,12 +93,12 @@ export const OverviewAnalytics: React.FC = () => {
               <TrendingDown className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-xl font-extrabold text-slate-900 font-mono">
+          <div className="text-xl font-extrabold text-slate-900 tabular-nums">
             {formatPaise(currentSpendPaise)}
           </div>
           <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-100">
             <span>Avg Weekly Burn:</span>
-            <span className="font-semibold text-slate-700 font-mono">~{formatPaise(averageCycleSpendPaise)}</span>
+            <span className="font-semibold text-slate-700 tabular-nums">~{formatPaise(averageCycleSpendPaise)}</span>
           </div>
         </div>
 
@@ -94,7 +110,7 @@ export const OverviewAnalytics: React.FC = () => {
               <ShieldCheck className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-xl font-extrabold text-emerald-700 font-mono">
+          <div className="text-xl font-extrabold text-emerald-700 tabular-nums">
             {formatPaise(moneySavedPaise > 0 ? moneySavedPaise : 5400)}
           </div>
           <div className="text-[11px] text-slate-500 pt-1 border-t border-slate-100">
@@ -110,12 +126,12 @@ export const OverviewAnalytics: React.FC = () => {
               <Sparkles className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-xl font-extrabold text-slate-900 font-mono">
+          <div className="text-xl font-extrabold text-slate-900 tabular-nums">
             {autonomousCount} <span className="text-xs font-medium text-slate-500">Autonomous</span>
           </div>
           <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-100">
             <span>Manual Reviews:</span>
-            <span className="font-semibold text-purple-700 font-mono">{manualAddCount} item{manualAddCount === 1 ? '' : 's'}</span>
+            <span className="font-semibold text-purple-700 tabular-nums">{manualAddCount} item{manualAddCount === 1 ? '' : 's'}</span>
           </div>
         </div>
 
@@ -127,7 +143,7 @@ export const OverviewAnalytics: React.FC = () => {
               <ShoppingBag className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-xl font-extrabold text-slate-900 font-mono">
+          <div className="text-xl font-extrabold text-slate-900 tabular-nums">
             {scheduledItemsCount} <span className="text-xs font-medium text-slate-500">Active</span>
             <span className="text-slate-300 mx-1.5">/</span>
             <span className="text-slate-600 font-medium text-sm">{deferredCount} Deferred</span>
@@ -148,7 +164,7 @@ export const OverviewAnalytics: React.FC = () => {
               <Layers className="w-3.5 h-3.5 text-brand-600" />
               Cycle Spend vs Budget Limit
             </span>
-            <span className="font-mono">
+            <span className="tabular-nums">
               {formatPaise(currentSpendPaise)} / {formatPaise(schedulerConfig.perCycleBudgetPaise)} ({budgetRatio}%)
             </span>
           </div>

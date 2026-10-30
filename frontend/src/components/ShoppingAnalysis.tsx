@@ -13,14 +13,14 @@ import {
   PackagePlus,
   ShieldCheck,
   ShieldAlert,
-  Radio,
   TrendingUp,
   RefreshCw,
   Bot,
 } from 'lucide-react';
 import { formatPaise } from '../services/currency';
 import { api, AiSubstituteResult } from '../api/client';
-import { MOCK_STORE_CATALOG } from '../adapters/mockStoreData';
+import { getFriendlyErrorMessage } from '../lib/errorHelper';
+import { getFriendlyStockUrgencyLabel, formatQuantityWithUnit } from '../lib/labels';
 
 export const ShoppingAnalysis: React.FC = () => {
   const {
@@ -34,6 +34,8 @@ export const ShoppingAnalysis: React.FC = () => {
     approveRun,
     rejectRun,
     isLoading,
+    optimizationResult,
+    selectedStrategyType,
   } = useShopPilot();
 
   const [activeTab, setActiveTab] = useState<'all' | 'urgent' | 'weekly' | 'deferred' | 'approvals'>('all');
@@ -42,6 +44,10 @@ export const ShoppingAnalysis: React.FC = () => {
   const [aiLoadingItemId, setAiLoadingItemId] = useState<string | null>(null);
   const [aiSubstitutes, setAiSubstitutes] = useState<Record<string, AiSubstituteResult>>({});
   const [aiSubError, setAiSubError] = useState<Record<string, string>>({});
+
+  const currentStrategy =
+    optimizationResult?.strategies?.find(s => s.type === selectedStrategyType) ||
+    optimizationResult?.recommendedStrategy;
 
   const urgentCount = recommendations.filter(r => r.isUrgent || r.outcome === 'RESTOCK_NOW').length;
   const weeklyCount = recommendations.filter(r => r.outcome === 'INCLUDE_IN_WEEKLY_BASKET').length;
@@ -63,17 +69,19 @@ export const ShoppingAnalysis: React.FC = () => {
 
   const handleRequestAiSubstitute = async (itemId: string, itemName: string) => {
     const pantryItem = pantryItems.find(p => p.id === itemId);
-    const candidates = MOCK_STORE_CATALOG.filter(c => c.pantryItemId === itemId);
-
-    if (candidates.length === 0) {
-      setAiSubError(prev => ({ ...prev, [itemId]: 'No store candidates available for this item.' }));
-      return;
-    }
-
     setAiLoadingItemId(itemId);
     setAiSubError(prev => ({ ...prev, [itemId]: '' }));
 
     try {
+      // Source real store candidates via API rather than static client catalogs
+      const quotesRes = await api.getQuotes();
+      const candidates = (quotesRes.quotes || []).filter(c => c.pantryItemId === itemId);
+
+      if (candidates.length === 0) {
+        setAiSubError(prev => ({ ...prev, [itemId]: 'No store candidates available for this item.' }));
+        return;
+      }
+
       const res = await api.substituteAI({
         pantryItemId: itemId,
         itemName,
@@ -83,7 +91,7 @@ export const ShoppingAnalysis: React.FC = () => {
       });
       setAiSubstitutes(prev => ({ ...prev, [itemId]: res.substitute }));
     } catch (err: any) {
-      setAiSubError(prev => ({ ...prev, [itemId]: err.message || 'AI substitution lookup failed' }));
+      setAiSubError(prev => ({ ...prev, [itemId]: getFriendlyErrorMessage(err) }));
     } finally {
       setAiLoadingItemId(null);
     }
@@ -174,11 +182,10 @@ export const ShoppingAnalysis: React.FC = () => {
           <div className="space-y-1">
             <div className="flex items-center gap-2 font-bold text-purple-950 text-xs">
               <ShieldAlert className="w-4 h-4 text-purple-600" />
-              <span>Restock Run Requires User Approval</span>
+              <span>Order Requires Your Confirmation</span>
             </div>
             <p className="text-[11px] text-purple-800 leading-snug">
-              Autonomous policy detected off-cycle urgent items, brand substitutions, or budget thresholds requiring confirmation.
-              Approvals apply to the entire restock run.
+              ShopPilot identified urgent items, brand substitutions, or budget limits that need your confirmation before placing this order.
             </p>
             {activeRun?.decisionReasons && activeRun.decisionReasons.length > 0 && (
               <ul className="text-[10px] text-purple-900 list-disc list-inside pt-0.5 space-y-0.5">
@@ -275,16 +282,26 @@ export const ShoppingAnalysis: React.FC = () => {
           </div>
         ) : (
           filteredRecs.map(rec => {
-            const isApproved = rec.approvalStatus === 'approved';
-            const isPending = rec.requiresApproval && rec.approvalStatus === 'pending';
-            const isInActiveBasket =
-              (rec.outcome === 'RESTOCK_NOW' || rec.outcome === 'INCLUDE_IN_WEEKLY_BASKET' || isApproved) &&
-              rec.recommendedQuantity > 0;
+            // Extract the actual line in the chosen strategy's basket (Requirement 1: BUG fix)
+            const basketLine = currentStrategy?.storeBaskets?.flatMap(b =>
+              b.items.map(item => ({
+                ...item,
+                storeId: b.storeId,
+                storeName: b.storeName,
+              }))
+            ).find(i => i.pantryItemId === rec.itemId);
 
-            const isSub = Boolean(rec.isSubstitution || (rec.selectedProduct && !rec.selectedProduct.isExactBrandMatch));
-            const isSpike = Boolean(rec.isPriceSpike || (rec.priceSpikePercent && rec.priceSpikePercent > 0));
+            const productToShow = basketLine?.product || rec.selectedProduct;
+            const storeNameToShow = basketLine?.storeName || rec.selectedStore;
+            const isSub = Boolean(basketLine ? basketLine.isSubstitution : rec.isSubstitution);
+            const quantityToShow = basketLine ? basketLine.quantity : (rec.recommendedQuantity > 0 ? rec.recommendedQuantity : 1);
+            const pricePaiseToShow = basketLine ? basketLine.totalPaise : (productToShow ? productToShow.pricePaise * quantityToShow : 0);
+
             const isEmergency = Boolean(rec.isUrgent || rec.isEmergencyStockout);
-            const isLive = rec.selectedProduct?.source === 'channel3';
+            const isSpike = Boolean(rec.isPriceSpike);
+            const isPending = rec.requiresApproval && rec.approvalStatus === 'pending';
+            const isApproved = rec.approvalStatus === 'approved';
+            const isInActiveBasket = Boolean(basketLine || rec.outcome === 'RESTOCK_NOW' || rec.outcome === 'INCLUDE_IN_WEEKLY_BASKET');
 
             const aiSub = aiSubstitutes[rec.itemId];
             const aiErrorMsg = aiSubError[rec.itemId];
@@ -314,11 +331,11 @@ export const ShoppingAnalysis: React.FC = () => {
                         {rec.category}
                       </span>
 
-                      {/* Decision 3: Per-Line Item Flags */}
+                      {/* Friendly Stock Urgency */}
                       {isEmergency && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-200 flex items-center gap-1">
                           <AlertTriangle className="w-3 h-3 text-red-600" />
-                          Emergency Stockout
+                          {getFriendlyStockUrgencyLabel(rec.daysRemaining)}
                         </span>
                       )}
                       {isSub && (
@@ -339,7 +356,7 @@ export const ShoppingAnalysis: React.FC = () => {
 
                     <div className="flex flex-wrap items-center gap-3 pt-1">
                       <span className="text-xs text-slate-600">
-                        Current: <strong>{rec.currentQuantity}</strong>
+                        Current: <strong>{formatQuantityWithUnit(rec.currentQuantity, rec.unit)}</strong>
                       </span>
                       <span className="text-xs text-slate-400">•</span>
                       <span className="text-xs text-slate-600">
@@ -475,55 +492,40 @@ export const ShoppingAnalysis: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Proposed Purchase Details & Quote Source Badge */}
-                  {rec.selectedProduct && (
-                    <div className="bg-white rounded-lg border border-slate-200 p-3 text-xs min-w-[230px] shrink-0 space-y-1.5">
+                  {/* Selected Strategy Product Details */}
+                  {productToShow && (
+                    <div className="bg-white rounded-lg border border-slate-200 p-3 text-xs min-w-[240px] shrink-0 space-y-1.5 shadow-2xs">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                          Matched Store SKU
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                          {isSub ? 'Substituted Item' : 'Order Line'}
                         </span>
-                        {isInActiveBasket ? (
+                        {isInActiveBasket && (
                           <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200">
                             In Basket
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-semibold text-slate-400">
-                            Not in Basket
                           </span>
                         )}
                       </div>
 
                       <div className="font-semibold text-slate-900 leading-snug">
-                        {rec.selectedProduct.name}
+                        {productToShow.name}
                       </div>
 
                       <div className="text-slate-500 text-[11px] flex items-center justify-between">
                         <span>
-                          Qty: <strong>{rec.recommendedQuantity > 0 ? rec.recommendedQuantity : 1}x</strong> ({rec.targetPackageSize})
+                          Brand: <strong className="text-slate-800">{productToShow.brand}</strong>
                         </span>
-                        <span className="font-bold text-slate-900 font-mono">
-                          {formatPaise(
-                            rec.selectedProduct.pricePaise *
-                              (rec.recommendedQuantity > 0 ? rec.recommendedQuantity : 1)
-                          )}
+                        <span>
+                          Qty: <strong>{quantityToShow}x</strong>
                         </span>
                       </div>
 
-                      <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-100 flex-wrap gap-1">
+                      <div className="flex items-center justify-between text-[11px] text-slate-600 pt-1 border-t border-slate-100">
                         <span>
-                          Store: <strong className="capitalize">{rec.selectedStore}</strong>
+                          Store: <strong className="capitalize text-slate-900">{storeNameToShow}</strong>
                         </span>
-
-                        {/* Decision: Live price vs Simulated Quote source badge */}
-                        {isLive ? (
-                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-0.5">
-                            <Radio className="w-2.5 h-2.5 text-emerald-600 animate-pulse" /> Live price
-                          </span>
-                        ) : (
-                          <span className="text-[9px] font-medium px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                            Simulated
-                          </span>
-                        )}
+                        <span className="font-bold text-slate-900 tabular-nums">
+                          {formatPaise(pricePaiseToShow)}
+                        </span>
                       </div>
                     </div>
                   )}

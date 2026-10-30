@@ -140,7 +140,7 @@ export const DEFAULT_PANTRY_ITEMS: PantryItem[] = [
   {
     id: 'item-detergent',
     name: 'Liquid Laundry Detergent',
-    category: 'Personal Care',
+    category: 'Household',
     preferredBrand: 'Surf Excel',
     preferredPackageSize: '2 L',
     unit: 'L',
@@ -163,7 +163,7 @@ export const DEFAULT_SCHEDULER_CONFIG: WeeklySchedulerConfig = {
   nextShoppingDate: INITIAL_NEXT_SHOPPING_DATE,
   emergencyRestockPreference: 'ask_approval',
   urgentThresholdDays: 3,
-  perCycleBudgetPaise: 250000, // ₹2,500.00
+  perCycleBudgetPaise: 350000, // ₹3,500.00
 };
 
 export const DEFAULT_SIMULATION_STATE: SimulationState = {

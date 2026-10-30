@@ -1,82 +1,125 @@
 import React from 'react';
 import { useShopPilot } from '../context/ShopPilotContext';
-import { Bot, RefreshCw, Info, Calendar, ShieldCheck } from 'lucide-react';
+import { Bot, Sliders, Info, CheckCircle2 } from 'lucide-react';
+import { Button } from './ui/Button';
 
-export const Header: React.FC = () => {
-  const { simulationState, schedulerConfig, resetToInitialDemo, setShowDemoInfoModal } = useShopPilot();
+export interface HeaderProps {
+  onOpenDemoDrawer: () => void;
+}
+
+export const Header: React.FC<HeaderProps> = ({ onOpenDemoDrawer }) => {
+  const { simulationState, activeRun, recommendations, setShowDemoInfoModal, isLoading } = useShopPilot();
+
+  // Pending approvals counter
+  const pendingApprovalsCount =
+    activeRun?.status === 'approved'
+      ? 0
+      : recommendations.filter(
+          r =>
+            r.approvalStatus !== 'approved' &&
+            r.approvalStatus !== 'rejected' &&
+            (r.requiresApproval || r.isSubstitution)
+        ).length;
 
   const simDate = new Date(simulationState.simulatedDate);
   const formattedSimDate = simDate.toLocaleDateString('en-IN', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
-    year: 'numeric',
   });
 
-  const nextRunDate = new Date(schedulerConfig.nextShoppingDate);
-  const formattedNextRun = nextRunDate.toLocaleDateString('en-IN', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
+  // Dynamic friendly status pill
+  const renderStatusPill = () => {
+    if (isLoading) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+          <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping"></span>
+          <span>Syncing...</span>
+        </span>
+      );
+    }
+    if (activeRun?.status === 'needs_approval' || pendingApprovalsCount > 0) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-300">
+          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+          <span>Waiting for your approval ({pendingApprovalsCount})</span>
+        </span>
+      );
+    }
+    if (activeRun?.status === 'auto_approved' || activeRun?.status === 'approved') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-300">
+          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span>Ready to order</span>
+        </span>
+      );
+    }
+    if (activeRun?.status === 'paid') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-300">
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+          <span>Restocked & paid</span>
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+        <span>Pantry on Autopilot</span>
+      </span>
+    );
+  };
 
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs">
-      {/* Demo Mode Notice Banner */}
-      <div className="bg-amber-600 text-white text-xs font-medium py-1 px-4 text-center flex items-center justify-center gap-2">
-        <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold bg-white text-amber-800 uppercase tracking-wider">
-          Demo Mode
-        </span>
-        <span>Simulated store prices for Blinkit, Zepto, and Instamart.</span>
-        <button
-          onClick={() => setShowDemoInfoModal(true)}
-          className="underline hover:text-amber-100 flex items-center gap-1 ml-1 cursor-pointer font-semibold"
-        >
-          <Info className="w-3.5 h-3.5" /> Data Boundaries
-        </button>
-      </div>
-
-      {/* Main Header Bar */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex flex-wrap items-center justify-between gap-4">
-        {/* Logo and Brand */}
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white shadow-sm">
-            <Bot className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-bold tracking-tight text-slate-900">ShopPilot AI</h1>
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3 text-emerald-600" /> Autonomous Agent
+    <header className="glass-header border-b border-slate-200/80 sticky top-0 z-30 shadow-2xs">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-3">
+        {/* Brand & Status Pill */}
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-paypal-blue via-paypal-lightBlue to-brand-500 flex items-center justify-center text-white shadow-sm shadow-paypal-blue/20">
+              <Bot className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-extrabold text-base tracking-tight text-slate-900 font-heading">ShopPilot</span>
+                <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded bg-brand-100 text-brand-800 tracking-wider">
+                  AI
+                </span>
+              </div>
+              <span className="text-[10px] text-slate-400 block -mt-0.5 hidden sm:block">
+                Autonomous Restocking
               </span>
             </div>
           </div>
+
+          {/* Status Dot Pill */}
+          <div className="hidden sm:block">{renderStatusPill()}</div>
         </div>
 
-        {/* Live Simulation Clock & Next Run Indicator */}
-        <div className="flex items-center gap-3">
-          <div className="bg-slate-100 border border-slate-200 rounded-lg px-3 py-1.5 flex items-center gap-3 text-xs">
-            <div className="flex items-center gap-1.5 text-slate-700">
-              <Calendar className="w-4 h-4 text-brand-600" />
-              <div>
-                <span className="text-[10px] text-slate-400 block font-medium uppercase tracking-wider">Simulated Date</span>
-                <span className="font-semibold text-slate-800">{formattedSimDate}</span>
-              </div>
-            </div>
-            <div className="h-6 w-px bg-slate-300"></div>
-            <div>
-              <span className="text-[10px] text-slate-400 block font-medium uppercase tracking-wider">Next Weekly Run</span>
-              <span className="font-medium text-slate-700">{formattedNextRun}</span>
-            </div>
-          </div>
+        {/* Right Quick Actions */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="block sm:hidden">{renderStatusPill()}</div>
 
-          {/* Reset Demo Button */}
-          <button
-            onClick={resetToInitialDemo}
-            title="Reset simulation and pantry data back to initial benchmark"
-            className="text-xs px-3 py-2 rounded-lg border border-slate-300 text-slate-600 hover:text-slate-900 hover:bg-slate-100 flex items-center gap-1.5 font-medium transition cursor-pointer"
+          {/* Demo Controls Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onOpenDemoDrawer}
+            icon={<Sliders className="w-3.5 h-3.5 text-brand-600" />}
+            title="Fast-forward days and simulate restocking"
           >
-            <RefreshCw className="w-3.5 h-3.5" /> Reset Demo
+            <span className="hidden sm:inline text-slate-500 font-normal mr-1">{formattedSimDate} •</span>
+            <span>Demo Controls</span>
+          </Button>
+
+          {/* Why this? / Info Modal Button */}
+          <button
+            onClick={() => setShowDemoInfoModal(true)}
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer transition"
+            title="About ShopPilot AI & Integrations"
+            aria-label="System info"
+          >
+            <Info className="w-4 h-4" />
           </button>
         </div>
       </div>

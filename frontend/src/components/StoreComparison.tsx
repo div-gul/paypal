@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useShopPilot } from '../context/ShopPilotContext';
 import { STORE_DEFINITIONS, MOCK_STORE_CATALOG } from '../adapters/mockStoreData';
 import { formatPaise } from '../services/currency';
-import { Store, Info, Tag, Radio } from 'lucide-react';
+import { Store, Info, Tag } from 'lucide-react';
 import { StoreProduct, isNonGroceryItem } from '../types';
 import { api } from '../api/client';
 
@@ -130,109 +130,106 @@ export const StoreComparison: React.FC = () => {
       </div>
 
       {/* Product Cross-Store Price Comparison Table */}
-      <div className="overflow-x-auto rounded-xl border border-slate-200">
-        <table className="w-full text-left text-xs">
-          <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-[10px] tracking-wider">
-            <tr>
-              <th className="p-3">Household Item</th>
-              <th className="p-3">Preferred Brand</th>
-              <th className="p-3">Blinkit Price</th>
-              <th className="p-3">Zepto Price</th>
-              <th className="p-3">Instamart Price</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200 bg-white">
-            {pantryItems.map(item => {
-              const matchedItems = catalogItems.filter(p => p.pantryItemId === item.id);
-              const bl = matchedItems.find(p => p.storeId === 'blinkit');
-              const zp = matchedItems.find(p => p.storeId === 'zepto');
-              const im = matchedItems.find(p => p.storeId === 'instamart');
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-[11px] text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
+          <span>Prices shown below are simulated for local quick-commerce stores.</span>
+          <span className="text-slate-400">Lowest price highlighted in green</span>
+        </div>
 
-              // Find lowest price among in-stock options
-              const inStockPrices = [bl, zp, im]
-                .filter(p => p && p.inStock)
-                .map(p => p!.pricePaise);
-              const minPrice = inStockPrices.length > 0 ? Math.min(...inStockPrices) : Infinity;
+        <div className="overflow-x-auto rounded-xl border border-slate-200">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-[10px] tracking-wider">
+              <tr>
+                <th className="p-3">Household Item</th>
+                <th className="p-3">Preferred Brand</th>
+                <th className="p-3">Blinkit Price</th>
+                <th className="p-3">Zepto Price</th>
+                <th className="p-3">Instamart Price</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 bg-white">
+              {pantryItems.map(item => {
+                const matchedItems = catalogItems.filter(p => p.pantryItemId === item.id);
+                const bl = matchedItems.find(p => p.storeId === 'blinkit');
+                const zp = matchedItems.find(p => p.storeId === 'zepto');
+                const im = matchedItems.find(p => p.storeId === 'instamart');
 
-              const renderStoreCell = (product?: StoreProduct) => {
-                if (!product) {
-                  return <span className="text-slate-400 italic">Unavailable</span>;
-                }
+                // Find lowest price among in-stock options
+                const inStockPrices = [bl, zp, im]
+                  .filter(p => p && p.inStock)
+                  .map(p => p!.pricePaise);
+                const minPrice = inStockPrices.length > 0 ? Math.min(...inStockPrices) : Infinity;
 
-                const isLive = product.source === 'channel3';
+                const renderStoreCell = (product?: StoreProduct) => {
+                  if (!product) {
+                    return <span className="text-slate-400 italic">Unavailable</span>;
+                  }
+
+                  const isLowest = product.pricePaise === minPrice;
+
+                  return (
+                    <div>
+                      <div className="flex items-center gap-1.5 tabular-nums flex-wrap">
+                        <span
+                          className={`font-bold ${
+                            isLowest ? 'text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded' : 'text-slate-800'
+                          }`}
+                        >
+                          {formatPaise(product.pricePaise)}
+                        </span>
+                        {isLowest && (
+                          <Tag className="w-3 h-3 text-emerald-600 shrink-0" />
+                        )}
+                      </div>
+                      <span className="text-[10px] text-slate-400 block truncate max-w-[150px]" title={product.name}>
+                        {product.brand} {product.isExactBrandMatch ? '' : '(sub)'}
+                      </span>
+                    </div>
+                  );
+                };
 
                 return (
-                  <div>
-                    <div className="flex items-center gap-1.5 font-mono flex-wrap">
-                      <span
-                        className={`font-bold ${
-                          product.pricePaise === minPrice ? 'text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded' : 'text-slate-800'
-                        }`}
-                      >
-                        {formatPaise(product.pricePaise)}
+                  <tr key={item.id} className="hover:bg-slate-50 transition">
+                    <td className="p-3 font-semibold text-slate-900">
+                      {item.name}
+                      <span className="text-[10px] text-slate-400 block font-normal">
+                        {item.preferredPackageSize}
                       </span>
-                      {product.pricePaise === minPrice && (
-                        <Tag className="w-3 h-3 text-emerald-600 shrink-0" />
-                      )}
-                      {/* Quote source badge */}
-                      {isLive ? (
-                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-0.5">
-                          <Radio className="w-2.5 h-2.5 text-emerald-600 animate-pulse" /> Live price
-                        </span>
-                      ) : (
-                        <span className="text-[9px] font-medium px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                          Simulated
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[10px] text-slate-400 block truncate max-w-[150px]" title={product.name}>
-                      {product.brand} {product.isExactBrandMatch ? '(Match)' : '(Sub)'}
-                    </span>
-                  </div>
+                    </td>
+                    <td className="p-3 text-slate-600">
+                      {item.preferredBrand}
+                    </td>
+
+                    {/* Blinkit cell */}
+                    <td className="p-3">{renderStoreCell(bl)}</td>
+
+                    {/* Zepto cell */}
+                    <td className="p-3">{renderStoreCell(zp)}</td>
+
+                    {/* Instamart cell */}
+                    <td className="p-3">{renderStoreCell(im)}</td>
+                  </tr>
                 );
-              };
-
-              return (
-                <tr key={item.id} className="hover:bg-slate-50 transition">
-                  <td className="p-3 font-semibold text-slate-900">
-                    {item.name}
-                    <span className="text-[10px] text-slate-400 block font-normal">
-                      {item.preferredPackageSize}
-                    </span>
-                  </td>
-                  <td className="p-3 text-slate-600">
-                    {item.preferredBrand}
-                  </td>
-
-                  {/* Blinkit cell */}
-                  <td className="p-3">{renderStoreCell(bl)}</td>
-
-                  {/* Zepto cell */}
-                  <td className="p-3">{renderStoreCell(zp)}</td>
-
-                  {/* Instamart cell */}
-                  <td className="p-3">{renderStoreCell(im)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Channel3 Web Product Price Checks (Strictly non-grocery household items) */}
+      {/* Collapsed More price sources disclosure (non-grocery household items only) */}
       {nonGroceryWebQuotes.length > 0 && (
-        <div className="pt-2 border-t border-slate-100 space-y-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-              <Radio className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
-              Real Web Product Price Checks (Channel3) &mdash; Household Supplies
-            </h3>
-            <span className="text-[10px] text-slate-500">
-              Web price benchmark for non-grocery essentials (e.g. detergents, cleaners); hidden for food.
+        <details className="group pt-2 border-t border-slate-100 text-xs text-slate-600">
+          <summary className="font-semibold text-slate-700 cursor-pointer hover:text-slate-900 select-none flex items-center justify-between py-1.5">
+            <span className="flex items-center gap-1.5">
+              <span>More price sources</span>
+              <span className="text-[10px] font-normal text-slate-400">
+                ({nonGroceryWebQuotes.length} web benchmark{nonGroceryWebQuotes.length === 1 ? '' : 's'})
+              </span>
             </span>
-          </div>
+            <span className="text-slate-400 text-[10px] group-open:rotate-180 transition-transform">▼</span>
+          </summary>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+          <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
             {nonGroceryWebQuotes.map(wq => (
               <div key={wq.id} className="p-2.5 rounded-lg border border-slate-200 bg-slate-50/50 flex flex-col justify-between text-xs">
                 <div>
@@ -240,8 +237,8 @@ export const StoreComparison: React.FC = () => {
                     <span className="text-[10px] font-bold text-blue-800 bg-blue-100 px-1.5 py-0.2 rounded">
                       {wq.retailer || 'Other retailers'}
                     </span>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      {wq.currency || 'USD'}
+                    <span className="text-[10px] text-slate-400">
+                      {wq.packageSize || 'size unknown'}
                     </span>
                   </div>
                   <div className="font-semibold text-slate-900 truncate" title={wq.name}>
@@ -252,16 +249,16 @@ export const StoreComparison: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="mt-2 pt-1 border-t border-slate-200 flex items-center justify-between font-mono">
+                <div className="mt-2 pt-1 border-t border-slate-200 flex items-center justify-between">
                   <span className="text-[10px] text-slate-500">Web Price:</span>
-                  <span className="font-bold text-slate-900">
+                  <span className="font-bold text-slate-900 tabular-nums">
                     {formatPaise(wq.pricePaise)}
                   </span>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </details>
       )}
     </div>
   );

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useShopPilot } from '../context/ShopPilotContext';
 import { formatPaise } from '../services/currency';
+import { filterAndRankStrategies, RankedStrategy } from '../lib/labels';
+import { BasketStrategyResult, StoreSubBasket, BasketItem } from '../types';
 import {
   TrendingDown,
   ShoppingBag,
@@ -12,6 +14,7 @@ import {
   PackageCheck,
   ChevronDown,
   ChevronUp,
+  AlertTriangle,
 } from 'lucide-react';
 
 export const BasketOptimizer: React.FC = () => {
@@ -20,6 +23,8 @@ export const BasketOptimizer: React.FC = () => {
     selectedStrategyType,
     setSelectedStrategyType,
     openCheckoutModal,
+    activeRun,
+    recommendations,
   } = useShopPilot();
 
   const [showItemDetails, setShowItemDetails] = useState(true);
@@ -33,12 +38,24 @@ export const BasketOptimizer: React.FC = () => {
   }
 
   const { strategies, recommendedStrategy } = optimizationResult;
-  const currentStrategy =
-    strategies.find(s => s.type === selectedStrategyType) || recommendedStrategy || strategies[0];
-
-  const allFinalItems = currentStrategy.storeBaskets.flatMap(b =>
-    b.items.map(item => ({ ...item, storeName: b.storeName, storeId: b.storeId }))
+  const filteredStrategies: RankedStrategy[] = filterAndRankStrategies(
+    strategies,
+    recommendedStrategy,
+    recommendations.length
   );
+
+  const currentStrategy: RankedStrategy | BasketStrategyResult =
+    filteredStrategies.find(s => s.type === selectedStrategyType) ||
+    filteredStrategies.find(s => s.type === recommendedStrategy?.type) ||
+    filteredStrategies[0] ||
+    strategies[0];
+
+  const allFinalItems = currentStrategy.storeBaskets.flatMap((b: StoreSubBasket) =>
+    b.items.map((item: BasketItem) => ({ ...item, storeName: b.storeName, storeId: b.storeId }))
+  );
+
+  const needsApproval = activeRun?.status === 'needs_approval';
+  const isCheckoutDisabled = currentStrategy.grandTotalPaise === 0 || needsApproval;
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-5">
@@ -48,22 +65,33 @@ export const BasketOptimizer: React.FC = () => {
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
               <TrendingDown className="w-5 h-5 text-emerald-600" />
-              Basket Cost Optimizer
+              Basket Options
             </h2>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-              Integer Paise Precision
-            </span>
           </div>
         </div>
 
         <button
           onClick={() => openCheckoutModal(currentStrategy)}
-          disabled={currentStrategy.grandTotalPaise === 0}
-          className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-paypal-blue via-paypal-lightBlue to-brand-600 hover:opacity-95 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-paypal-blue/20 cursor-pointer disabled:opacity-50 transition"
+          disabled={isCheckoutDisabled}
+          title={needsApproval ? 'Approve substitutions to continue to checkout' : undefined}
+          className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition ${
+            needsApproval
+              ? 'bg-amber-100 text-amber-900 border border-amber-300 cursor-not-allowed opacity-90'
+              : 'bg-gradient-to-r from-paypal-blue via-paypal-lightBlue to-brand-600 hover:opacity-95 text-white shadow-md shadow-paypal-blue/20 cursor-pointer disabled:opacity-50'
+          }`}
         >
-          <ShoppingBag className="w-4 h-4" />
-          <span>Checkout Proposed Basket ({formatPaise(currentStrategy.grandTotalPaise)})</span>
-          <ArrowRight className="w-3.5 h-3.5" />
+          {needsApproval ? (
+            <>
+              <AlertTriangle className="w-4 h-4 text-amber-700" />
+              <span>Approve swaps to continue</span>
+            </>
+          ) : (
+            <>
+              <ShoppingBag className="w-4 h-4" />
+              <span>Checkout Basket (<span className="tabular-nums">{formatPaise(currentStrategy.grandTotalPaise)}</span>)</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </>
+          )}
         </button>
       </div>
 
@@ -77,7 +105,7 @@ export const BasketOptimizer: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
-                  Recommended Basket Strategy
+                  Recommended Basket
                 </span>
                 <span className="font-bold text-slate-900">{recommendedStrategy.title}</span>
               </div>
@@ -86,16 +114,16 @@ export const BasketOptimizer: React.FC = () => {
 
           <div className="text-right shrink-0">
             <span className="text-[10px] text-emerald-700 uppercase font-semibold block">Total Payable</span>
-            <span className="text-xl font-extrabold text-emerald-900 font-mono">
+            <span className="text-xl font-extrabold text-emerald-900 tabular-nums">
               {formatPaise(recommendedStrategy.grandTotalPaise)}
             </span>
           </div>
         </div>
       )}
 
-      {/* 4 Strategy Comparison Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-        {strategies.map(strat => {
+      {/* Up to 3 Deduplicated Strategy Comparison Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {filteredStrategies.map(strat => {
           const isSelected = strat.type === selectedStrategyType;
           const isRec = strat.type === recommendedStrategy?.type;
 
@@ -113,32 +141,38 @@ export const BasketOptimizer: React.FC = () => {
                 {/* Header Tag */}
                 <div className="flex items-center justify-between gap-1 mb-2">
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
-                    {strat.tag}
+                    {strat.friendlyBadge}
                   </span>
                   {isRec && (
                     <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300">
                       ★ Best Choice
                     </span>
                   )}
+                  {strat.deferredCount !== undefined && strat.deferredCount > 0 && (
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
+                      Defers {strat.deferredCount} {strat.deferredCount === 1 ? 'item' : 'items'}
+                    </span>
+                  )}
                 </div>
 
-                <h3 className="font-bold text-slate-900 text-xs mb-2 leading-snug">{strat.title}</h3>
+                <h3 className="font-bold text-slate-900 text-xs mb-1 leading-snug">{strat.friendlyName}</h3>
+                <p className="text-[11px] text-slate-500 mb-2 leading-relaxed">{strat.friendlyDescription}</p>
 
                 {/* Granular Cost Summary */}
                 <div className="space-y-1.5 text-[11px] py-2 border-t border-b border-slate-100 text-slate-600">
                   <div className="flex justify-between">
                     <span>Products Subtotal</span>
-                    <span className="font-medium text-slate-800">{formatPaise(strat.totalProductPaise)}</span>
+                    <span className="font-medium text-slate-800 tabular-nums">{formatPaise(strat.totalProductPaise)}</span>
                   </div>
                   <div className="flex justify-between text-amber-700">
                     <span className="flex items-center gap-1">
                       <Truck className="w-3 h-3" /> Delivery Fees
                     </span>
-                    <span className="font-semibold">{formatPaise(strat.totalDeliveryFeePaise)}</span>
+                    <span className="font-semibold tabular-nums">{formatPaise(strat.totalDeliveryFeePaise)}</span>
                   </div>
                   <div className="flex justify-between text-slate-500">
                     <span>Platform / Taxes</span>
-                    <span>{formatPaise(strat.totalHandlingFeePaise + strat.totalTaxPaise)}</span>
+                    <span className="tabular-nums">{formatPaise(strat.totalHandlingFeePaise + strat.totalTaxPaise)}</span>
                   </div>
                   <div className="flex justify-between text-[10px] text-slate-400">
                     <span>Store Orders</span>
@@ -150,7 +184,7 @@ export const BasketOptimizer: React.FC = () => {
               {/* Total Card Footer */}
               <div className="pt-3 flex items-baseline justify-between">
                 <span className="text-[10px] text-slate-400 uppercase font-semibold">Total Cost</span>
-                <span className="text-base font-extrabold text-slate-900 font-mono">
+                <span className="text-base font-extrabold text-slate-900 tabular-nums">
                   {formatPaise(strat.grandTotalPaise)}
                 </span>
               </div>
@@ -165,12 +199,12 @@ export const BasketOptimizer: React.FC = () => {
           <div className="flex items-center gap-2">
             <PackageCheck className="w-5 h-5 text-brand-600" />
             <h3 className="font-bold text-slate-900 text-sm">
-              Final Basket Items ({allFinalItems.length} Products • {allFinalItems.reduce((acc, i) => acc + i.quantity, 0)} Units)
+              Final Basket Items ({allFinalItems.length} Products • {allFinalItems.reduce((acc: number, i) => acc + i.quantity, 0)} Units)
             </h3>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-600 font-semibold bg-white px-2.5 py-1 rounded-md border border-slate-200 font-mono">
+            <span className="text-xs text-slate-600 font-semibold bg-white px-2.5 py-1 rounded-md border border-slate-200 tabular-nums">
               Items: {formatPaise(currentStrategy.totalProductPaise)} + Fees: {formatPaise(currentStrategy.totalDeliveryFeePaise + currentStrategy.totalHandlingFeePaise + currentStrategy.totalTaxPaise)} = <strong className="text-emerald-700">{formatPaise(currentStrategy.grandTotalPaise)}</strong>
             </span>
             <button
@@ -205,7 +239,7 @@ export const BasketOptimizer: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  allFinalItems.map((item, idx) => (
+                  allFinalItems.map((item, idx: number) => (
                     <tr key={idx} className="hover:bg-slate-50/70 transition">
                       <td className="py-2.5 px-3 font-semibold text-slate-900">
                         {item.product.name}
@@ -260,7 +294,7 @@ export const BasketOptimizer: React.FC = () => {
 
         {/* Store Sub-Baskets */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {currentStrategy.storeBaskets.map(basket => (
+          {currentStrategy.storeBaskets.map((basket: StoreSubBasket) => (
             <div key={basket.storeId} className="bg-white rounded-xl border border-slate-200 p-3.5 shadow-2xs space-y-3">
               {/* Store Header */}
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
@@ -270,20 +304,20 @@ export const BasketOptimizer: React.FC = () => {
                     {basket.items.length} item{basket.items.length === 1 ? '' : 's'}
                   </span>
                 </div>
-                <span className="text-xs font-extrabold text-slate-900 font-mono">
+                <span className="text-xs font-extrabold text-slate-900 tabular-nums">
                   {formatPaise(basket.totalPaise)}
                 </span>
               </div>
 
               {/* Items List */}
               <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 divide-y divide-slate-100">
-                {basket.items.map(item => (
+                {basket.items.map((item: BasketItem) => (
                   <div key={item.product.id} className="pt-1.5 first:pt-0 text-[11px] flex items-center justify-between gap-1 text-slate-700">
                     <div className="truncate pr-1">
                       <span className="font-semibold text-slate-900">{item.quantity}x</span> {item.product.name}
                       <span className="text-[10px] text-slate-400 block">{item.product.brand} ({item.product.packageSize})</span>
                     </div>
-                    <span className="font-semibold text-slate-900 font-mono shrink-0">
+                    <span className="font-semibold text-slate-900 tabular-nums shrink-0">
                       {formatPaise(item.totalPaise)}
                     </span>
                   </div>
@@ -327,10 +361,24 @@ export const BasketOptimizer: React.FC = () => {
         <div className="flex justify-end pt-3 border-t border-slate-200">
           <button
             onClick={() => openCheckoutModal(currentStrategy)}
-            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs cursor-pointer transition"
+            disabled={isCheckoutDisabled}
+            className={`w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition ${
+              needsApproval
+                ? 'bg-amber-100 text-amber-900 border border-amber-300 cursor-not-allowed opacity-90'
+                : 'bg-brand-600 hover:bg-brand-500 text-white shadow-xs cursor-pointer disabled:opacity-50'
+            }`}
           >
-            <FileCheck2 className="w-4 h-4" />
-            <span>Proceed to Checkout ({formatPaise(currentStrategy.grandTotalPaise)})</span>
+            {needsApproval ? (
+              <>
+                <AlertTriangle className="w-4 h-4 text-amber-700" />
+                <span>Approve swaps to continue</span>
+              </>
+            ) : (
+              <>
+                <FileCheck2 className="w-4 h-4" />
+                <span>Proceed to Checkout (<span className="tabular-nums">{formatPaise(currentStrategy.grandTotalPaise)}</span>)</span>
+              </>
+            )}
           </button>
         </div>
       </div>
