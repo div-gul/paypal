@@ -33,6 +33,9 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
     setSelectedStrategyType,
     openCheckoutModal,
     activeRun,
+    upcomingOrder,
+    pendingSwaps,
+    isUpcomingOrderSaved,
   } = useShopPilot();
 
   const [isWhyThisOpen, setIsWhyThisOpen] = useState(false);
@@ -43,17 +46,8 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
   const nextRunDayName = nextRunDate.toLocaleDateString('en-IN', { weekday: 'long' });
 
   // 2. Pending approvals check
-  const pendingApprovals =
-    activeRun?.status === 'approved'
-      ? []
-      : recommendations.filter(
-          r =>
-            r.approvalStatus !== 'approved' &&
-            r.approvalStatus !== 'rejected' &&
-            (r.requiresApproval || r.isSubstitution)
-        );
-  const needsApproval =
-    pendingApprovals.length > 0 || (activeRun?.status === 'needs_approval' && activeRun?.status !== 'approved');
+  const hasPendingSwaps = pendingSwaps.length > 0;
+  const needsApproval = hasPendingSwaps || !isUpcomingOrderSaved;
 
   // 3. Recommended & filtered strategies
   const strategies = optimizationResult?.strategies || [];
@@ -71,11 +65,31 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
     recommendedStrategy ||
     strategies[0];
 
-  const allFinalItems = currentStrategy?.storeBaskets?.flatMap(b =>
-    b.items.map(item => ({ ...item, storeName: b.storeName, storeId: b.storeId }))
-  ) || [];
+  const allFinalItems = upcomingOrder.items.filter(item => item.quantity > 0).map(item => ({
+    product: item.product,
+    pantryItemId: item.pantryItemId,
+    quantity: item.quantity,
+    totalPaise: item.totalPricePaise,
+    isSubstitution: Boolean(item.isSubstitution),
+    storeName: currentStrategy?.storeBaskets.find(b => b.storeId === item.product.storeId)?.storeName || item.product.storeId,
+    storeId: item.product.storeId,
+  }));
 
-  const grandTotalPaise = currentStrategy?.grandTotalPaise || 0;
+  const grandTotalPaise = upcomingOrder.totalPaise || currentStrategy?.grandTotalPaise || 0;
+  const checkoutStrategy = currentStrategy ? {
+    ...currentStrategy,
+    grandTotalPaise,
+    totalProductPaise: upcomingOrder.subtotalPaise,
+    totalDeliveryFeePaise: upcomingOrder.deliveryFeePaise,
+    storeBaskets: currentStrategy.storeBaskets.map(basket => {
+      const items = allFinalItems
+        .filter(item => item.storeId === basket.storeId)
+        .map(({ storeName: _storeName, storeId: _storeId, ...item }) => item);
+      const productSubtotalPaise = items.reduce((total, item) => total + item.totalPaise, 0);
+      const totalPaise = productSubtotalPaise + basket.deliveryFeePaise + basket.handlingFeePaise + basket.taxPaise - basket.discountsPaise;
+      return { ...basket, items, productSubtotalPaise, totalPaise };
+    }),
+  } : undefined;
   const isBudgetSafe = grandTotalPaise <= schedulerConfig.perCycleBudgetPaise;
 
   // 4. Pantry health calculation
@@ -113,14 +127,18 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
     if (activeRun?.status === 'paid') {
       return 'Order placed and paid via PayPal — your pantry is fully restocked!';
     }
-    if (needsApproval) {
-      return `${pendingApprovals.length} item swap${pendingApprovals.length === 1 ? '' : 's'} waiting for your approval before order placement.`;
+    if (hasPendingSwaps) {
+      return `${pendingSwaps.length} product swap${pendingSwaps.length === 1 ? '' : 's'} waiting for your approval in Approvals tab.`;
     }
-    if (allFinalItems.length === 0) {
+    if (isUpcomingOrderSaved) {
+      return `Order saved for ${upcomingOrder.scheduledDate} — ${upcomingOrder.items.length} items (${formatPaise(upcomingOrder.totalPaise)}). You can keep editing it in Approvals.`;
+    }
+    if (upcomingOrder.items.length === 0) {
       return `Pantry is well-stocked — next automatic check on ${nextRunDayName}.`;
     }
-    return `Next order ready for ${nextRunDayName} — ${allFinalItems.length} items (${formatPaise(grandTotalPaise)}), ${
-      isBudgetSafe ? 'comfortably within your ₹3,500 budget' : 'reaches your budget limit'
+    const effectiveTotal = upcomingOrder.totalPaise || grandTotalPaise;
+    return `Upcoming order ready for ${nextRunDayName} — ${upcomingOrder.items.length} items (${formatPaise(effectiveTotal)}), ${
+      isBudgetSafe ? 'comfortably within your budget' : 'reaches your budget limit'
     }.`;
   };
 
@@ -131,7 +149,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
         className={`rounded-2xl p-4 sm:p-5 border transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs ${
           needsApproval
             ? 'bg-amber-50/70 border-amber-300 text-amber-950'
-            : activeRun?.status === 'paid'
+            : activeRun?.status === 'paid' || isUpcomingOrderSaved
             ? 'bg-emerald-50/70 border-emerald-300 text-emerald-950'
             : 'bg-white border-slate-200/90 text-slate-900'
         }`}
@@ -141,14 +159,14 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
             className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
               needsApproval
                 ? 'bg-amber-200/80 text-amber-900'
-                : activeRun?.status === 'paid'
+                : activeRun?.status === 'paid' || isUpcomingOrderSaved
                 ? 'bg-emerald-200/80 text-emerald-900'
                 : 'bg-brand-100 text-brand-800'
             }`}
           >
             {needsApproval ? (
               <AlertTriangle className="w-5 h-5 text-amber-700" />
-            ) : activeRun?.status === 'paid' ? (
+            ) : activeRun?.status === 'paid' || isUpcomingOrderSaved ? (
               <CheckCircle2 className="w-5 h-5 text-emerald-700" />
             ) : (
               <Sparkles className="w-5 h-5 text-brand-600" />
@@ -172,7 +190,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
             icon={<ArrowRight className="w-3.5 h-3.5" />}
             className="shrink-0"
           >
-            Review Swaps
+            {hasPendingSwaps ? 'Review Swaps' : 'Review & Approve Order'}
           </Button>
         )}
       </div>
@@ -332,14 +350,22 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
               <Button
                 variant="primary"
                 size="md"
-                disabled={allFinalItems.length === 0 || needsApproval}
-                onClick={() => currentStrategy && openCheckoutModal(currentStrategy)}
+                disabled={allFinalItems.length === 0}
+                onClick={() => {
+                  if (needsApproval) {
+                    onNavigateToTab('approvals');
+                  } else if (checkoutStrategy) {
+                    openCheckoutModal(checkoutStrategy);
+                  }
+                }}
                 icon={<ShoppingBag className="w-4 h-4" />}
               >
-                {needsApproval ? (
-                  'Approve swaps to continue'
+                {hasPendingSwaps ? (
+                  'Review Swaps in Approvals'
+                  ) : !isUpcomingOrderSaved ? (
+                  'Review & Save Order'
                 ) : (
-                  <span>Review & Checkout (<span className="tabular-nums">{formatPaise(grandTotalPaise)}</span>)</span>
+                  <span>Simulate Checkout (<span className="tabular-nums">{formatPaise(upcomingOrder.totalPaise || grandTotalPaise)}</span>)</span>
                 )}
               </Button>
             </div>

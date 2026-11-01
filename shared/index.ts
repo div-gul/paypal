@@ -11,3 +11,5 @@ export * from './services/restockScheduler';
 export * from './services/basketOptimizer';
 export * from './services/defaults';
 export * from './policy';
+
+export * from './services/orderBucketService';

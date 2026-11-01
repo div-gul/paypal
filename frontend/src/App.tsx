@@ -30,21 +30,15 @@ const MainLayout: React.FC = () => {
     error,
     clearError,
     reloadState,
-    recommendations,
-    activeRun,
+    pendingSwaps,
+    isUpcomingOrderSaved,
     closeCheckoutModal,
   } = useShopPilot();
 
-  // Calculate pending items needing user confirmation
-  const pendingApprovalsCount =
-    activeRun?.status === 'approved'
-      ? 0
-      : recommendations.filter(
-          r =>
-            r.approvalStatus !== 'approved' &&
-            r.approvalStatus !== 'rejected' &&
-            (r.requiresApproval || r.isSubstitution)
-        ).length;
+  // Number of items needing review in Approvals tab:
+  // 1. Any pending product swaps
+  // 2. 1 while the editable order still needs to be saved
+  const pendingApprovalsCount = pendingSwaps.length + (isUpcomingOrderSaved ? 0 : 1);
 
   return (
     <div className="min-h-screen bg-[#FFF9F0] flex flex-col font-['Inter',sans-serif]">

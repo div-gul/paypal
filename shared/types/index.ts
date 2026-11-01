@@ -181,3 +181,51 @@ export interface ActivityLogItem {
   statusBadge?: string;
   badgeColor?: 'emerald' | 'amber' | 'rose' | 'red' | 'blue' | 'indigo' | 'purple';
 }
+
+
+export interface ProductSwapRequest {
+  id: string;
+  pantryItemId: string;
+  itemName: string;
+  originalProduct: StoreProduct;
+  replacementProduct: StoreProduct;
+  packageSize: string;
+  quantity: number;
+  originalPricePaise: number;
+  replacementPricePaise: number;
+  priceDifferencePaise: number;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+}
+
+export interface UpcomingOrderItem {
+  id: string;
+  pantryItemId: string;
+  itemName: string;
+  category: ProductCategory;
+  product: StoreProduct;
+  originalProduct?: StoreProduct;
+  packageSize: string;
+  unit: UnitOfMeasurement;
+  suggestedQuantity: number;
+  quantity: number;
+  isUserModified: boolean;
+  unitPricePaise: number;
+  totalPricePaise: number;
+  isSubstitution?: boolean;
+  swapRequestId?: string;
+  swapStatus?: 'none' | 'pending' | 'approved' | 'rejected';
+}
+
+export interface UpcomingOrderBucket {
+  id: string;
+  scheduledDate: string;
+  cycleDayName: string;
+  items: UpcomingOrderItem[];
+  status: 'draft' | 'approved';
+  approvedAt?: string;
+  savedAt?: string;
+  subtotalPaise: number;
+  deliveryFeePaise: number;
+  totalPaise: number;
+}

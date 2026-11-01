@@ -5,8 +5,10 @@ import {
   BasketStrategyResult,
   BasketStrategyType,
   PantryItem,
+  ProductSwapRequest,
   RestockRecommendation,
   SimulationState,
+  UpcomingOrderBucket,
   WeeklySchedulerConfig,
 } from '@shared/types';
 import {
@@ -15,6 +17,13 @@ import {
   DEFAULT_SIMULATION_STATE,
   DEFAULT_ACTIVITY_LOG,
 } from '@shared/services/defaults';
+import {
+  computeUpcomingOrderBucket,
+  updateOrderItemQuantity,
+  removeOrderItem,
+  addOrderItem,
+} from '@shared/services/orderBucketService';
+import { advancePantryState } from '@shared/services/consumptionEngine';
 import { api, PlanRunOverrides } from '../api/client';
 import { getFriendlyErrorMessage } from '../lib/errorHelper';
 
@@ -45,6 +54,11 @@ export interface ShopPilotContextType {
   checkoutModal: CheckoutModalDetails;
   showDemoInfoModal: boolean;
 
+  // Approval & Order Bucket State
+  upcomingOrder: UpcomingOrderBucket;
+  pendingSwaps: ProductSwapRequest[];
+  isUpcomingOrderSaved: boolean;
+
   // Actions
   updatePantryItem: (item: PantryItem) => Promise<void>;
   addPantryItem: (item: Omit<PantryItem, 'id' | 'lastRestockedDate' | 'stockoutDaysCount'>) => Promise<void>;
@@ -69,6 +83,14 @@ export interface ShopPilotContextType {
   setShowDemoInfoModal: (show: boolean) => void;
   clearError: () => void;
   reloadState: (overrides?: PlanRunOverrides) => Promise<void>;
+
+  // Dedicated Order Bucket & Swap Actions (Instant 0ms latency)
+  updateOrderItemQty: (itemId: string, delta: number) => void;
+  removeOrderItemFromBucket: (itemId: string) => void;
+  addOrderItemToBucket: (pantryItemId: string) => void;
+  saveUpcomingOrder: () => Promise<void>;
+  approveSwap: (pantryItemId: string) => void;
+  rejectSwap: (pantryItemId: string) => void;
 }
 
 const ShopPilotContext = createContext<ShopPilotContextType | null>(null);
@@ -79,6 +101,9 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [schedulerConfig, setSchedulerConfig] = useState<WeeklySchedulerConfig>(DEFAULT_SCHEDULER_CONFIG);
   const [simulationState, setSimulationState] = useState<SimulationState>(DEFAULT_SIMULATION_STATE);
   const [activityLog, setActivityLog] = useState<ActivityLogItem[]>(DEFAULT_ACTIVITY_LOG);
+  const domainStateRef = useRef({ pantryItems, schedulerConfig, simulationState });
+  domainStateRef.current = { pantryItems, schedulerConfig, simulationState };
+  const planRequestIdRef = useRef(0);
 
   const [activeRun, setActiveRun] = useState<any | null>(null);
   const [recommendations, setRecommendations] = useState<RestockRecommendation[]>([]);
@@ -94,11 +119,47 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const planRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const policySaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingPolicyUpdatesRef = useRef<Partial<WeeklySchedulerConfig>>({});
+  const policySaveWaitersRef = useRef<Array<() => void>>([]);
 
   const [checkoutModal, setCheckoutModal] = useState<CheckoutModalDetails>({ isOpen: false });
   const [showDemoInfoModal, setShowDemoInfoModal] = useState(false);
 
-  // In-memory basket toggle overrides (Decision 2: do NOT mutate pantry items)
+  // In-memory user swap decisions: record of pantryItemId -> 'approved' | 'rejected'
+  const swapDecisionsRef = useRef<Record<string, 'approved' | 'rejected'>>({});
+
+  // Consolidated Upcoming Weekly Order Bucket & Pending Product Swaps
+  const [upcomingOrder, setUpcomingOrder] = useState<UpcomingOrderBucket>(() => {
+    try {
+      const saved = localStorage.getItem('shoppilot-upcoming-order');
+      if (saved) return JSON.parse(saved) as UpcomingOrderBucket;
+    } catch (error) {
+      console.warn('Could not restore saved order:', error);
+    }
+    const res = computeUpcomingOrderBucket({
+      pantryItems: DEFAULT_PANTRY_ITEMS,
+      schedulerConfig: DEFAULT_SCHEDULER_CONFIG,
+      simulationState: DEFAULT_SIMULATION_STATE,
+      existingBucket: null,
+      swapDecisions: {},
+    });
+    return res.bucket;
+  });
+
+  const [pendingSwaps, setPendingSwaps] = useState<ProductSwapRequest[]>(() => {
+    const res = computeUpcomingOrderBucket({
+      pantryItems: DEFAULT_PANTRY_ITEMS,
+      schedulerConfig: DEFAULT_SCHEDULER_CONFIG,
+      simulationState: DEFAULT_SIMULATION_STATE,
+      existingBucket: null,
+      swapDecisions: {},
+    });
+    return res.pendingSwaps;
+  });
+
+  // In-memory basket toggle overrides
   const basketOverridesRef = useRef<{ includeItemIds: string[]; excludeItemIds: string[] }>({
     includeItemIds: [],
     excludeItemIds: [],
@@ -108,6 +169,61 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const clearError = useCallback(() => {
     setError(null);
   }, []);
+
+  const applyDomainSnapshot = useCallback(
+    (updates: Partial<typeof domainStateRef.current>) => {
+      const next = { ...domainStateRef.current, ...updates };
+      domainStateRef.current = next;
+
+      if (updates.pantryItems) setPantryItems(updates.pantryItems);
+      if (updates.schedulerConfig) setSchedulerConfig(updates.schedulerConfig);
+      if (updates.simulationState) setSimulationState(updates.simulationState);
+
+      setUpcomingOrder(previous => {
+        const result = computeUpcomingOrderBucket({
+          pantryItems: next.pantryItems,
+          schedulerConfig: next.schedulerConfig,
+          simulationState: next.simulationState,
+          existingBucket: previous,
+          swapDecisions: swapDecisionsRef.current,
+        });
+        setPendingSwaps(result.pendingSwaps);
+        return result.bucket;
+      });
+    },
+    []
+  );
+
+  const refreshPlan = useCallback(async (overrides?: PlanRunOverrides) => {
+    const requestId = ++planRequestIdRef.current;
+    const effectiveOverrides = overrides || {
+      includeItemIds: basketOverridesRef.current.includeItemIds,
+      excludeItemIds: basketOverridesRef.current.excludeItemIds,
+      strategy: selectedStrategyTypeRef.current,
+    };
+    const planRes = await api.planRun(effectiveOverrides);
+    if (requestId !== planRequestIdRef.current) return;
+
+    setActiveRun(planRes.run);
+    setRecommendations(planRes.recommendations);
+    setOptimizationResult({
+      strategies: planRes.strategies,
+      recommendedStrategy: planRes.recommendedStrategy,
+    });
+
+    const strategy = planRes.run?.selectedStrategy || planRes.recommendedStrategy?.type;
+    if (strategy) {
+      setSelectedStrategyType(strategy);
+      selectedStrategyTypeRef.current = strategy;
+    }
+  }, []);
+
+  const schedulePlanRefresh = useCallback(() => {
+    if (planRefreshTimerRef.current) clearTimeout(planRefreshTimerRef.current);
+    planRefreshTimerRef.current = setTimeout(() => {
+      void refreshPlan().catch(err => setError(getFriendlyErrorMessage(err)));
+    }, 250);
+  }, [refreshPlan]);
 
   /**
    * Synchronize all domain state from the server:
@@ -128,9 +244,11 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         api.planRun(effectiveOverrides),
       ]);
 
-      setPantryItems(stateRes.pantry);
-      setSchedulerConfig(stateRes.policy);
-      setSimulationState(stateRes.clock);
+      applyDomainSnapshot({
+        pantryItems: stateRes.pantry,
+        schedulerConfig: stateRes.policy,
+        simulationState: stateRes.clock,
+      });
       setActivityLog(stateRes.recentAuditLog);
 
       setActiveRun(planRes.run);
@@ -149,23 +267,22 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     } catch (err: any) {
       console.error('Failed to sync state with backend API:', err);
+      // Fallback: update local bucket even if offline
+      setUpcomingOrder(prev => {
+        const current = domainStateRef.current;
+        const res = computeUpcomingOrderBucket({
+          pantryItems: current.pantryItems,
+          schedulerConfig: current.schedulerConfig,
+          simulationState: current.simulationState,
+          existingBucket: prev,
+          swapDecisions: swapDecisionsRef.current,
+        });
+        setPendingSwaps(res.pendingSwaps);
+        return { ...res.bucket, savedAt: undefined };
+      });
       setError(getFriendlyErrorMessage(err));
     }
-  }, []);
-
-  // Debounced auto-plan to prevent race conditions during rapid user adjustments
-  const autoPlanTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const debouncedAutoPlan = useCallback(
-    (overrides?: PlanRunOverrides) => {
-      if (autoPlanTimerRef.current) {
-        clearTimeout(autoPlanTimerRef.current);
-      }
-      autoPlanTimerRef.current = setTimeout(() => {
-        reloadState(overrides);
-      }, 300);
-    },
-    [reloadState]
-  );
+  }, [applyDomainSnapshot]);
 
   // Hydrate state on initial mount
   useEffect(() => {
@@ -180,90 +297,232 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     init();
     return () => {
       isMounted = false;
-      if (autoPlanTimerRef.current) clearTimeout(autoPlanTimerRef.current);
     };
   }, [reloadState]);
 
   // Update pantry item via API
   const updatePantryItem = useCallback(
     async (updated: PantryItem) => {
+      const previous = domainStateRef.current.pantryItems;
+      applyDomainSnapshot({
+        pantryItems: previous.map(item => item.id === updated.id ? updated : item),
+      });
       try {
-        await api.updatePantryItem(updated.id, updated);
-        await reloadState();
+        const { item } = await api.updatePantryItem(updated.id, updated);
+        const current = domainStateRef.current.pantryItems;
+        applyDomainSnapshot({ pantryItems: current.map(row => row.id === item.id ? item : row) });
+        schedulePlanRefresh();
       } catch (err: any) {
+        const current = domainStateRef.current.pantryItems;
+        applyDomainSnapshot({
+          pantryItems: current.map(item => item.id === updated.id
+            ? previous.find(old => old.id === updated.id) || item
+            : item),
+        });
         setError(getFriendlyErrorMessage(err));
       }
     },
-    [reloadState]
+    [applyDomainSnapshot, schedulePlanRefresh]
   );
 
   // Add new pantry item via API
   const addPantryItem = useCallback(
     async (itemData: Omit<PantryItem, 'id' | 'lastRestockedDate' | 'stockoutDaysCount'>) => {
+      const temporaryId = `pending-${Date.now()}`;
+      const optimisticItem: PantryItem = {
+        ...itemData,
+        id: temporaryId,
+        lastRestockedDate: new Date().toISOString(),
+        stockoutDaysCount: 0,
+      };
+      applyDomainSnapshot({ pantryItems: [...domainStateRef.current.pantryItems, optimisticItem] });
       try {
-        await api.createPantryItem(itemData);
-        await reloadState();
+        const { item } = await api.createPantryItem(itemData);
+        applyDomainSnapshot({
+          pantryItems: domainStateRef.current.pantryItems.map(row => row.id === temporaryId ? item : row),
+        });
+        schedulePlanRefresh();
       } catch (err: any) {
+        applyDomainSnapshot({
+          pantryItems: domainStateRef.current.pantryItems.filter(row => row.id !== temporaryId),
+        });
         setError(getFriendlyErrorMessage(err));
       }
     },
-    [reloadState]
+    [applyDomainSnapshot, schedulePlanRefresh]
   );
 
   // Delete pantry item via API
   const deletePantryItem = useCallback(
     async (id: string) => {
+      const previous = domainStateRef.current.pantryItems;
+      applyDomainSnapshot({ pantryItems: previous.filter(item => item.id !== id) });
       try {
         await api.deletePantryItem(id);
-        await reloadState();
+        schedulePlanRefresh();
       } catch (err: any) {
+        const current = domainStateRef.current.pantryItems;
+        const deletedItem = previous.find(item => item.id === id);
+        if (deletedItem) applyDomainSnapshot({ pantryItems: [...current, deletedItem] });
         setError(getFriendlyErrorMessage(err));
       }
     },
-    [reloadState]
+    [applyDomainSnapshot, schedulePlanRefresh]
   );
 
-  // Quick adjust quantity (+/- button) via API
+  /**
+   * CRITICAL FIX: Quick adjust quantity (+/- button)
+   * Pure instantaneous React state update with ZERO artificial lag or debounce delay!
+   * The displayed quantity, line subtotal, and upcoming order bucket update IMMEDIATELY.
+   * Persistence to backend occurs concurrently in the background.
+   */
   const quickAdjustQuantity = useCallback(
     async (id: string, delta: number) => {
+      const current = domainStateRef.current.pantryItems;
+      const updatedPantry = current.map(item => {
+        if (item.id !== id) return item;
+        const rawNew = Math.max(0, item.currentQuantity + delta);
+        const newQty = item.allowFractions
+          ? Math.round(rawNew * 100) / 100
+          : Math.round(rawNew);
+        return { ...item, currentQuantity: newQty };
+      });
+      applyDomainSnapshot({ pantryItems: updatedPantry });
+
+      // Persist in the background; the displayed quantity and order update immediately.
       try {
-        await api.adjustPantryQuantity(id, delta);
-        debouncedAutoPlan();
+        api.adjustPantryQuantity(id, delta).catch(err => {
+          console.warn('Background pantry persistence notice:', err);
+        });
       } catch (err: any) {
-        setError(getFriendlyErrorMessage(err));
+        console.warn('Background pantry sync error:', err);
       }
     },
-    [debouncedAutoPlan]
+    [applyDomainSnapshot]
   );
 
   // Update policy / scheduler configuration via API
   const updateSchedulerConfig = useCallback(
-    async (updates: Partial<WeeklySchedulerConfig>) => {
-      try {
-        await api.updatePolicy(updates);
-        await reloadState();
-      } catch (err: any) {
-        setError(getFriendlyErrorMessage(err));
-      }
+    (updates: Partial<WeeklySchedulerConfig>) => {
+      applyDomainSnapshot({
+        schedulerConfig: { ...domainStateRef.current.schedulerConfig, ...updates },
+      });
+      pendingPolicyUpdatesRef.current = { ...pendingPolicyUpdatesRef.current, ...updates };
+
+      const saved = new Promise<void>(resolve => {
+        policySaveWaitersRef.current.push(resolve);
+      });
+
+      if (policySaveTimerRef.current) clearTimeout(policySaveTimerRef.current);
+      policySaveTimerRef.current = setTimeout(async () => {
+        const queuedUpdates = pendingPolicyUpdatesRef.current;
+        pendingPolicyUpdatesRef.current = {};
+        const waiters = policySaveWaitersRef.current.splice(0);
+
+        try {
+          await api.updatePolicy(queuedUpdates);
+          schedulePlanRefresh();
+        } catch (err: any) {
+          setError(getFriendlyErrorMessage(err));
+          try {
+            const { policy } = await api.getPolicy();
+            applyDomainSnapshot({
+              schedulerConfig: { ...policy, ...pendingPolicyUpdatesRef.current },
+            });
+          } catch {
+            // Keep the optimistic values visible if the backend is unavailable.
+          }
+        } finally {
+          waiters.forEach(resolve => resolve());
+        }
+      }, 200);
+
+      return saved;
     },
-    [reloadState]
+    [applyDomainSnapshot, schedulePlanRefresh]
   );
 
-  // Advance simulation time via API
+  /**
+   * ADVANCE SIMULATION TIME
+   * Requirement 2: Future simulation updates the next order bucket immediately.
+   * Recalculates depletion, adds newly required products directly to the upcoming order bucket,
+   * updates quantities, recalculates order total, and preserves user modifications.
+   * Manual order edits reset at cycle rollover; swap decisions remain in effect.
+   */
   const advanceTime = useCallback(
     async (days: number) => {
       setIsAnalyzing(true);
       try {
         const validDays = (days === 1 || days === 3 || days === 7 ? days : 1) as 1 | 3 | 7;
-        await api.advanceTime(validDays);
-        await reloadState();
+
+        // 1. Immediately compute advanced clock & depleted pantry stock
+        const currentSimDateMs = new Date(simulationState.simulatedDate).getTime();
+        const nextSimDate = new Date(currentSimDateMs + validDays * 86400000).toISOString();
+        let nextShoppingDate = new Date(schedulerConfig.nextShoppingDate);
+        const nextSimDateMs = new Date(nextSimDate).getTime();
+        const intervalDays = schedulerConfig.shoppingFrequency === 'biweekly' ? 14 : 7;
+        let cyclesAdvanced = 0;
+        while (nextShoppingDate.getTime() <= nextSimDateMs) {
+          nextShoppingDate.setDate(nextShoppingDate.getDate() + intervalDays);
+          cyclesAdvanced += 1;
+        }
+        const cycleChanged = cyclesAdvanced > 0;
+        const nextSchedulerConfig = cycleChanged
+          ? { ...schedulerConfig, nextShoppingDate: nextShoppingDate.toISOString() }
+          : schedulerConfig;
+        const nextClock: SimulationState = {
+          ...simulationState,
+          daysElapsed: simulationState.daysElapsed + validDays,
+          simulatedDate: nextSimDate,
+          cycleCount: simulationState.cycleCount + cyclesAdvanced,
+        };
+        const depletedPantry = advancePantryState(pantryItems, validDays);
+
+        setSimulationState(nextClock);
+        setPantryItems(depletedPantry);
+        let scheduleSync: Promise<unknown> = Promise.resolve();
+        if (cycleChanged) {
+          domainStateRef.current = { ...domainStateRef.current, schedulerConfig: nextSchedulerConfig };
+          setSchedulerConfig(nextSchedulerConfig);
+          try {
+            localStorage.removeItem('shoppilot-upcoming-order');
+          } catch {
+            // Keep simulation progress even if browser storage is unavailable.
+          }
+          scheduleSync = api.updatePolicy({ nextShoppingDate: nextSchedulerConfig.nextShoppingDate });
+        }
+
+        // 2. Immediately update the upcoming order bucket
+        setUpcomingOrder(prev => {
+          const res = computeUpcomingOrderBucket({
+            pantryItems: depletedPantry,
+            schedulerConfig: nextSchedulerConfig,
+            simulationState: nextClock,
+            // Order edits belong to one cycle; swap decisions remain available to the next.
+            existingBucket: cycleChanged ? null : prev,
+            swapDecisions: swapDecisionsRef.current,
+          });
+          setPendingSwaps(res.pendingSwaps);
+          return res.bucket;
+        });
+
+        // 3. Asynchronously sync with backend API
+        await api.advanceTime(validDays).catch(err => {
+          console.warn('Background time advance sync notice:', err);
+        });
+        await scheduleSync.catch(err => {
+          console.warn('Next cycle schedule sync notice:', err);
+        });
+        await refreshPlan().catch(err => {
+          console.warn('Future simulation planning notice:', err);
+        });
       } catch (err: any) {
         setError(getFriendlyErrorMessage(err));
       } finally {
         setIsAnalyzing(false);
       }
     },
-    [reloadState]
+    [pantryItems, schedulerConfig, simulationState, refreshPlan]
   );
 
   // Manual trigger for shopping analysis
@@ -278,7 +537,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, [reloadState]);
 
-  // Strategy switching (Decision 4: store chosen strategy on run and update totals & policy)
+  // Strategy switching
   const handleSetSelectedStrategyType = useCallback(
     async (type: BasketStrategyType) => {
       setSelectedStrategyType(type);
@@ -305,17 +564,15 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     [activeRun, reloadState]
   );
 
-  // Run-level approvals (Decision 3: approvals are run-level)
+  // Run-level approvals
   const approveRun = useCallback(async () => {
     if (!activeRun?.id) return;
     setIsLoading(true);
     try {
-      // 1. Immediately mark all recommendations as approved in local state
       setRecommendations(prev =>
         prev.map(r => ({ ...r, requiresApproval: false, approvalStatus: 'approved' as const }))
       );
 
-      // 2. Call backend if run is not yet approved
       if (activeRun.status !== 'approved') {
         const res = await api.approveRun(activeRun.id);
         setActiveRun(res.run);
@@ -357,7 +614,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, [activeRun]);
 
-  // Basket overrides (Decision 2: do NOT mutate pantry items, pass overrides to plan)
+  // Basket overrides
   const includeInWeeklyBasket = useCallback(
     (itemId: string) => {
       const newInclude = Array.from(new Set([...basketOverridesRef.current.includeItemIds, itemId]));
@@ -402,26 +659,14 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const approveRecommendation = useCallback(
     async (itemId: string) => {
-      // 1. Update this recommendation to approved
-      let hasOtherPending = false;
-      setRecommendations(prev => {
-        const next = prev.map(r =>
+      setRecommendations(prev =>
+        prev.map(r =>
           r.itemId === itemId
             ? { ...r, requiresApproval: false, approvalStatus: 'approved' as const }
             : r
-        );
-        hasOtherPending = next.some(
-          r =>
-            r.itemId !== itemId &&
-            (r.requiresApproval || r.isSubstitution) &&
-            r.approvalStatus !== 'approved' &&
-            r.approvalStatus !== 'rejected'
-        );
-        return next;
-      });
-
-      // 2. If no other items need approval, approve the run on backend
-      if (!hasOtherPending && activeRun?.id) {
+        )
+      );
+      if (activeRun?.id) {
         await approveRun();
       }
     },
@@ -472,7 +717,6 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const orderRes = await api.createCheckoutOrder(runId);
         await api.captureCheckoutOrder(orderRes.orderId, runId);
 
-        // Refresh state from server to reflect restocked pantry & receipts
         await reloadState();
 
         const allPurchasedItems = strategy.storeBaskets.flatMap(b => b.items);
@@ -494,11 +738,29 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     [activeRun, reloadState]
   );
 
-  // Reset demo via POST /api/state/reset (Decision 1)
+  // Reset demo
   const resetToInitialDemo = useCallback(async () => {
     setIsLoading(true);
     try {
-      await api.resetState();
+      swapDecisionsRef.current = {};
+      try {
+        localStorage.removeItem('shoppilot-upcoming-order');
+      } catch {
+        // Reset in-memory state even when browser storage is unavailable.
+      }
+      const res = computeUpcomingOrderBucket({
+        pantryItems: DEFAULT_PANTRY_ITEMS,
+        schedulerConfig: DEFAULT_SCHEDULER_CONFIG,
+        simulationState: DEFAULT_SIMULATION_STATE,
+        existingBucket: null,
+        swapDecisions: {},
+      });
+      setUpcomingOrder(res.bucket);
+      setPendingSwaps(res.pendingSwaps);
+      setPantryItems(DEFAULT_PANTRY_ITEMS);
+      setSimulationState(DEFAULT_SIMULATION_STATE);
+
+      await api.resetState().catch(e => console.warn('Reset backend notice:', e));
       basketOverridesRef.current = { includeItemIds: [], excludeItemIds: [] };
       await reloadState({ includeItemIds: [], excludeItemIds: [] });
     } catch (err: any) {
@@ -507,6 +769,121 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setIsLoading(false);
     }
   }, [reloadState]);
+
+  // -------------------------------------------------------------
+  // DEDICATED UPCOMING ORDER BUCKET ACTIONS (Instantaneous 0ms)
+  // -------------------------------------------------------------
+
+  /**
+   * Instantly update quantity of an item in the upcoming order bucket.
+   * Functional state update ensures zero lag and immediate total calculation.
+   */
+  const updateOrderItemQty = useCallback((itemId: string, delta: number) => {
+    setUpcomingOrder(prev => {
+      const updated = updateOrderItemQuantity(prev, itemId, delta);
+      return { ...updated, savedAt: undefined };
+    });
+  }, []);
+
+  /**
+   * Instantly remove an item from the upcoming order bucket.
+   */
+  const removeOrderItemFromBucket = useCallback((itemId: string) => {
+      setUpcomingOrder(prev => {
+        const updated = removeOrderItem(prev, itemId);
+        return { ...updated, savedAt: undefined };
+    });
+  }, []);
+
+  /**
+   * Instantly add a pantry item into the upcoming order bucket.
+   */
+  const addOrderItemToBucket = useCallback(
+    (pantryItemId: string) => {
+      const pantryItem = pantryItems.find(p => p.id === pantryItemId);
+      if (!pantryItem) return;
+      setUpcomingOrder(prev => {
+        const updated = addOrderItem(prev, pantryItem);
+        return { ...updated, savedAt: undefined };
+      });
+    },
+    [pantryItems]
+  );
+
+  /**
+   * Approve the complete upcoming weekly order (One consolidated approval).
+   * Saves the editable order draft for Home and future visits.
+   */
+  const saveUpcomingOrder = useCallback(async () => {
+    setUpcomingOrder(prev => {
+      const saved = { ...prev, status: 'draft' as const, approvedAt: undefined, savedAt: new Date().toISOString() };
+      try {
+        localStorage.setItem('shoppilot-upcoming-order', JSON.stringify(saved));
+      } catch (error) {
+        console.warn('Could not save order:', error);
+      }
+      return saved;
+    });
+    if (activeRun?.id) {
+      try {
+        const result = await api.approveRun(activeRun.id);
+        setActiveRun(result.run);
+      } catch (err: any) {
+        const message = String(err?.message || '').toLowerCase();
+        if (message.includes('already approved') || message.includes('cannot be approved from status')) {
+          setActiveRun((run: any) => run ? { ...run, status: 'approved' } : run);
+        } else {
+          console.warn('Saved order locally; backend approval sync notice:', err);
+        }
+      }
+    }
+  }, [activeRun]);
+
+  /**
+   * Approve a product substitution / swap request.
+   * Applies the replacement product to the upcoming order item.
+   */
+  const approveSwap = useCallback(
+    (pantryItemId: string) => {
+      swapDecisionsRef.current = { ...swapDecisionsRef.current, [pantryItemId]: 'approved' };
+      setUpcomingOrder(prev => {
+        const res = computeUpcomingOrderBucket({
+          pantryItems,
+          schedulerConfig,
+          simulationState,
+          existingBucket: prev,
+          swapDecisions: swapDecisionsRef.current,
+        });
+        setPendingSwaps(res.pendingSwaps);
+        return { ...res.bucket, savedAt: undefined };
+      });
+    },
+    [pantryItems, schedulerConfig, simulationState]
+  );
+
+  /**
+   * Reject a product substitution / swap request.
+   * Retains the original product in the shopping plan.
+   */
+  const rejectSwap = useCallback(
+    (pantryItemId: string) => {
+      swapDecisionsRef.current = { ...swapDecisionsRef.current, [pantryItemId]: 'rejected' };
+      setUpcomingOrder(prev => {
+        const res = computeUpcomingOrderBucket({
+          pantryItems,
+          schedulerConfig,
+          simulationState,
+          existingBucket: prev,
+          swapDecisions: swapDecisionsRef.current,
+        });
+        setPendingSwaps(res.pendingSwaps);
+        return { ...res.bucket, savedAt: undefined };
+      });
+    },
+    [pantryItems, schedulerConfig, simulationState]
+  );
+
+  const isUpcomingOrderSaved = Boolean(upcomingOrder?.savedAt);
 
   return (
     <ShopPilotContext.Provider
@@ -524,6 +901,9 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         error,
         checkoutModal,
         showDemoInfoModal,
+        upcomingOrder,
+        pendingSwaps,
+        isUpcomingOrderSaved,
         updatePantryItem,
         addPantryItem,
         deletePantryItem,
@@ -547,6 +927,12 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setShowDemoInfoModal,
         clearError,
         reloadState,
+        updateOrderItemQty,
+        removeOrderItemFromBucket,
+        addOrderItemToBucket,
+        saveUpcomingOrder,
+        approveSwap,
+        rejectSwap,
       }}
     >
       {children}
