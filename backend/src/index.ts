@@ -17,7 +17,6 @@ const server = app.listen(config.PORT, () => {
   console.log(`🚀 ShopPilot AI Backend running on http://localhost:${config.PORT}`);
   console.log(`   - Environment: ${config.NODE_ENV}`);
   console.log(`   - PayPal Mode: ${config.PAYPAL_MODE}`);
-  console.log(`   - Quote Source: ${config.QUOTE_SOURCE}`);
   console.log(`   - Health check: http://localhost:${config.PORT}/api/health`);
 });
 

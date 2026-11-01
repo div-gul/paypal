@@ -9,7 +9,7 @@
   }
 
   body {
-    @apply bg-slate-50/70 text-slate-900 antialiased;
+    @apply bg-[#FFF9F0] text-slate-900 antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum" 1;
     font-variant-numeric: tabular-nums;
   }
@@ -28,30 +28,30 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #3B2667;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #1E1433;
 }
 
 /* Glassmorphism utility classes */
 .glass-header {
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 249, 240, 0.92);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(226, 232, 240, 0.8);
+  border: 1px solid rgba(230, 221, 240, 0.9);
 }
 
 /* Pulse animation for active simulation updates */
 @keyframes highlightPulse {
-  0% { background-color: rgba(31, 170, 128, 0.2); }
+  0% { background-color: rgba(31, 169, 122, 0.2); }
   100% { background-color: transparent; }
 }
 

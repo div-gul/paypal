@@ -19,7 +19,7 @@ paypal/
 │   ├── src/repositories/ # 10 user-scoped repositories (users, pantry, policies, runs, etc.)
 │   ├── src/services/     # Three-tier business logic (Pantry, Policy, Run, Quote, Payment, AI)
 │   ├── src/routes/       # Zod-validated HTTP endpoints (no direct DB logic)
-│   └── src/adapters/     # Channel3 API adapter with fallback to mock catalog
+│   └── src/adapters/     # Store adapters for simulated quick-commerce catalogs
 ├── shared/               # Pure business logic shared across frontend and backend
 │   ├── types/            # Canonical domain types (PantryItem, StoreProduct, BasketStrategy)
 │   ├── services/         # Consumption engine, restock scheduler, basket optimizer, currency
@@ -79,8 +79,6 @@ All secrets reside exclusively on the backend. The frontend consumes the backend
 | `PAYPAL_CLIENT_ID` | `sandbox_client_id_placeholder` | PayPal Developer Sandbox App Client ID |
 | `PAYPAL_CLIENT_SECRET` | `sandbox_secret_placeholder` | PayPal Developer Sandbox App Secret |
 | `PAYPAL_WEBHOOK_ID` | `sandbox_webhook_id_placeholder` | PayPal Webhook verification ID |
-| `QUOTE_SOURCE` | `mock` | `mock` (static catalog), `channel3` (live API), or `hybrid` |
-| `CHANNEL3_API_KEY` | `""` | Optional API key for live grocery pricing from Channel3 |
 | `LLM_API_KEY` | `""` | Optional API key for external LLM parsing (falls back to deterministic NLP) |
 
 ---
@@ -92,7 +90,7 @@ To maintain complete integrity for hackathon judges, here is the transparent bre
 | Capability | Real | Simulated / Mocked | Explanation |
 |---|---|---|---|
 | **PayPal Checkout** | **Real** (Sandbox Mode) | — | Generates real PayPal order IDs, verifies capture state, handles raw webhook events. Sandbox accounts only; zero real money. |
-| **Store Pricing & Quotes** | **Real** (Channel3 Web Check) | **Mock** (Local Quick-Commerce Catalog) | Quick-commerce grocery quotes (Blinkit, Zepto, Instamart) power the autonomous basket optimizer with real fee mechanics. Channel3 provides real web product price checks for non-grocery items (under storeId `web`, separated into `webQuotes`), preventing irrelevant web listings from polluting the grocery optimizer. |
+| **Store Pricing & Quotes** | — | **Simulated** (Local Quick-Commerce Catalog) | Local store adapters provide simulated Blinkit, Zepto, and Instamart prices for the autonomous basket optimizer. |
 | **Integer-Paise Money Math** | **Real** | — | Floating point arithmetic is forbidden. All monetary math uses integer paise (`₹1.00 = 100 paise`), preventing roundoff leakage. |
 | **Depletion & Burning** | **Real** (Deterministic) | — | Mathematical consumption formulas ($ \text{Stock} / \text{Burn} $) accurately project stockout days. |
 | **Multi-Store Basket Optimization** | **Real** | — | Dynamically compares 4 basket strategies accounting for independent delivery, handling, and minimum-order fees. |

@@ -57,7 +57,6 @@ describe('Phase 4: Policy Enforcement & Checkout Flow', () => {
               inStock: true,
               stockQuantity: 20,
               isExactBrandMatch: true,
-              source: 'mock',
             },
           },
         ],

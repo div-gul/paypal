@@ -25,7 +25,6 @@ describe('Phase 5: AI Endpoints (Server-Side, Validated)', () => {
       inStock: true,
       stockQuantity: 20,
       isExactBrandMatch: true,
-      source: 'mock',
     },
     {
       id: 'bl-milk-sub',
@@ -40,7 +39,6 @@ describe('Phase 5: AI Endpoints (Server-Side, Validated)', () => {
       inStock: true,
       stockQuantity: 15,
       isExactBrandMatch: false,
-      source: 'mock',
     },
   ];
 

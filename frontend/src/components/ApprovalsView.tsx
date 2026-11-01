@@ -63,7 +63,6 @@ export const ApprovalsView: React.FC = () => {
         .map(q => ({
           ...q,
           storeId: (['blinkit', 'zepto', 'instamart'].includes(q.storeId) ? q.storeId : 'blinkit') as StoreProduct['storeId'],
-          source: (q.source === 'channel3' ? 'channel3' : 'mock') as StoreProduct['source'],
         }));
 
       if (candidates.length === 0) {

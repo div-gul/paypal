@@ -11,7 +11,6 @@ healthRouter.get('/health', (req: Request, res: Response) => {
     service: 'ShopPilot AI Backend',
     mode: {
       paypal: config.PAYPAL_MODE,
-      quotes: config.QUOTE_SOURCE,
     },
     user: req.user ? { id: req.user.id } : null,
   });

@@ -97,7 +97,6 @@ function runItemCardSubstitutionTest() {
               unit: 'L',
               mrpPaise: 3500,
               stockQuantity: 10,
-              source: 'mock',
             },
             quantity: 1,
             pantryItemId: 'item-milk',

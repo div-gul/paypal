@@ -165,12 +165,12 @@ describe('Phase 3: Core API Endpoints', () => {
     expect(auditData.logs.some((l: any) => l.type === 'time_advanced')).toBe(true);
   });
 
-  it('GET /api/quotes returns store quotes with source tags', async () => {
+  it('GET /api/quotes returns store quotes without external price sources', async () => {
     const res = await fetch(`${baseUrl}/api/quotes`);
     expect(res.status).toBe(200);
     const data: any = await res.json();
     expect(data.quotes.length).toBeGreaterThan(0);
-    expect(data.quotes[0].source).toBeDefined();
+    expect(data.quotes.every((quote: any) => !('source' in quote))).toBe(true);
   }, 20000);
 
   it('POST /api/runs/plan generates run and enforces state machine transitions', async () => {

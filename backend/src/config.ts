@@ -7,11 +7,8 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables from repository root .env or local .env
+// Load environment variables from the repository root .env
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
-dotenv.config({ path: path.resolve(process.cwd(), '../.env') });
-dotenv.config();
 
 const ConfigSchema = z.object({
   PORT: z.coerce.number().default(3001),
@@ -27,9 +24,6 @@ const ConfigSchema = z.object({
   // LLM Configuration
   LLM_API_KEY: z.string().optional(),
 
-  // Grocery Quote Source
-  QUOTE_SOURCE: z.enum(['mock', 'channel3', 'hybrid']).default('mock'),
-  CHANNEL3_API_KEY: z.string().optional(),
 }).superRefine((data, ctx) => {
   if (data.PAYPAL_MODE === 'sandbox') {
     if (!data.PAYPAL_CLIENT_ID) {
@@ -48,15 +42,6 @@ const ConfigSchema = z.object({
     }
   }
 
-  if (data.QUOTE_SOURCE === 'channel3' || data.QUOTE_SOURCE === 'hybrid') {
-    if (!data.CHANNEL3_API_KEY) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['CHANNEL3_API_KEY'],
-        message: `CHANNEL3_API_KEY is required when QUOTE_SOURCE is "${data.QUOTE_SOURCE}"`,
-      });
-    }
-  }
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;

@@ -40,19 +40,6 @@ export const STORE_DEFINITIONS: Record<StoreId, StoreInfo> = {
     minOrderThresholdPaise: 19900, // ₹199 min order
     estimatedDeliveryMinutes: 16,
   },
-  web: {
-    id: 'web',
-    name: 'Other retailers',
-    brandColor: '#2563EB',
-    badgeBg: 'bg-blue-100 text-blue-900 border-blue-300',
-    tagline: 'Real web product price check powered by Channel3',
-    deliveryFeeBasePaise: 0,
-    freeDeliveryThresholdPaise: 0,
-    handlingFeePaise: 0,
-    surgeFeePaise: 0,
-    minOrderThresholdPaise: 0,
-    estimatedDeliveryMinutes: 0,
-  },
 };
 
 /**

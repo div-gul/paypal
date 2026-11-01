@@ -47,7 +47,7 @@ const MainLayout: React.FC = () => {
         ).length;
 
   return (
-    <div className="min-h-screen bg-slate-50/70 flex flex-col font-['Inter',sans-serif]">
+    <div className="min-h-screen bg-[#FFF9F0] flex flex-col font-['Inter',sans-serif]">
       {/* Top Header */}
       <Header onOpenDemoDrawer={() => setIsDemoDrawerOpen(true)} />
 

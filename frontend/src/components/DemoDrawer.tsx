@@ -77,7 +77,7 @@ export const DemoDrawer: React.FC<DemoDrawerProps> = ({ isOpen, onClose }) => {
               <BackendHealthBadge />
             </div>
             <p className="text-xs text-slate-600 leading-relaxed">
-              ShopPilot integrates with mock and live catalog adapters (Channel3) with strict sanitization,
+              ShopPilot uses local mock store adapters with strict validation,
               autonomous budget caps, and simulated PayPal 1-Click checkout.
             </p>
             <Button

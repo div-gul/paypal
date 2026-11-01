@@ -22,7 +22,6 @@ const StoreProductInputSchema = z.object({
   inStock: z.boolean(),
   stockQuantity: z.number().int().nonnegative(),
   isExactBrandMatch: z.boolean(),
-  source: z.enum(['channel3', 'mock']),
 });
 
 const SubstituteInputSchema = z.object({
