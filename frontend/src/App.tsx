@@ -261,7 +261,7 @@ const MainLayout: React.FC = () => {
   );
 };
 
-export const App: React.FC = () => {
+const App: React.FC = () => {
   return (
     <ShopPilotProvider>
       <MainLayout />

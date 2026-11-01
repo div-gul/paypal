@@ -23,7 +23,7 @@ export class ApiError extends Error {
   }
 }
 
-export interface ApiResponseError {
+interface ApiResponseError {
   error: {
     code: string;
     message: string;

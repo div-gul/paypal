@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { IPaymentProvider, PaymentOrderResult, PaymentCaptureResult } from './PaymentProvider.js';
+import { IPaymentProvider, PaymentOrderResult } from './PaymentProvider.js';
 import { MockPaymentProvider } from './MockPaymentProvider.js';
 import { PayPalSandboxProvider } from './PayPalSandboxProvider.js';
 import { RunRepository, RunRecord } from '../../repositories/RunRepository.js';

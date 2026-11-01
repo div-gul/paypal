@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { StoreProduct, WeeklySchedulerConfig } from '@shared/types';
 import { AppError } from '../../middleware/errorHandler.js';
 
-export const PolicyProposalSchema = z.object({
+const PolicyProposalSchema = z.object({
   preferredShoppingDay: z.number().int().min(0).max(6).optional(),
   shoppingFrequency: z.enum(['weekly', 'biweekly']).optional(),
   emergencyRestockPreference: z.enum(['auto_order', 'ask_approval', 'alert_only']).optional(),
@@ -17,7 +17,7 @@ export const PolicyProposalSchema = z.object({
 
 export type PolicyProposal = z.infer<typeof PolicyProposalSchema>;
 
-export const SubstituteResultSchema = z.object({
+const SubstituteResultSchema = z.object({
   selectedProductId: z.string(),
   productName: z.string(),
   brand: z.string(),
@@ -68,7 +68,7 @@ export class LLMService {
     reason?: string;
     candidates: StoreProduct[];
   }): Promise<SubstituteResult> {
-    const { pantryItemId, itemName, preferredBrand, candidates, reason } = params;
+    const { itemName, preferredBrand, candidates, reason } = params;
 
     if (!candidates || candidates.length === 0) {
       throw new AppError('NO_CANDIDATES', 'Candidate list cannot be empty for substitution', 400);

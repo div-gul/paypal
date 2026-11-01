@@ -1,7 +1,6 @@
 import Database from 'better-sqlite3';
 import { RunRepository, RunRecord, RunStatus } from '../repositories/RunRepository.js';
-import { RunItemRepository, RunItemRecord } from '../repositories/RunItemRepository.js';
-import { ApprovalRepository } from '../repositories/ApprovalRepository.js';
+import { RunItemRepository } from '../repositories/RunItemRepository.js';
 import { PantryRepository } from '../repositories/PantryRepository.js';
 import { PolicyRepository } from '../repositories/PolicyRepository.js';
 import { SimClockRepository } from '../repositories/SimClockRepository.js';
@@ -29,7 +28,6 @@ export interface PlanRunResult {
 export class RunService {
   private runRepo: RunRepository;
   private runItemRepo: RunItemRepository;
-  private approvalRepo: ApprovalRepository;
   private pantryRepo: PantryRepository;
   private policyRepo: PolicyRepository;
   private clockRepo: SimClockRepository;
@@ -38,7 +36,6 @@ export class RunService {
   constructor(private db: Database.Database) {
     this.runRepo = new RunRepository(db);
     this.runItemRepo = new RunItemRepository(db);
-    this.approvalRepo = new ApprovalRepository(db);
     this.pantryRepo = new PantryRepository(db);
     this.policyRepo = new PolicyRepository(db);
     this.clockRepo = new SimClockRepository(db);

@@ -4,18 +4,7 @@
  * into simple, friendly household language.
  */
 
-export const RUN_STATUS_LABELS: Record<string, string> = {
-  needs_approval: 'Waiting for you',
-  auto_approved: 'Ready to order',
-  approved: 'Ready to order',
-  payment_pending: 'Processing payment',
-  paid: 'Done, pantry restocked',
-  rejected: 'Order cancelled',
-  blocked: 'Cannot order (policy limit)',
-  failed: 'Order failed',
-};
-
-export const STRATEGY_FRIENDLY_NAMES: Record<string, { label: string; badge: string; description: string }> = {
+const STRATEGY_FRIENDLY_NAMES: Record<string, { label: string; badge: string; description: string }> = {
   STRATEGY_A_LOWEST_PRICE: {
     label: 'Lowest item prices',
     badge: 'Split order',
@@ -38,12 +27,6 @@ export const STRATEGY_FRIENDLY_NAMES: Record<string, { label: string; badge: str
   },
 };
 
-/**
- * Maps a raw status or outcome to friendly household copy.
- */
-export function getFriendlyStatusLabel(status: string): string {
-  return RUN_STATUS_LABELS[status] || status.replace(/_/g, ' ');
-}
 
 /**
  * Returns a friendly stock status sentence.

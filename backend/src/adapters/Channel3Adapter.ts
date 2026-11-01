@@ -10,12 +10,11 @@ import {
   StoreProduct,
   isNonGroceryItem,
 } from '@shared/types';
-import { calculateGstPaise } from '@shared/services/currency';
 
 // Documented fixed exchange rate for Channel3 multi-currency offers
 export const USD_TO_INR_RATE = 85.0; // 1 USD = ₹85.00 INR = 8500 Paise
 
-export interface Channel3SearchOffer {
+interface Channel3SearchOffer {
   id?: string;
   price?: number;
   original_price?: number;
@@ -37,7 +36,7 @@ export interface Channel3ProductItem {
   in_stock?: boolean;
 }
 
-export interface Channel3SearchResponse {
+interface Channel3SearchResponse {
   results?: Channel3ProductItem[];
   products?: Channel3ProductItem[];
 }

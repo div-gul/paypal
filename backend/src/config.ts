@@ -63,7 +63,7 @@ export type AppConfig = z.infer<typeof ConfigSchema>;
 
 let cachedConfig: AppConfig | null = null;
 
-export function loadConfig(): AppConfig {
+function loadConfig(): AppConfig {
   if (cachedConfig) return cachedConfig;
 
   const result = ConfigSchema.safeParse(process.env);

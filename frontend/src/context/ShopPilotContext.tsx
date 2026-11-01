@@ -18,7 +18,7 @@ import {
 import { api, PlanRunOverrides } from '../api/client';
 import { getFriendlyErrorMessage } from '../lib/errorHelper';
 
-export interface CheckoutModalDetails {
+interface CheckoutModalDetails {
   isOpen: boolean;
   strategy?: BasketStrategyResult;
   orderId?: string;

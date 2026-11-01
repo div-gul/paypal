@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 
-export interface AuthenticatedUser {
+interface AuthenticatedUser {
   id: string;
   name: string;
   email: string;

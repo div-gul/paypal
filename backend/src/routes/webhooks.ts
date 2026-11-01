@@ -35,7 +35,7 @@ function verifyPayPalWebhookSignature(req: Request): boolean {
   // }
   // =========================================================================
 
-  if (!transmissionId || !transmissionSig) {
+  if (!transmissionId || !transmissionSig || !transmissionTime || !certUrl || !authAlgo) {
     console.warn('[Webhook] Missing required PayPal transmission headers');
     return false;
   }

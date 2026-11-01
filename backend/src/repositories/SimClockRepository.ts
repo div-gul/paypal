@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { SimulationState } from '@shared/types';
 
-export interface SimClockRecord {
+interface SimClockRecord {
   user_id: string;
   simulated_date: string;
   days_elapsed: number;

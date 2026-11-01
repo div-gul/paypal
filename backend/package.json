@@ -7,7 +7,8 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lint:unused": "npx knip"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",

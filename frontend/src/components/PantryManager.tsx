@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useShopPilot } from '../context/ShopPilotContext';
 import { PantryItem, ProductCategory, UnitOfMeasurement } from '../types';
-import { evaluateItemStockHealth } from '../services/consumptionEngine';
+import { evaluateItemStockHealth } from '@shared/services/consumptionEngine';
 import {
   Plus,
   Edit2,

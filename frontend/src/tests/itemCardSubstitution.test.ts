@@ -14,7 +14,7 @@ function assert(condition: boolean, msg: string) {
  * Extracts the item card display data from a selected basket strategy.
  * This mirrors the logic in ShoppingAnalysis.tsx and HomeView cards.
  */
-export function getItemCardBasketData(
+function getItemCardBasketData(
   strategy: BasketStrategyResult | null | undefined,
   pantryItemId: string,
   fallbackRec?: RestockRecommendation
@@ -51,7 +51,7 @@ export function getItemCardBasketData(
   };
 }
 
-export function runItemCardSubstitutionTest() {
+function runItemCardSubstitutionTest() {
   console.log('\nTest: Item Card Basket Line Substitution Display (Requirement 1)');
 
   // Create a mock strategy where milk has a brand substitution: Mother Dairy from Zepto @ ₹33

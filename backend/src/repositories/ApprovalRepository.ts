@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 
-export type ApprovalType = 'brand_substitution' | 'emergency_run' | 'budget_cap_exceeded' | 'blocked_category';
-export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
+type ApprovalType = 'brand_substitution' | 'emergency_run' | 'budget_cap_exceeded' | 'blocked_category';
+type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 
 export interface ApprovalRecord {
   id: string;

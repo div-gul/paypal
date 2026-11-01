@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "vite build --target node20 --ssr src/tests/autonomousSuite.test.ts --outDir dist-test && node dist-test/autonomousSuite.test.js"
+    "test": "vite build --target node20 --ssr src/tests/autonomousSuite.test.ts --outDir dist-test && node dist-test/autonomousSuite.test.js",
+    "lint:unused": "npx knip"
   },
   "dependencies": {
     "lucide-react": "^1.16.0",
@@ -24,5 +25,10 @@
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
     "vite": "^6.2.0"
+  },
+  "knip": {
+    "entry": [
+      "src/tests/autonomousSuite.test.ts"
+    ]
   }
 }

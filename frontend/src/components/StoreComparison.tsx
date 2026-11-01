@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useShopPilot } from '../context/ShopPilotContext';
-import { STORE_DEFINITIONS, MOCK_STORE_CATALOG } from '../adapters/mockStoreData';
+import { STORE_DEFINITIONS, MOCK_STORE_CATALOG } from '@shared/adapters/mockStoreData';
 import { formatPaise } from '../services/currency';
 import { Store, Info, Tag } from 'lucide-react';
 import { StoreProduct, isNonGroceryItem } from '../types';

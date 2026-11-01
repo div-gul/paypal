@@ -88,7 +88,7 @@ describe('Phase 5: AI Endpoints (Server-Side, Validated)', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: 'Set my weekly budget to ₹3500, per order cap to 1200, change restock day to Friday, and block snacks.',
+          prompt: 'Set my weekly budget to ₹4500, per order cap to 1200, change restock day to Friday, and block snacks.',
         }),
       });
 
@@ -97,17 +97,17 @@ describe('Phase 5: AI Endpoints (Server-Side, Validated)', () => {
       expect(data.proposal).toBeDefined();
 
       const { proposal } = data;
-      expect(proposal.perCycleBudgetPaise).toBe(350000);
+      expect(proposal.perCycleBudgetPaise).toBe(450000);
       expect(proposal.perOrderCapPaise).toBe(120000);
       expect(proposal.preferredShoppingDay).toBe(5); // Friday
       expect(proposal.blockedCategories).toContain('Snacks');
       expect(proposal.changesSummary.length).toBeGreaterThanOrEqual(3);
-      expect(proposal.explanation).toContain('3,500');
+      expect(proposal.explanation).toContain('4,500');
 
       // CRITICAL: Ensure database policy was NOT changed automatically (proposal requires user review)
       const policyRes = await fetch(`${baseUrl}/api/policy`);
       const policyData: any = await policyRes.json();
-      expect(policyData.policy.perCycleBudgetPaise).not.toBe(350000);
+      expect(policyData.policy.perCycleBudgetPaise).not.toBe(450000);
     });
 
     it('rejects empty prompts with 400 validation error', async () => {

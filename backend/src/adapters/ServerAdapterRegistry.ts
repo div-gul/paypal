@@ -135,23 +135,6 @@ export class ServerAdapterRegistry {
     return quotes;
   }
 
-  private getFromCache(key: string): StoreProduct[] | null {
-    const entry = this.cache.get(key);
-    if (!entry) return null;
-    if (Date.now() > entry.expiresAt) {
-      this.cache.delete(key);
-      return null;
-    }
-    return entry.data;
-  }
-
-  private setCache(key: string, data: StoreProduct[]): void {
-    this.cache.set(key, {
-      data,
-      expiresAt: Date.now() + this.ttlMs,
-    });
-  }
-
   clearCache(): void {
     this.cache.clear();
   }

@@ -83,7 +83,7 @@ describe('Phase 2: Database Schema, Seed, and Repositories', () => {
 
     const policy = policyRepo.getByUserId('demo-user');
     expect(policy).toBeDefined();
-    expect(policy?.perCycleBudgetPaise).toBe(250000);
+    expect(policy?.perCycleBudgetPaise).toBe(350000);
     expect(policy?.perOrderCapPaise).toBe(150000);
 
     const logs = auditRepo.getRecent('demo-user');

@@ -129,7 +129,7 @@ describe('Phase 3: Core API Endpoints', () => {
     const getRes = await fetch(`${baseUrl}/api/policy`);
     expect(getRes.status).toBe(200);
     const initial: any = await getRes.json();
-    expect(initial.policy.perCycleBudgetPaise).toBe(250000);
+    expect(initial.policy.perCycleBudgetPaise).toBe(350000);
 
     const updateRes = await fetch(`${baseUrl}/api/policy`, {
       method: 'PUT',
@@ -203,11 +203,11 @@ describe('Phase 3: Core API Endpoints', () => {
       const approvedData: any = await approveRes.json();
       expect(approvedData.run.status).toBe('approved');
 
-      // Attempting to approve again should fail with invalid transition error
+      // Attempting to approve again is idempotent
       const doubleApproveRes = await fetch(`${baseUrl}/api/runs/${runId}/approve`, { method: 'POST' });
-      expect(doubleApproveRes.status).toBe(400);
-      const errorData: any = await doubleApproveRes.json();
-      expect(errorData.error.code).toBe('INVALID_STATE_TRANSITION');
+      expect(doubleApproveRes.status).toBe(200);
+      const doubleData: any = await doubleApproveRes.json();
+      expect(doubleData.run.status).toBe('approved');
     }
   });
 });
