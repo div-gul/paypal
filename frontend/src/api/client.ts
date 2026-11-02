@@ -182,8 +182,23 @@ export const api = {
     request<{ run: any }>(`/runs/${encodeURIComponent(id)}/reject`, { method: 'POST' }),
 
   // Checkout & Payments
+  getCheckoutConfig: () => request<{
+    mode: 'mock' | 'sandbox';
+    clientId: string | null;
+    currency: string;
+    provider: 'mock' | 'paypal_sandbox';
+  }>('/checkout/config'),
   createCheckoutOrder: (runId: string) =>
-    request<{ orderId: string; run: any }>('/checkout/create-order', {
+    request<{
+      orderId: string;
+      approvalUrl?: string;
+      amountPaise: number;
+      currency: string;
+      chargedAmount?: string;
+      status: string;
+      provider: 'mock' | 'paypal_sandbox';
+      run: any;
+    }>('/checkout/create-order', {
       method: 'POST',
       body: JSON.stringify({ runId }),
     }),
@@ -196,6 +211,21 @@ export const api = {
     }>('/checkout/capture', {
       method: 'POST',
       body: JSON.stringify({ orderId, runId }),
+    }),
+  getCheckoutStatus: (runId: string) =>
+    request<{
+      runId: string;
+      orderId: string | null;
+      paymentState: 'PENDING' | 'APPROVED' | 'CAPTURED' | 'FAILED' | 'CANCELLED';
+      approvalUrl?: string | null;
+      receipt?: any;
+      chargedAmount?: string;
+      currency?: string;
+    }>(`/checkout/status/${encodeURIComponent(runId)}`),
+  cancelCheckoutOrder: (runId: string, orderId?: string) =>
+    request<{ runId: string; orderId: string; paymentState: string; approvalUrl?: string | null }>('/checkout/cancel', {
+      method: 'POST',
+      body: JSON.stringify({ runId, orderId }),
     }),
 
   // Store Quotes & Sources

@@ -29,8 +29,13 @@ import { getFriendlyErrorMessage } from '../lib/errorHelper';
 
 interface CheckoutModalDetails {
   isOpen: boolean;
+  runId?: string;
   strategy?: BasketStrategyResult;
   orderId?: string;
+  approvalUrl?: string;
+  paymentState?: 'PENDING' | 'APPROVED' | 'CAPTURED' | 'FAILED' | 'CANCELLED';
+  currency?: string;
+  chargedAmount?: string;
   timestamp?: string;
   itemsPurchased?: BasketItem[];
 }
@@ -76,9 +81,13 @@ export interface ShopPilotContextType {
   removeFromBasket: (itemId: string) => void;
   approveAllUrgentItems: () => void;
   setSelectedStrategyType: (type: BasketStrategyType) => void;
-  openCheckoutModal: (strategy: BasketStrategyResult) => void;
+  openCheckoutModal: (strategy: BasketStrategyResult, runId?: string) => void;
   closeCheckoutModal: () => void;
-  confirmSimulatedPayment: (strategy: BasketStrategyResult) => Promise<void>;
+  createPayPalOrder: (runId: string, strategy: BasketStrategyResult) => Promise<Awaited<ReturnType<typeof api.createCheckoutOrder>>>;
+  capturePayPalOrder: (orderId: string, runId: string, strategy: BasketStrategyResult) => Promise<void>;
+  getCheckoutStatus: (runId: string, strategy: BasketStrategyResult) => Promise<Awaited<ReturnType<typeof api.getCheckoutStatus>>>;
+  cancelPayPalOrder: (runId: string, orderId?: string) => Promise<void>;
+  confirmMockPayment: (strategy: BasketStrategyResult) => Promise<void>;
   resetToInitialDemo: () => Promise<void>;
   setShowDemoInfoModal: (show: boolean) => void;
   clearError: () => void;
@@ -290,6 +299,27 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const init = async () => {
       setIsLoading(true);
       await reloadState();
+      try {
+        const { runs } = await api.getRuns(50);
+        const activePayment = runs.find((run: any) =>
+          run.orderId && ['PENDING', 'APPROVED'].includes(run.paymentState) &&
+          run.status === 'payment_pending' && run.selectedStrategyDetails
+        );
+        if (isMounted && activePayment) {
+          setCheckoutModal({
+            isOpen: true,
+            runId: activePayment.id,
+            strategy: activePayment.selectedStrategyDetails,
+            orderId: activePayment.orderId,
+            approvalUrl: activePayment.paypalApprovalUrl,
+            paymentState: activePayment.paymentState,
+            currency: activePayment.paymentCurrency,
+            chargedAmount: activePayment.paymentAmount,
+          });
+        }
+      } catch (err) {
+        console.warn('Pending PayPal checkout recovery notice:', err);
+      }
       if (isMounted) {
         setIsLoading(false);
       }
@@ -692,19 +722,88 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, [approveRun]);
 
   // Checkout modal controls
-  const openCheckoutModal = useCallback((strategy: BasketStrategyResult) => {
+  const openCheckoutModal = useCallback((strategy: BasketStrategyResult, runId = activeRun?.id) => {
     setCheckoutModal({
       isOpen: true,
+      runId,
       strategy,
     });
-  }, []);
+  }, [activeRun]);
 
   const closeCheckoutModal = useCallback(() => {
     setCheckoutModal({ isOpen: false });
   }, []);
 
-  // Confirm Simulated Checkout using Backend Checkout API
-  const confirmSimulatedPayment = useCallback(
+  const createPayPalOrder = useCallback(async (runId: string, strategy: BasketStrategyResult) => {
+    const result = await api.createCheckoutOrder(runId);
+    setCheckoutModal(previous => ({
+      ...previous,
+      isOpen: true,
+      runId,
+      strategy,
+      orderId: result.orderId,
+      approvalUrl: result.approvalUrl,
+      paymentState: result.status === 'APPROVED' ? 'APPROVED' : 'PENDING',
+      currency: result.currency,
+      chargedAmount: result.chargedAmount,
+    }));
+    return result;
+  }, []);
+
+  const capturePayPalOrder = useCallback(
+    async (orderId: string, runId: string, strategy: BasketStrategyResult) => {
+      await api.captureCheckoutOrder(orderId, runId);
+      setCheckoutModal(previous => ({
+        ...previous,
+        isOpen: true,
+        runId,
+        strategy,
+        orderId,
+        paymentState: 'CAPTURED',
+        timestamp: new Date().toLocaleTimeString(),
+        itemsPurchased: strategy.storeBaskets.flatMap(basket => basket.items),
+      }));
+      await reloadState().catch(err => console.warn('Payment captured; state refresh notice:', err));
+    },
+    [reloadState]
+  );
+
+  const getCheckoutStatus = useCallback(
+    async (runId: string, strategy: BasketStrategyResult) => {
+      const status = await api.getCheckoutStatus(runId);
+      setCheckoutModal(previous => ({
+        ...previous,
+        isOpen: true,
+        runId,
+        strategy,
+        orderId: status.orderId || previous.orderId,
+        approvalUrl: status.approvalUrl || previous.approvalUrl,
+        paymentState: status.paymentState,
+        currency: status.currency || previous.currency,
+        chargedAmount: status.chargedAmount || previous.chargedAmount,
+        ...(status.paymentState === 'CAPTURED' ? {
+          timestamp: previous.timestamp || new Date().toLocaleTimeString(),
+          itemsPurchased: strategy.storeBaskets.flatMap(basket => basket.items),
+        } : {}),
+      }));
+      if (status.paymentState === 'CAPTURED') {
+        await reloadState().catch(err => console.warn('Payment status confirmed; state refresh notice:', err));
+      }
+      return status;
+    },
+    [reloadState]
+  );
+
+  const cancelPayPalOrder = useCallback(async (runId: string, orderId?: string) => {
+    const result = await api.cancelCheckoutOrder(runId, orderId);
+    setCheckoutModal(previous => ({
+      ...previous,
+      paymentState: result.paymentState as CheckoutModalDetails['paymentState'],
+    }));
+  }, []);
+
+  // Explicit mock-only checkout for local development when PAYPAL_MODE=mock.
+  const confirmMockPayment = useCallback(
     async (strategy: BasketStrategyResult) => {
       setIsLoading(true);
       try {
@@ -725,6 +824,9 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           isOpen: true,
           strategy,
           orderId: orderRes.orderId,
+          paymentState: 'CAPTURED',
+          currency: orderRes.currency,
+          chargedAmount: orderRes.chargedAmount,
           timestamp: new Date().toLocaleTimeString(),
           itemsPurchased: allPurchasedItems,
         });
@@ -922,7 +1024,11 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setSelectedStrategyType: handleSetSelectedStrategyType,
         openCheckoutModal,
         closeCheckoutModal,
-        confirmSimulatedPayment,
+        createPayPalOrder,
+        capturePayPalOrder,
+        getCheckoutStatus,
+        cancelPayPalOrder,
+        confirmMockPayment,
         resetToInitialDemo,
         setShowDemoInfoModal,
         clearError,

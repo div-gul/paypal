@@ -2,7 +2,7 @@ import { calculateDaysRemaining, advancePantryState, forecastStock } from '../se
 declare const process: any;
 import { generateRestockRecommendations, getDaysUntilNextShoppingRun } from '../services/restockScheduler';
 import { optimizeBaskets } from '../services/basketOptimizer';
-import { paiseToInr, inrToPaise, formatPaise } from '../services/currency';
+import { paiseToInr, inrToPaise, formatPaise, inrPaiseToUsdAmount, usdAmountToInrPaise } from '../services/currency';
 import { DEFAULT_PANTRY_ITEMS, DEFAULT_SCHEDULER_CONFIG } from '../services/defaults';
 import { PantryItem, WeeklySchedulerConfig } from '../types';
 
@@ -23,6 +23,11 @@ export async function runAutonomousSuite() {
   assert(paiseToInr(19950) === 199.50, 'paiseToInr converts 19950 paise to 199.50 INR');
   assert(formatPaise(19950) === '₹199.50', 'formatPaise formats 19950 as ₹199.50');
   assert(formatPaise(250000) === '₹2,500', 'formatPaise formats 250000 as ₹2,500');
+  assert(inrPaiseToUsdAmount(850000, 85) === '100.00', 'PayPal conversion turns ₹8,500.00 into USD 100.00 at ₹85/USD');
+  assert(usdAmountToInrPaise('100.00', 85) === 850000, 'USD 100.00 converts back to ₹8,500.00');
+  const roundedUsd = inrPaiseToUsdAmount(100000, 85);
+  const roundedInrPaise = usdAmountToInrPaise(roundedUsd, 85);
+  assert(roundedUsd === '11.76' && Math.abs(roundedInrPaise - 100000) <= Math.ceil(85 / 2), 'USD cents rounding stays within half a cent when converted back to INR');
 
   // 2. Consumption-Aware Pantry Management
   console.log('\nTest 2: Consumption-Aware Pantry Calculations');

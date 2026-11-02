@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ShopPilotProvider, useShopPilot } from './context/ShopPilotContext';
 import { Header } from './components/Header';
 import { DemoDrawer } from './components/DemoDrawer';
@@ -9,6 +9,7 @@ import { HouseholdRules } from './components/HouseholdRules';
 import { CheckoutModal } from './components/CheckoutModal';
 import { IntegrationInfoModal } from './components/IntegrationInfoModal';
 import { BackendHealthBadge } from './components/BackendHealthBadge';
+import { api } from './api/client';
 import { Badge } from './components/ui/Badge';
 import {
   Home,
@@ -32,8 +33,37 @@ const MainLayout: React.FC = () => {
     reloadState,
     pendingSwaps,
     isUpcomingOrderSaved,
+    openCheckoutModal,
+    cancelPayPalOrder,
     closeCheckoutModal,
   } = useShopPilot();
+
+  const handledPayPalReturn = useRef<string>('');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const returnAction = params.get('paypal');
+    const runId = params.get('runId');
+    if (!returnAction || !runId) return;
+    const key = `${returnAction}:${runId}:${params.get('token') || ''}`;
+    if (handledPayPalReturn.current === key) return;
+    handledPayPalReturn.current = key;
+    window.history.replaceState({}, '', window.location.pathname);
+
+    if (returnAction === 'return') {
+      void api.getRun(runId).then(({ run }) => {
+        if (run.selectedStrategyDetails) {
+          setActiveTab('home');
+          openCheckoutModal(run.selectedStrategyDetails, runId);
+        }
+      }).catch(err => console.warn('PayPal return recovery notice:', err));
+    } else if (returnAction === 'cancel') {
+      void cancelPayPalOrder(runId, params.get('token') || undefined).catch(err => {
+        console.warn('PayPal cancellation status notice:', err);
+      });
+    }
+  }, [openCheckoutModal, cancelPayPalOrder]);
 
   // Number of items needing review in Approvals tab:
   // 1. Any pending product swaps

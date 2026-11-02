@@ -12,6 +12,31 @@ export function inrToPaise(inr: number): number {
   return Math.round(inr * 100);
 }
 
+/** Convert the ShopPilot INR basket total to a PayPal USD amount (rounded to cents). */
+export function inrPaiseToUsdAmount(amountPaise: number, inrPerUsd: number): string {
+  if (!Number.isSafeInteger(amountPaise) || amountPaise < 0) {
+    throw new Error('INR amount must be a non-negative integer number of paise.');
+  }
+  if (!Number.isFinite(inrPerUsd) || inrPerUsd <= 0) {
+    throw new Error('INR per USD rate must be greater than zero.');
+  }
+  const usdCents = Math.round((amountPaise / inrPerUsd));
+  return (usdCents / 100).toFixed(2);
+}
+
+/** Convert a PayPal USD amount back to its INR paise equivalent for display/checking. */
+export function usdAmountToInrPaise(amountUsd: string | number, inrPerUsd: number): number {
+  const usd = typeof amountUsd === 'number' ? amountUsd : Number(amountUsd);
+  if (!Number.isFinite(usd) || usd < 0 || !/^\d+(\.\d{1,2})?$/.test(String(amountUsd))) {
+    throw new Error('USD amount must be a non-negative value with at most two decimal places.');
+  }
+  if (!Number.isFinite(inrPerUsd) || inrPerUsd <= 0) {
+    throw new Error('INR per USD rate must be greater than zero.');
+  }
+  const usdCents = Math.round(usd * 100);
+  return Math.round(usdCents * inrPerUsd);
+}
+
 export function formatPaise(paise: number, showDecimals: boolean = false): string {
   const inr = paise / 100;
   if (showDecimals || paise % 100 !== 0) {

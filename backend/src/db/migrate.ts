@@ -175,6 +175,16 @@ export function runMigrations(db: Database.Database): void {
 
   try { db.exec('ALTER TABLE runs ADD COLUMN order_id TEXT;'); } catch {}
   try { db.exec('ALTER TABLE runs ADD COLUMN all_strategies TEXT;'); } catch {}
+  try { db.exec("ALTER TABLE runs ADD COLUMN payment_state TEXT NOT NULL DEFAULT 'PENDING';"); } catch {}
+  try { db.exec('ALTER TABLE runs ADD COLUMN paypal_approval_url TEXT;'); } catch {}
+  try { db.exec('ALTER TABLE runs ADD COLUMN payment_amount TEXT;'); } catch {}
+  try { db.exec('ALTER TABLE runs ADD COLUMN payment_currency TEXT;'); } catch {}
+  try { db.exec('ALTER TABLE runs ADD COLUMN paypal_capture_id TEXT;'); } catch {}
+  try { db.exec('ALTER TABLE runs ADD COLUMN payment_details TEXT;'); } catch {}
+  try { db.exec('ALTER TABLE receipts ADD COLUMN capture_id TEXT;'); } catch {}
+  try { db.exec('ALTER TABLE receipts ADD COLUMN charged_amount TEXT;'); } catch {}
+  try { db.exec('ALTER TABLE receipts ADD COLUMN charged_currency TEXT;'); } catch {}
+  try { db.exec('ALTER TABLE receipts ADD COLUMN transaction_json TEXT;'); } catch {}
   try { db.exec('CREATE INDEX IF NOT EXISTS idx_runs_order_id ON runs(order_id);'); } catch {}
 
   try { db.exec('ALTER TABLE pantry_items ADD COLUMN quantity_step REAL;'); } catch {}

@@ -11,6 +11,10 @@ export interface ReceiptRecord {
   itemsJson: string;
   breakdownJson: string;
   status: 'settled' | 'refunded';
+  captureId?: string | null;
+  chargedAmount?: string | null;
+  chargedCurrency?: string | null;
+  transactionJson?: string | null;
   createdAt: string;
 }
 
@@ -25,6 +29,10 @@ interface ReceiptRow {
   items_json: string;
   breakdown_json: string;
   status: 'settled' | 'refunded';
+  capture_id?: string | null;
+  charged_amount?: string | null;
+  charged_currency?: string | null;
+  transaction_json?: string | null;
   created_at: string;
 }
 
@@ -40,6 +48,10 @@ function rowToReceipt(row: ReceiptRow): ReceiptRecord {
     itemsJson: row.items_json,
     breakdownJson: row.breakdown_json,
     status: row.status,
+    captureId: row.capture_id || null,
+    chargedAmount: row.charged_amount || null,
+    chargedCurrency: row.charged_currency || null,
+    transactionJson: row.transaction_json || null,
     createdAt: row.created_at,
   };
 }
@@ -53,9 +65,9 @@ export class ReceiptRepository {
       INSERT INTO receipts (
         id, user_id, run_id, order_id, amount_paise,
         currency, payment_provider, items_json, breakdown_json,
-        status, created_at
+        status, created_at, capture_id, charged_amount, charged_currency, transaction_json
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       RETURNING *
     `);
 
@@ -70,7 +82,11 @@ export class ReceiptRepository {
       data.itemsJson,
       data.breakdownJson,
       data.status || 'settled',
-      now
+      now,
+      data.captureId || null,
+      data.chargedAmount || null,
+      data.chargedCurrency || null,
+      data.transactionJson || null
     ) as ReceiptRow;
 
     return rowToReceipt(row);

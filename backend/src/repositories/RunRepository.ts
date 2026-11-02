@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import { BasketStrategyResult, BasketStrategyType } from '@shared/types';
+import type { PaymentState } from '../services/payment/PaymentProvider.js';
 
 export type RunStatus =
   | 'planned'
@@ -27,6 +28,12 @@ export interface RunRecord {
   selectedStrategyDetails: BasketStrategyResult | null;
   allStrategies?: BasketStrategyResult[] | null;
   orderId?: string | null;
+  paymentState: PaymentState;
+  paypalApprovalUrl?: string | null;
+  paymentAmount?: string | null;
+  paymentCurrency?: string | null;
+  paypalCaptureId?: string | null;
+  paymentDetails?: string | null;
   simulatedDate: string;
   createdAt: string;
   updatedAt: string;
@@ -47,6 +54,12 @@ interface RunRow {
   selected_strategy_details: string | null;
   all_strategies?: string | null;
   order_id?: string | null;
+  payment_state?: PaymentState;
+  paypal_approval_url?: string | null;
+  payment_amount?: string | null;
+  payment_currency?: string | null;
+  paypal_capture_id?: string | null;
+  payment_details?: string | null;
   simulated_date: string;
   created_at: string;
   updated_at: string;
@@ -89,6 +102,12 @@ function rowToRun(row: RunRow): RunRecord {
     selectedStrategyDetails: strategyDetails,
     allStrategies,
     orderId: row.order_id || null,
+    paymentState: row.payment_state || 'PENDING',
+    paypalApprovalUrl: row.paypal_approval_url || null,
+    paymentAmount: row.payment_amount || null,
+    paymentCurrency: row.payment_currency || null,
+    paypalCaptureId: row.paypal_capture_id || null,
+    paymentDetails: row.payment_details || null,
     simulatedDate: row.simulated_date,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -178,29 +197,62 @@ export class RunRepository {
     const now = new Date().toISOString();
     const stmt = this.db.prepare(`
       UPDATE runs
-      SET status = ?, updated_at = ?
+      SET status = ?,
+          payment_state = CASE
+            WHEN ? = 'paid' THEN 'CAPTURED'
+            WHEN ? = 'failed' THEN 'FAILED'
+            ELSE payment_state
+          END,
+          updated_at = ?
       WHERE user_id = ? AND id = ?
       RETURNING *
     `);
-    const row = stmt.get(newStatus, now, userId, id) as RunRow | undefined;
+    const row = stmt.get(newStatus, newStatus, newStatus, now, userId, id) as RunRow | undefined;
     if (!row) {
       throw new Error(`Run ${id} not found for user ${userId}`);
     }
     return rowToRun(row);
   }
 
-  setOrderId(userId: string, id: string, orderId: string): RunRecord {
+  setOrderId(userId: string, id: string, payment: {
+    orderId: string;
+    approvalUrl?: string;
+    amount?: string;
+    currency?: string;
+  }): RunRecord {
     const now = new Date().toISOString();
     const stmt = this.db.prepare(`
       UPDATE runs
-      SET order_id = ?, status = 'payment_pending', updated_at = ?
+      SET order_id = ?, status = 'payment_pending', payment_state = 'PENDING',
+          paypal_approval_url = ?, payment_amount = ?, payment_currency = ?,
+          paypal_capture_id = NULL, payment_details = NULL, updated_at = ?
       WHERE user_id = ? AND id = ?
       RETURNING *
     `);
-    const row = stmt.get(orderId, now, userId, id) as RunRow | undefined;
+    const row = stmt.get(payment.orderId, payment.approvalUrl || null, payment.amount || null, payment.currency || null, now, userId, id) as RunRow | undefined;
     if (!row) {
       throw new Error(`Run ${id} not found for user ${userId}`);
     }
+    return rowToRun(row);
+  }
+
+  setPaymentState(
+    userId: string,
+    id: string,
+    state: PaymentState,
+    details?: { captureId?: string; paymentDetails?: string }
+  ): RunRecord {
+    const stmt = this.db.prepare(`
+      UPDATE runs
+      SET payment_state = ?,
+          paypal_capture_id = COALESCE(?, paypal_capture_id),
+          payment_details = COALESCE(?, payment_details),
+          updated_at = ?
+      WHERE user_id = ? AND id = ?
+      RETURNING *
+    `);
+    const row = stmt.get(state, details?.captureId || null, details?.paymentDetails || null, new Date().toISOString(), userId, id) as RunRow | undefined;
+    if (!row) throw new Error(`Run ${id} not found for user ${userId}`);
     return rowToRun(row);
   }
 

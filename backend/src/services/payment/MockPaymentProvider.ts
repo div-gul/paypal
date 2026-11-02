@@ -1,4 +1,4 @@
-import { IPaymentProvider, PaymentOrderResult, PaymentCaptureResult } from './PaymentProvider.js';
+import { IPaymentProvider, PaymentOrderResult, PaymentCaptureResult, PaymentStatusResult } from './PaymentProvider.js';
 import { RunRecord } from '../../repositories/RunRepository.js';
 
 export class MockPaymentProvider implements IPaymentProvider {
@@ -30,5 +30,9 @@ export class MockPaymentProvider implements IPaymentProvider {
       provider: 'mock',
       payerEmail: 'demo-buyer@shoppilot.local',
     };
+  }
+
+  async getOrderStatus(orderId: string): Promise<PaymentStatusResult> {
+    return { orderId, status: 'CREATED' };
   }
 }

@@ -7,7 +7,8 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables from the repository root .env
+// Load backend secrets first, then shared repository settings without overriding them.
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const ConfigSchema = z.object({
@@ -20,6 +21,13 @@ const ConfigSchema = z.object({
   PAYPAL_CLIENT_ID: z.string().optional(),
   PAYPAL_CLIENT_SECRET: z.string().optional(),
   PAYPAL_WEBHOOK_ID: z.string().optional(),
+  PAYPAL_BASE_URL: z.string().url().default('https://api-m.sandbox.paypal.com'),
+  PAYPAL_CURRENCY: z.enum(['INR', 'USD']).default('INR'),
+  PAYPAL_INR_PER_USD: z.preprocess(
+    value => typeof value === 'string' && value.trim() === '' ? undefined : value,
+    z.coerce.number().positive().optional()
+  ),
+  APP_BASE_URL: z.string().url().default('http://localhost:5173'),
 
   // LLM Configuration
   LLM_API_KEY: z.string().optional(),
@@ -38,6 +46,13 @@ const ConfigSchema = z.object({
         code: z.ZodIssueCode.custom,
         path: ['PAYPAL_CLIENT_SECRET'],
         message: 'PAYPAL_CLIENT_SECRET is required when PAYPAL_MODE is "sandbox"',
+      });
+    }
+    if (data.PAYPAL_CURRENCY === 'USD' && !data.PAYPAL_INR_PER_USD) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['PAYPAL_INR_PER_USD'],
+        message: 'Set an explicit PAYPAL_INR_PER_USD conversion rate before charging in USD',
       });
     }
   }
