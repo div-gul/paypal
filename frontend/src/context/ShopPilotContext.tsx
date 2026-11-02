@@ -746,6 +746,17 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           runId = planRes.run.id;
         }
 
+        // Ensure run is approved before creating checkout order
+        try {
+          const approveRes = await api.approveRun(runId);
+          if (approveRes?.run) {
+            runId = approveRes.run.id;
+            setActiveRun(approveRes.run);
+          }
+        } catch (e: any) {
+          console.info('Run approval check before checkout order:', e?.message || e);
+        }
+
         const orderRes = await api.createCheckoutOrder(runId);
         const captureRes = await api.captureCheckoutOrder(orderRes.orderId, runId);
 

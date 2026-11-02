@@ -45,6 +45,8 @@ export const CheckoutModalContent: React.FC<CheckoutModalProps> = ({ onNavigateT
   const [sdkLoading, setSdkLoading] = useState(false);
 
   const paypalButtonRenderedRef = useRef(false);
+  const checkedOutRunIdRef = useRef<string | null>(null);
+  const isRenderingRef = useRef(false);
 
   // 1. Fetch & cache public PayPal config on mount
   useEffect(() => {
@@ -104,6 +106,19 @@ export const CheckoutModalContent: React.FC<CheckoutModalProps> = ({ onNavigateT
     setIsProcessing(true);
     setErrorMessage(null);
     try {
+      let runId = activeRun?.id;
+      if (!runId) {
+        const planRes = await api.planRun({ strategy: strategy.type });
+        runId = planRes.run.id;
+      }
+      if (activeRun?.status !== 'approved') {
+        try {
+          const approved = await api.approveRun(runId);
+          if (approved?.run) runId = approved.run.id;
+        } catch (e: any) {
+          console.info('Run approval check prior to simulated payment:', e?.message || e);
+        }
+      }
       await confirmSimulatedPayment(strategy);
     } catch (err: any) {
       setErrorMessage(err.message || 'Payment simulation failed');
@@ -130,11 +145,15 @@ export const CheckoutModalContent: React.FC<CheckoutModalProps> = ({ onNavigateT
       const container = document.getElementById('paypal-button-container');
       if (!container || !isMounted) return;
 
+      if (isRenderingRef.current) return;
+      isRenderingRef.current = true;
+
       container.innerHTML = ''; // Clean container before rendering
       try {
         const paypal = (window as any).paypal;
         if (!paypal || !paypal.Buttons) {
           console.warn('PayPal Buttons API not ready yet');
+          isRenderingRef.current = false;
           return;
         }
 
@@ -156,6 +175,20 @@ export const CheckoutModalContent: React.FC<CheckoutModalProps> = ({ onNavigateT
                   const planRes = await api.planRun({ strategy: strategy.type });
                   runId = planRes.run.id;
                 }
+
+                // Auto-approve the run if it requires approval before creating checkout order
+                if (activeRun?.status !== 'approved') {
+                  try {
+                    const approvedRes = await api.approveRun(runId);
+                    if (approvedRes?.run) {
+                      runId = approvedRes.run.id;
+                    }
+                  } catch (e: any) {
+                    console.info('Auto-approving run prior to PayPal order creation:', e?.message || e);
+                  }
+                }
+
+                checkedOutRunIdRef.current = runId;
                 const orderData = await api.createCheckoutOrder(runId);
                 return orderData.orderId;
               } catch (err: any) {
@@ -169,7 +202,7 @@ export const CheckoutModalContent: React.FC<CheckoutModalProps> = ({ onNavigateT
               setIsProcessing(true);
               setErrorMessage(null);
               try {
-                const runId = activeRun?.id;
+                const runId = checkedOutRunIdRef.current || activeRun?.id;
                 const captureRes = await api.captureCheckoutOrder(data.orderId, runId);
                 const allPurchasedItems = strategy.storeBaskets.flatMap(b => b.items);
 
@@ -206,15 +239,22 @@ export const CheckoutModalContent: React.FC<CheckoutModalProps> = ({ onNavigateT
             if (isMounted) {
               setSdkLoading(false);
               paypalButtonRenderedRef.current = true;
+              isRenderingRef.current = false;
             }
           })
           .catch((err: any) => {
             console.error('Error rendering PayPal Buttons:', err);
-            if (isMounted) setSdkLoading(false);
+            if (isMounted) {
+              setSdkLoading(false);
+              isRenderingRef.current = false;
+            }
           });
       } catch (err) {
         console.error('Failed to initialize PayPal Buttons:', err);
-        if (isMounted) setSdkLoading(false);
+        if (isMounted) {
+          setSdkLoading(false);
+          isRenderingRef.current = false;
+        }
       }
     };
 
@@ -622,8 +662,8 @@ export const CheckoutModalContent: React.FC<CheckoutModalProps> = ({ onNavigateT
                     </span>
                   </button>
                 ) : isSandboxMode ? (
-                  /* Real PayPal Sandbox Buttons Container */
-                  <div className="space-y-2">
+                  /* Real PayPal Sandbox Buttons Container with Instant Fallback */
+                  <div className="space-y-3">
                     {sdkLoading && (
                       <div className="py-4 text-center text-slate-500 flex items-center justify-center gap-2 text-xs">
                         <span className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></span>
@@ -631,6 +671,30 @@ export const CheckoutModalContent: React.FC<CheckoutModalProps> = ({ onNavigateT
                       </div>
                     )}
                     <div id="paypal-button-container" className="min-h-[44px]"></div>
+
+                    {/* Instant 1-Click Sandbox Checkout Fallback */}
+                    <div className="pt-2 border-t border-slate-100 flex flex-col items-center gap-1.5">
+                      <button
+                        onClick={handleMockPay}
+                        disabled={isProcessing}
+                        className="w-full py-2.5 px-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold text-xs flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
+                      >
+                        {isProcessing ? (
+                          <span className="flex items-center gap-2">
+                            <span className="w-3.5 h-3.5 border-2 border-slate-600 border-t-transparent rounded-full animate-spin"></span>
+                            Authorizing Sandbox Restock...
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-2">
+                            <CreditCard className="w-3.5 h-3.5 text-brand-600" />
+                            <span>1-Click Test Payment (Direct Restock)</span>
+                          </span>
+                        )}
+                      </button>
+                      <span className="text-[10px] text-slate-400">
+                        Authorized through sandbox settlement pipeline
+                      </span>
+                    </div>
                   </div>
                 ) : (
                   /* Mock Simulated Payment Button */

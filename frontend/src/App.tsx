@@ -31,14 +31,11 @@ const MainLayout: React.FC = () => {
     clearError,
     reloadState,
     pendingSwaps,
-    isUpcomingOrderSaved,
     closeCheckoutModal,
   } = useShopPilot();
 
-  // Number of items needing review in Approvals tab:
-  // 1. Any pending product swaps
-  // 2. 1 while the editable order still needs to be saved
-  const pendingApprovalsCount = pendingSwaps.length + (isUpcomingOrderSaved ? 0 : 1);
+  // Number of items needing review in Approvals tab: pending product swaps
+  const pendingApprovalsCount = pendingSwaps.length;
 
   return (
     <div className="min-h-screen bg-[#FAF3DD] flex flex-col font-['Inter',sans-serif]">
