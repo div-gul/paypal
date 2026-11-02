@@ -2,7 +2,7 @@ import { calculateDaysRemaining, advancePantryState, forecastStock } from '../se
 declare const process: any;
 import { generateRestockRecommendations, getDaysUntilNextShoppingRun } from '../services/restockScheduler';
 import { optimizeBaskets } from '../services/basketOptimizer';
-import { paiseToInr, inrToPaise, formatPaise } from '../services/currency';
+import { paiseToInr, inrToPaise, formatPaise, paiseToUsd } from '../services/currency';
 import { DEFAULT_PANTRY_ITEMS, DEFAULT_SCHEDULER_CONFIG } from '../services/defaults';
 import { PantryItem, WeeklySchedulerConfig } from '../types';
 
@@ -23,6 +23,18 @@ export async function runAutonomousSuite() {
   assert(paiseToInr(19950) === 199.50, 'paiseToInr converts 19950 paise to 199.50 INR');
   assert(formatPaise(19950) === '₹199.50', 'formatPaise formats 19950 as ₹199.50');
   assert(formatPaise(250000) === '₹2,500', 'formatPaise formats 250000 as ₹2,500');
+
+  // paiseToUsd: zero, edge cases, rounding up to cent, very large values, custom rate
+  assert(paiseToUsd(0).usd === '0.00', 'paiseToUsd converts 0 paise to "0.00"');
+  assert(paiseToUsd(0).rate === 85, 'paiseToUsd defaults to rate 85');
+  assert(paiseToUsd(1).usd === '0.01', 'paiseToUsd rounds 1 paise up to 1 cent "0.01"');
+  assert(paiseToUsd(84).usd === '0.01', 'paiseToUsd rounds 84 paise up to 1 cent "0.01"');
+  assert(paiseToUsd(85).usd === '0.01', 'paiseToUsd maps exact 85 paise to 1 cent "0.01"');
+  assert(paiseToUsd(86).usd === '0.02', 'paiseToUsd rounds 86 paise up to 2 cents "0.02"');
+  assert(paiseToUsd(8500).usd === '1.00', 'paiseToUsd maps ₹85 (8500 paise) to "$1.00"');
+  assert(paiseToUsd(93535).usd === '11.01', 'paiseToUsd maps ₹935.35 to "$11.01" (rounded up)');
+  assert(paiseToUsd(8500000000).usd === '1000000.00', 'paiseToUsd handles very large 85M INR to "$1000000.00"');
+  assert(paiseToUsd(100, 100).usd === '0.01', 'paiseToUsd respects custom rate 100 (100 paise = $0.01)');
 
   // 2. Consumption-Aware Pantry Management
   console.log('\nTest 2: Consumption-Aware Pantry Calculations');

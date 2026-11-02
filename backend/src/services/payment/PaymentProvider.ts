@@ -7,6 +7,9 @@ export interface PaymentOrderResult {
   currency: string;
   status: 'CREATED' | 'SAVED' | 'APPROVED' | 'VOIDED' | 'COMPLETED' | 'PAYER_ACTION_REQUIRED';
   provider: 'mock' | 'paypal_sandbox';
+  usdAmount?: string;
+  usdRate?: number;
+  inrPaise?: number;
 }
 
 export interface PaymentCaptureResult {
@@ -17,6 +20,10 @@ export interface PaymentCaptureResult {
   currency: string;
   provider: 'mock' | 'paypal_sandbox';
   payerEmail?: string;
+  usdAmount?: string;
+  usdRate?: number;
+  inrPaise?: number;
+  capturedAt?: string;
   rawResponse?: Record<string, unknown>;
 }
 

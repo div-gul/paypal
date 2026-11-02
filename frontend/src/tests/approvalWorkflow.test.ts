@@ -4,6 +4,7 @@ import {
   removeOrderItem,
   addOrderItem,
   approveOrder,
+  buildStrategyFromUpcomingBucket,
 } from '../../../shared/services/orderBucketService';
 import {
   DEFAULT_PANTRY_ITEMS,
@@ -189,4 +190,13 @@ const postApprovalSimResult = computeUpcomingOrderBucket({
 assert(postApprovalSimResult.bucket.status === 'draft', 'Next cycle starts as a fresh editable draft');
 assert(JSON.stringify(postApprovalSimResult.bucket.items) !== previousCycleItemsSnapshot, 'Previous cycle order edits do not carry into the next cycle');
 
-console.log('\n🎉 ALL 10 APPROVAL WORKFLOW & INSTANT BUCKET TESTS PASSED SUCCESSFULLY!\n');
+// 11. Synthesizing a checkout strategy from upcoming order bucket
+console.log('\nTest 11: Synthesizing robust checkout strategy directly from upcoming order');
+const strategyFromBucket = buildStrategyFromUpcomingBucket(approvedSwapResult.bucket);
+assert(strategyFromBucket.storeBaskets.length > 0, 'Strategy contains store sub-baskets');
+assert(strategyFromBucket.grandTotalPaise > 0, 'Strategy grand total is calculated');
+assert(strategyFromBucket.storeBaskets.every(b => b.items.length > 0), 'All store baskets have items');
+assert(strategyFromBucket.storeBaskets.every(b => b.totalPaise > 0), 'All store baskets have positive totals');
+assert(strategyFromBucket.storeBaskets.every(b => b.items.every(item => Boolean(item.product?.name))), 'All items have valid product names');
+
+console.log('\n🎉 ALL 11 APPROVAL WORKFLOW & INSTANT BUCKET TESTS PASSED SUCCESSFULLY!\n');

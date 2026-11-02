@@ -27,6 +27,9 @@ export interface RunRecord {
   selectedStrategyDetails: BasketStrategyResult | null;
   allStrategies?: BasketStrategyResult[] | null;
   orderId?: string | null;
+  paypalOrderId?: string | null;
+  usdAmount?: string | null;
+  usdRate?: number | null;
   simulatedDate: string;
   createdAt: string;
   updatedAt: string;
@@ -47,6 +50,9 @@ interface RunRow {
   selected_strategy_details: string | null;
   all_strategies?: string | null;
   order_id?: string | null;
+  paypal_order_id?: string | null;
+  usd_amount?: string | null;
+  usd_rate?: number | null;
   simulated_date: string;
   created_at: string;
   updated_at: string;
@@ -89,6 +95,9 @@ function rowToRun(row: RunRow): RunRecord {
     selectedStrategyDetails: strategyDetails,
     allStrategies,
     orderId: row.order_id || null,
+    paypalOrderId: row.paypal_order_id || null,
+    usdAmount: row.usd_amount || null,
+    usdRate: row.usd_rate ?? null,
     simulatedDate: row.simulated_date,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -157,8 +166,8 @@ export class RunRepository {
   }
 
   findByOrderId(orderId: string): RunRecord | null {
-    const stmt = this.db.prepare('SELECT * FROM runs WHERE order_id = ? LIMIT 1');
-    const row = stmt.get(orderId) as RunRow | undefined;
+    const stmt = this.db.prepare('SELECT * FROM runs WHERE order_id = ? OR paypal_order_id = ? LIMIT 1');
+    const row = stmt.get(orderId, orderId) as RunRow | undefined;
     return row ? rowToRun(row) : null;
   }
 
@@ -189,19 +198,41 @@ export class RunRepository {
     return rowToRun(row);
   }
 
-  setOrderId(userId: string, id: string, orderId: string): RunRecord {
+  setPaymentOrder(userId: string, id: string, details: {
+    orderId: string;
+    paypalOrderId?: string;
+    usdAmount?: string;
+    usdRate?: number;
+  }): RunRecord {
     const now = new Date().toISOString();
     const stmt = this.db.prepare(`
       UPDATE runs
-      SET order_id = ?, status = 'payment_pending', updated_at = ?
+      SET order_id = ?,
+          paypal_order_id = ?,
+          usd_amount = COALESCE(?, usd_amount),
+          usd_rate = COALESCE(?, usd_rate),
+          status = 'payment_pending',
+          updated_at = ?
       WHERE user_id = ? AND id = ?
       RETURNING *
     `);
-    const row = stmt.get(orderId, now, userId, id) as RunRow | undefined;
+    const row = stmt.get(
+      details.orderId,
+      details.paypalOrderId || details.orderId,
+      details.usdAmount || null,
+      details.usdRate || null,
+      now,
+      userId,
+      id
+    ) as RunRow | undefined;
     if (!row) {
       throw new Error(`Run ${id} not found for user ${userId}`);
     }
     return rowToRun(row);
+  }
+
+  setOrderId(userId: string, id: string, orderId: string): RunRecord {
+    return this.setPaymentOrder(userId, id, { orderId, paypalOrderId: orderId });
   }
 
   updateRunStrategy(userId: string, id: string, data: {

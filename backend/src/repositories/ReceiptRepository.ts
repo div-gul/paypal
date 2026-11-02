@@ -11,6 +11,11 @@ export interface ReceiptRecord {
   itemsJson: string;
   breakdownJson: string;
   status: 'settled' | 'refunded';
+  paypalCaptureId?: string | null;
+  usdAmount?: string | null;
+  usdRate?: number | null;
+  inrPaise?: number | null;
+  payerEmail?: string | null;
   createdAt: string;
 }
 
@@ -25,6 +30,11 @@ interface ReceiptRow {
   items_json: string;
   breakdown_json: string;
   status: 'settled' | 'refunded';
+  paypal_capture_id?: string | null;
+  usd_amount?: string | null;
+  usd_rate?: number | null;
+  inr_paise?: number | null;
+  payer_email?: string | null;
   created_at: string;
 }
 
@@ -40,6 +50,11 @@ function rowToReceipt(row: ReceiptRow): ReceiptRecord {
     itemsJson: row.items_json,
     breakdownJson: row.breakdown_json,
     status: row.status,
+    paypalCaptureId: row.paypal_capture_id || null,
+    usdAmount: row.usd_amount || null,
+    usdRate: row.usd_rate ?? null,
+    inrPaise: row.inr_paise ?? row.amount_paise,
+    payerEmail: row.payer_email || null,
     createdAt: row.created_at,
   };
 }
@@ -53,9 +68,10 @@ export class ReceiptRepository {
       INSERT INTO receipts (
         id, user_id, run_id, order_id, amount_paise,
         currency, payment_provider, items_json, breakdown_json,
-        status, created_at
+        status, paypal_capture_id, usd_amount, usd_rate, inr_paise, payer_email,
+        created_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       RETURNING *
     `);
 
@@ -70,6 +86,11 @@ export class ReceiptRepository {
       data.itemsJson,
       data.breakdownJson,
       data.status || 'settled',
+      data.paypalCaptureId || null,
+      data.usdAmount || null,
+      data.usdRate || null,
+      data.inrPaise ?? data.amountPaise,
+      data.payerEmail || null,
       now
     ) as ReceiptRow;
 
@@ -77,13 +98,15 @@ export class ReceiptRepository {
   }
 
   findByOrderId(userId: string, orderId: string): ReceiptRecord | null {
-    const stmt = this.db.prepare('SELECT * FROM receipts WHERE user_id = ? AND order_id = ?');
-    const row = stmt.get(userId, orderId) as ReceiptRow | undefined;
+    const stmt = this.db.prepare(
+      'SELECT * FROM receipts WHERE user_id = ? AND (order_id = ? OR paypal_capture_id = ?) LIMIT 1'
+    );
+    const row = stmt.get(userId, orderId, orderId) as ReceiptRow | undefined;
     return row ? rowToReceipt(row) : null;
   }
 
   findByRunId(userId: string, runId: string): ReceiptRecord | null {
-    const stmt = this.db.prepare('SELECT * FROM receipts WHERE user_id = ? AND run_id = ?');
+    const stmt = this.db.prepare('SELECT * FROM receipts WHERE user_id = ? AND run_id = ? LIMIT 1');
     const row = stmt.get(userId, runId) as ReceiptRow | undefined;
     return row ? rowToReceipt(row) : null;
   }

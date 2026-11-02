@@ -1,12 +1,16 @@
 import { IPaymentProvider, PaymentOrderResult, PaymentCaptureResult } from './PaymentProvider.js';
 import { RunRecord } from '../../repositories/RunRepository.js';
 
+import { paiseToUsd } from '@shared/services/currency';
+import { config } from '../../config.js';
+
 export class MockPaymentProvider implements IPaymentProvider {
   readonly providerId = 'mock' as const;
 
   async createOrder(run: RunRecord): Promise<PaymentOrderResult> {
     const randomSuffix = Math.floor(100000 + Math.random() * 900000);
     const orderId = `PAYPAL-MOCK-${randomSuffix}`;
+    const conversion = paiseToUsd(run.grandTotalPaise, config.PAYPAL_USD_RATE);
 
     return {
       orderId,
@@ -15,6 +19,9 @@ export class MockPaymentProvider implements IPaymentProvider {
       status: 'CREATED',
       provider: 'mock',
       approvalUrl: `https://www.sandbox.paypal.com/checkoutnow?token=${orderId}`,
+      usdAmount: conversion.usd,
+      usdRate: conversion.rate,
+      inrPaise: run.grandTotalPaise,
     };
   }
 
@@ -29,6 +36,9 @@ export class MockPaymentProvider implements IPaymentProvider {
       currency: 'INR',
       provider: 'mock',
       payerEmail: 'demo-buyer@shoppilot.local',
+      usdAmount: '1.00',
+      usdRate: config.PAYPAL_USD_RATE,
+      capturedAt: new Date().toISOString(),
     };
   }
 }

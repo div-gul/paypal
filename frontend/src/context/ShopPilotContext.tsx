@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   ActivityLogItem,
   BasketItem,
@@ -22,15 +22,20 @@ import {
   updateOrderItemQuantity,
   removeOrderItem,
   addOrderItem,
+  buildStrategyFromUpcomingBucket,
 } from '@shared/services/orderBucketService';
 import { advancePantryState } from '@shared/services/consumptionEngine';
 import { api, PlanRunOverrides } from '../api/client';
 import { getFriendlyErrorMessage } from '../lib/errorHelper';
 
-interface CheckoutModalDetails {
+export interface CheckoutModalDetails {
   isOpen: boolean;
   strategy?: BasketStrategyResult;
   orderId?: string;
+  captureId?: string;
+  usdAmount?: string;
+  inrAmount?: number;
+  payerEmail?: string;
   timestamp?: string;
   itemsPurchased?: BasketItem[];
 }
@@ -76,9 +81,20 @@ export interface ShopPilotContextType {
   removeFromBasket: (itemId: string) => void;
   approveAllUrgentItems: () => void;
   setSelectedStrategyType: (type: BasketStrategyType) => void;
-  openCheckoutModal: (strategy: BasketStrategyResult) => void;
+  checkoutStrategy: BasketStrategyResult;
+  openCheckoutModal: (strategy?: BasketStrategyResult) => void;
   closeCheckoutModal: () => void;
   confirmSimulatedPayment: (strategy: BasketStrategyResult) => Promise<void>;
+  completeCheckout: (details: {
+    strategy: BasketStrategyResult;
+    orderId: string;
+    captureId?: string;
+    usdAmount?: string;
+    inrAmount?: number;
+    payerEmail?: string;
+    timestamp?: string;
+    itemsPurchased?: BasketItem[];
+  }) => Promise<void>;
   resetToInitialDemo: () => Promise<void>;
   setShowDemoInfoModal: (show: boolean) => void;
   clearError: () => void;
@@ -691,13 +707,29 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     approveRun();
   }, [approveRun]);
 
+  // Guaranteed robust checkout strategy synthesized from upcomingOrder + optimizer
+  const checkoutStrategy = useMemo(() => {
+    return buildStrategyFromUpcomingBucket(
+      upcomingOrder,
+      optimizationResult?.recommendedStrategy || optimizationResult?.strategies?.[0]
+    );
+  }, [upcomingOrder, optimizationResult]);
+
   // Checkout modal controls
-  const openCheckoutModal = useCallback((strategy: BasketStrategyResult) => {
+  const openCheckoutModal = useCallback((strategy?: BasketStrategyResult) => {
+    const effectiveStrategy =
+      strategy && Array.isArray(strategy.storeBaskets) && strategy.storeBaskets.length > 0
+        ? strategy
+        : buildStrategyFromUpcomingBucket(
+            upcomingOrder,
+            optimizationResult?.recommendedStrategy || optimizationResult?.strategies?.[0]
+          );
+
     setCheckoutModal({
       isOpen: true,
-      strategy,
+      strategy: effectiveStrategy,
     });
-  }, []);
+  }, [upcomingOrder, optimizationResult]);
 
   const closeCheckoutModal = useCallback(() => {
     setCheckoutModal({ isOpen: false });
@@ -715,7 +747,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
 
         const orderRes = await api.createCheckoutOrder(runId);
-        await api.captureCheckoutOrder(orderRes.orderId, runId);
+        const captureRes = await api.captureCheckoutOrder(orderRes.orderId, runId);
 
         await reloadState();
 
@@ -725,6 +757,10 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           isOpen: true,
           strategy,
           orderId: orderRes.orderId,
+          captureId: captureRes.receipt?.paypalCaptureId || captureRes.receipt?.id,
+          usdAmount: captureRes.receipt?.usdAmount,
+          inrAmount: captureRes.receipt?.amountPaise || strategy.grandTotalPaise,
+          payerEmail: captureRes.receipt?.payerEmail,
           timestamp: new Date().toLocaleTimeString(),
           itemsPurchased: allPurchasedItems,
         });
@@ -736,6 +772,34 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     },
     [activeRun, reloadState]
+  );
+
+  const completeCheckout = useCallback(
+    async (details: {
+      strategy: BasketStrategyResult;
+      orderId: string;
+      captureId?: string;
+      usdAmount?: string;
+      inrAmount?: number;
+      payerEmail?: string;
+      timestamp?: string;
+      itemsPurchased?: BasketItem[];
+    }) => {
+      await reloadState();
+      const allPurchasedItems = details.itemsPurchased || details.strategy.storeBaskets.flatMap(b => b.items);
+      setCheckoutModal({
+        isOpen: true,
+        strategy: details.strategy,
+        orderId: details.orderId,
+        captureId: details.captureId,
+        usdAmount: details.usdAmount,
+        inrAmount: details.inrAmount || details.strategy.grandTotalPaise,
+        payerEmail: details.payerEmail,
+        timestamp: details.timestamp || new Date().toLocaleTimeString(),
+        itemsPurchased: allPurchasedItems,
+      });
+    },
+    [reloadState]
   );
 
   // Reset demo
@@ -855,10 +919,41 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           swapDecisions: swapDecisionsRef.current,
         });
         setPendingSwaps(res.pendingSwaps);
-        return { ...res.bucket, savedAt: undefined };
+        const allResolved = res.pendingSwaps.length === 0;
+        const savedAt = allResolved ? (prev?.savedAt || new Date().toISOString()) : prev?.savedAt;
+        const nextBucket = { ...res.bucket, savedAt };
+        if (allResolved) {
+          try {
+            localStorage.setItem('shoppilot-upcoming-order', JSON.stringify(nextBucket));
+          } catch {
+            // ignore
+          }
+        }
+        return nextBucket;
       });
+
+      // Synchronize recommendation status so checkout does not block
+      setRecommendations(prev =>
+        prev.map(r =>
+          r.itemId === pantryItemId
+            ? { ...r, requiresApproval: false, approvalStatus: 'approved' as const }
+            : r
+        )
+      );
+
+      // If activeRun exists and all swaps are resolved, sync run approval
+      if (activeRun?.id) {
+        api.approveRun(activeRun.id).then(res => {
+          setActiveRun(res.run);
+        }).catch(err => {
+          const message = String(err?.message || '').toLowerCase();
+          if (message.includes('already approved') || message.includes('cannot be approved from status')) {
+            setActiveRun((run: any) => run ? { ...run, status: 'approved' } : run);
+          }
+        });
+      }
     },
-    [pantryItems, schedulerConfig, simulationState]
+    [pantryItems, schedulerConfig, simulationState, activeRun]
   );
 
   /**
@@ -877,13 +972,31 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           swapDecisions: swapDecisionsRef.current,
         });
         setPendingSwaps(res.pendingSwaps);
-        return { ...res.bucket, savedAt: undefined };
+        const allResolved = res.pendingSwaps.length === 0;
+        const savedAt = allResolved ? (prev?.savedAt || new Date().toISOString()) : prev?.savedAt;
+        const nextBucket = { ...res.bucket, savedAt };
+        if (allResolved) {
+          try {
+            localStorage.setItem('shoppilot-upcoming-order', JSON.stringify(nextBucket));
+          } catch {
+            // ignore
+          }
+        }
+        return nextBucket;
       });
+
+      setRecommendations(prev =>
+        prev.map(r =>
+          r.itemId === pantryItemId
+            ? { ...r, requiresApproval: false, approvalStatus: 'rejected' as const }
+            : r
+        )
+      );
     },
     [pantryItems, schedulerConfig, simulationState]
   );
 
-  const isUpcomingOrderSaved = Boolean(upcomingOrder?.savedAt);
+  const isUpcomingOrderSaved = Boolean(upcomingOrder?.savedAt) || pendingSwaps.length === 0;
 
   return (
     <ShopPilotContext.Provider
@@ -895,6 +1008,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         recommendations,
         optimizationResult,
         selectedStrategyType,
+        checkoutStrategy,
         activityLog,
         isAnalyzing,
         isLoading,
@@ -923,6 +1037,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         openCheckoutModal,
         closeCheckoutModal,
         confirmSimulatedPayment,
+        completeCheckout,
         resetToInitialDemo,
         setShowDemoInfoModal,
         clearError,

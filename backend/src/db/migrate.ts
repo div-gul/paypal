@@ -82,6 +82,9 @@ export function runMigrations(db: Database.Database): void {
       selected_strategy_details TEXT, -- full strategy snapshot JSON
       all_strategies TEXT, -- all calculated strategies JSON
       order_id TEXT,
+      paypal_order_id TEXT,
+      usd_amount TEXT,
+      usd_rate REAL,
       simulated_date TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -123,6 +126,11 @@ export function runMigrations(db: Database.Database): void {
       items_json TEXT NOT NULL,
       breakdown_json TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'settled', -- settled | refunded
+      paypal_capture_id TEXT,
+      usd_amount TEXT,
+      usd_rate REAL,
+      inr_paise INTEGER,
+      payer_email TEXT,
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_receipts_user_id ON receipts(user_id);
@@ -175,7 +183,18 @@ export function runMigrations(db: Database.Database): void {
 
   try { db.exec('ALTER TABLE runs ADD COLUMN order_id TEXT;'); } catch {}
   try { db.exec('ALTER TABLE runs ADD COLUMN all_strategies TEXT;'); } catch {}
+  try { db.exec('ALTER TABLE runs ADD COLUMN paypal_order_id TEXT;'); } catch {}
+  try { db.exec('ALTER TABLE runs ADD COLUMN usd_amount TEXT;'); } catch {}
+  try { db.exec('ALTER TABLE runs ADD COLUMN usd_rate REAL;'); } catch {}
   try { db.exec('CREATE INDEX IF NOT EXISTS idx_runs_order_id ON runs(order_id);'); } catch {}
+  try { db.exec('CREATE INDEX IF NOT EXISTS idx_runs_paypal_order_id ON runs(paypal_order_id);'); } catch {}
+
+  try { db.exec('ALTER TABLE receipts ADD COLUMN paypal_capture_id TEXT;'); } catch {}
+  try { db.exec('ALTER TABLE receipts ADD COLUMN usd_amount TEXT;'); } catch {}
+  try { db.exec('ALTER TABLE receipts ADD COLUMN usd_rate REAL;'); } catch {}
+  try { db.exec('ALTER TABLE receipts ADD COLUMN inr_paise INTEGER;'); } catch {}
+  try { db.exec('ALTER TABLE receipts ADD COLUMN payer_email TEXT;'); } catch {}
+  try { db.exec('CREATE INDEX IF NOT EXISTS idx_receipts_paypal_capture_id ON receipts(paypal_capture_id);'); } catch {}
 
   try { db.exec('ALTER TABLE pantry_items ADD COLUMN quantity_step REAL;'); } catch {}
   try { db.exec('ALTER TABLE pantry_items ADD COLUMN allow_fractions INTEGER;'); } catch {}

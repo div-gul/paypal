@@ -20,6 +20,9 @@ const ConfigSchema = z.object({
   PAYPAL_CLIENT_ID: z.string().optional(),
   PAYPAL_CLIENT_SECRET: z.string().optional(),
   PAYPAL_WEBHOOK_ID: z.string().optional(),
+  PAYPAL_BASE_URL: z.string().url().default('https://api-m.sandbox.paypal.com'),
+  PAYPAL_USD_RATE: z.coerce.number().positive().default(85),
+  PUBLIC_APP_URL: z.string().url().default('http://localhost:5173'),
 
   // LLM Configuration
   LLM_API_KEY: z.string().optional(),
@@ -51,7 +54,12 @@ let cachedConfig: AppConfig | null = null;
 function loadConfig(): AppConfig {
   if (cachedConfig) return cachedConfig;
 
-  const result = ConfigSchema.safeParse(process.env);
+  const envToParse = { ...process.env };
+  if (process.env.NODE_ENV === 'test' && !process.env.TEST_PAYPAL_SANDBOX) {
+    envToParse.PAYPAL_MODE = 'mock';
+  }
+
+  const result = ConfigSchema.safeParse(envToParse);
   if (!result.success) {
     console.error('❌ Configuration validation failed:');
     result.error.issues.forEach(issue => {

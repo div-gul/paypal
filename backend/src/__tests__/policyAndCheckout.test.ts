@@ -274,6 +274,11 @@ describe('Phase 4: Policy Enforcement & Checkout Flow', () => {
       expect(captureData.success).toBe(true);
       expect(captureData.alreadyCaptured).toBe(false);
       expect(captureData.receipt.orderId).toBe(orderId);
+      expect(captureData.receipt.paypalCaptureId).toBeDefined();
+      expect(captureData.receipt.usdAmount).toBeDefined();
+      expect(captureData.receipt.usdRate).toBeDefined();
+      expect(captureData.receipt.inrPaise).toBe(planData.run.grandTotalPaise);
+      expect(captureData.receipt.payerEmail).toBeDefined();
       expect(captureData.run.status).toBe('paid');
 
       // Verify pantry restocked to target
@@ -299,6 +304,104 @@ describe('Phase 4: Policy Enforcement & Checkout Flow', () => {
       expect(repeatData.alreadyCaptured).toBe(true);
       expect(repeatData.receipt.id).toBe(captureData.receipt.id);
     });
+
+    it('duplicate createCheckoutOrder returns the same PayPal order ID without duplicate creation', async () => {
+      const planRes = await fetch(`${baseUrl}/api/runs/plan`, { method: 'POST' });
+      const planData: any = await planRes.json();
+      const runId = planData.run.id;
+      if (planData.run.status === 'needs_approval') {
+        await fetch(`${baseUrl}/api/runs/${runId}/approve`, { method: 'POST' });
+      }
+
+      // First order creation
+      const res1 = await fetch(`${baseUrl}/api/checkout/create-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runId }),
+      });
+      expect(res1.status).toBe(200);
+      const data1: any = await res1.json();
+      const orderId1 = data1.orderId;
+      expect(orderId1).toBeDefined();
+
+      // Second order creation (retry)
+      const res2 = await fetch(`${baseUrl}/api/checkout/create-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runId }),
+      });
+      expect(res2.status).toBe(200);
+      const data2: any = await res2.json();
+      expect(data2.orderId).toBe(orderId1);
+      expect(data2.run.status).toBe('payment_pending');
+      expect(data2.run.paypalOrderId).toBe(orderId1);
+    });
+
+    it('failed capture sets run status to "failed" and does NOT touch the pantry', async () => {
+      const db = getDatabase();
+      const { PaymentService } = await import('../services/payment/PaymentService.js');
+      const { PantryRepository } = await import('../repositories/PantryRepository.js');
+      const { RunRepository } = await import('../repositories/RunRepository.js');
+      const pantryRepo = new PantryRepository(db);
+      const runRepo = new RunRepository(db);
+
+      // Record pantry level before
+      const milkBefore = pantryRepo.getById('demo-user', 'item-milk');
+      expect(milkBefore).not.toBeNull();
+      const originalQuantity = milkBefore!.currentQuantity;
+
+      // Failing mock payment provider
+      const failingProvider = {
+        providerId: 'mock' as const,
+        async createOrder(run: any) {
+          return {
+            orderId: 'ORDER-FAIL-TEST',
+            amountPaise: run.grandTotalPaise,
+            currency: 'INR',
+            status: 'CREATED' as const,
+            provider: 'mock' as const,
+            usdAmount: '1.00',
+            usdRate: 85,
+            inrPaise: run.grandTotalPaise,
+          };
+        },
+        async captureOrder(_orderId: string) {
+          throw new Error('INSTRUMENT_DECLINED: Card declined in sandbox');
+        },
+      };
+
+      const customPaymentService = new PaymentService(db, failingProvider);
+
+      // Plan and approve a run
+      const planRes = await fetch(`${baseUrl}/api/runs/plan`, { method: 'POST' });
+      const planData: any = await planRes.json();
+      const runId = planData.run.id;
+      if (planData.run.status === 'needs_approval') {
+        await fetch(`${baseUrl}/api/runs/${runId}/approve`, { method: 'POST' });
+      }
+
+      // Create checkout order via service
+      const order = await customPaymentService.createCheckoutOrder('demo-user', runId);
+      expect(order.orderId).toBe('ORDER-FAIL-TEST');
+
+      // Attempt capture - should fail
+      await expect(
+        customPaymentService.captureCheckoutOrder('demo-user', 'ORDER-FAIL-TEST')
+      ).rejects.toThrow();
+
+      // Check run status is now 'failed'
+      const failedRun = runRepo.getById('demo-user', runId);
+      expect(failedRun!.status).toBe('failed');
+
+      // Check pantry quantity was untouched
+      const milkAfter = pantryRepo.getById('demo-user', 'item-milk');
+      expect(milkAfter!.currentQuantity).toBe(originalQuantity);
+
+      // Verify audit log has checkout_failed
+      const auditRes = await fetch(`${baseUrl}/api/audit-log`);
+      const auditData: any = await auditRes.json();
+      expect(auditData.logs.some((l: any) => l.type === 'checkout_failed')).toBe(true);
+    });
   });
 
   describe('POST /api/webhooks/paypal', () => {
@@ -319,6 +422,9 @@ describe('Phase 4: Policy Enforcement & Checkout Flow', () => {
           'Content-Type': 'application/json',
           'paypal-transmission-id': 'WH-EVT-SANDBOX-001',
           'paypal-transmission-sig': 'sig_test_123',
+          'paypal-transmission-time': '2026-11-02T11:00:00Z',
+          'paypal-cert-url': 'https://api.sandbox.paypal.com/v1/notifications/certs/CERT-123',
+          'paypal-auth-algo': 'SHA256withRSA',
         },
         body: JSON.stringify(webhookPayload),
       });
@@ -335,6 +441,9 @@ describe('Phase 4: Policy Enforcement & Checkout Flow', () => {
           'Content-Type': 'application/json',
           'paypal-transmission-id': 'WH-EVT-SANDBOX-001',
           'paypal-transmission-sig': 'sig_test_123',
+          'paypal-transmission-time': '2026-11-02T11:00:00Z',
+          'paypal-cert-url': 'https://api.sandbox.paypal.com/v1/notifications/certs/CERT-123',
+          'paypal-auth-algo': 'SHA256withRSA',
         },
         body: JSON.stringify(webhookPayload),
       });

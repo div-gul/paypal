@@ -75,15 +75,32 @@ All secrets reside exclusively on the backend. The frontend consumes the backend
 |---|---|---|
 | `PORT` | `3001` | Express backend listening port |
 | `DATABASE_PATH` | `./data/shoppilot.db` | SQLite database file location (`:memory:` supported for tests) |
-| `PAYPAL_MODE` | `mock` | `mock` (simulated in-memory) or `sandbox` (PayPal sandbox API) |
-| `PAYPAL_CLIENT_ID` | `sandbox_client_id_placeholder` | PayPal Developer Sandbox App Client ID |
-| `PAYPAL_CLIENT_SECRET` | `sandbox_secret_placeholder` | PayPal Developer Sandbox App Secret |
-| `PAYPAL_WEBHOOK_ID` | `sandbox_webhook_id_placeholder` | PayPal Webhook verification ID |
+| `PAYPAL_MODE` | `mock` | `mock` (simulated in-memory) or `sandbox` (real PayPal sandbox REST API) |
+| `PAYPAL_CLIENT_ID` | `""` | PayPal Developer Sandbox App Client ID |
+| `PAYPAL_CLIENT_SECRET` | `""` | PayPal Developer Sandbox App Secret |
+| `PAYPAL_WEBHOOK_ID` | `""` | PayPal Webhook verification ID (optional for local mock testing) |
+| `PAYPAL_BASE_URL` | `https://api-m.sandbox.paypal.com` | PayPal REST API base URL |
+| `PAYPAL_USD_RATE` | `85` | Exchange rate used to convert INR paise to USD for sandbox checkout |
+| `PUBLIC_APP_URL` | `http://localhost:5173` | Public URL for client routing |
 | `LLM_API_KEY` | `""` | Optional API key for external LLM parsing (falls back to deterministic NLP) |
 
 ---
 
-## 4. Real vs. Simulated Transparency Table
+## 4. PayPal Sandbox Integration & Dual Currency Handling
+
+ShopPilot AI natively bridges Indian quick-commerce household replenishment with PayPal's global payment infrastructure:
+
+- **USD Conversion Engine:** Because PayPal Sandbox does not support INR merchant accounts (`CURRENCY_NOT_SUPPORTED`), the application uses `paiseToUsd(paise, rate)` to convert integer INR paise to USD dollars and cents (rounding up to the nearest cent) at the configurable rate (default: ₹85 = $1 USD).
+- **Dual Currency Transparency:** The checkout modal clearly displays both primary INR (`₹935.35`) and secondary USD (`$11.01 USD`) amounts.
+- **Dynamic JavaScript SDK:** The frontend dynamically injects the official PayPal SDK script (`https://www.paypal.com/sdk/js?client-id=...&currency=USD`) and mounts interactive PayPal Buttons with complete pop-up authentication.
+- **Atomic Database Settlement:** Successful capture updates the run to `'paid'`, persists rich receipt records (including PayPal capture ID, USD amount, rate, and payer email), and replenishes pantry items to target stock in a single atomic transaction.
+- **Cryptographic Webhook Verification:** Real webhook signatures are validated via `POST /v1/notifications/verify-webhook-signature`, with idempotent processing for `PAYMENT.CAPTURE.COMPLETED` and `PAYMENT.CAPTURE.DENIED`.
+
+📖 **Complete Manual Testing Guide:** See [docs/paypal-manual-test.md](docs/paypal-manual-test.md) for end-to-end sandbox walkthroughs, ngrok webhook tunneling, and troubleshooting.
+
+---
+
+## 5. Real vs. Simulated Transparency Table
 
 To maintain complete integrity for hackathon judges, here is the transparent breakdown:
 
@@ -99,12 +116,13 @@ To maintain complete integrity for hackathon judges, here is the transparent bre
 
 ---
 
-## 5. API Endpoint Reference
+## 6. API Endpoint Reference
 
 All endpoints are scoped to `demo-user` via auth middleware and return errors in standard `{ error: { code, message, details? } }` format.
 
-### Health & State
+### Health & Configuration
 - `GET /api/health` — Backend health, service mode, active user ID.
+- `GET /api/config/public` — Safe public PayPal configuration (client ID, mode, currency, exchange rate; no secrets).
 - `GET /api/state` — Complete hydrated state snapshot (clock, pantry, policy, latest run, stats).
 
 ### Pantry Management
@@ -127,9 +145,9 @@ All endpoints are scoped to `demo-user` via auth middleware and return errors in
 - `POST /api/runs/:id/reject` — User rejects a planned run.
 
 ### Checkout & PayPal Integration
-- `POST /api/checkout/create-order` — Verify policy approval on server; initiate PayPal sandbox order.
+- `POST /api/checkout/create-order` — Verify policy approval on server; initiate PayPal sandbox order in USD.
 - `POST /api/checkout/capture` — Atomic capture transaction: updates run to `paid`, creates settled receipt, restocks pantry items, and logs audit trail. Idempotent on repeat.
-- `POST /api/webhooks/paypal` — Processes incoming PayPal webhook events with raw-body signature validation and idempotent tracking.
+- `POST /api/webhooks/paypal` — Processes incoming PayPal webhook events with cryptographic signature verification and idempotent tracking.
 
 ### AI Endpoints (Server-Side, Validated)
 - `POST /api/ai/parse-policy` — Translates natural language into a proposed policy modification (proposal only; never auto-saved without user confirmation).
@@ -137,20 +155,23 @@ All endpoints are scoped to `demo-user` via auth middleware and return errors in
 
 ---
 
-## 6. Testing & Quality Verification
+## 7. Testing & Quality Verification
 
 ```bash
-# 1. Backend Vitest Suite (29 automated tests)
+# 1. Backend Vitest Suite (58 automated unit & integration tests across 10 test files)
 npm --prefix backend test
 
-# 2. Frontend Autonomous Verification Suite (5 verification stages)
+# 2. Frontend Autonomous Verification Suite (All verification stages)
 npm --prefix frontend test
 
-# 3. Production Build Validation (TypeScript + Vite SSR + Vite Client)
+# 3. Complete Monorepo Test Run
+npm test
+
+# 4. Production Build Validation (TypeScript + Vite SSR + Vite Client)
 npm run build
 ```
 
 ---
 
-## 7. License & Hackathon Submission
+## 8. License & Hackathon Submission
 Developed for the **PayPal AI Hackathon 2026**. Licensed under the MIT License.

@@ -82,6 +82,23 @@ export class PaymentService {
       );
     }
 
+    // Safe retry: if run is already payment_pending with an existing order, return it
+    if (run.status === 'payment_pending' && (run.paypalOrderId || run.orderId)) {
+      const existingOrderId = run.paypalOrderId || run.orderId!;
+      return {
+        orderId: existingOrderId,
+        approvalUrl: `https://www.sandbox.paypal.com/checkoutnow?token=${existingOrderId}`,
+        amountPaise: run.grandTotalPaise,
+        currency: 'USD',
+        status: 'CREATED',
+        provider: this.provider.providerId,
+        usdAmount: run.usdAmount || undefined,
+        usdRate: run.usdRate || undefined,
+        inrPaise: run.grandTotalPaise,
+        run,
+      };
+    }
+
     // Checkout requires status to be 'approved' or 'auto_approved'
     if (run.status !== 'approved' && run.status !== 'auto_approved') {
       throw new AppError(
@@ -94,8 +111,13 @@ export class PaymentService {
     // 2. Call Payment Provider
     const orderResult = await this.provider.createOrder(run);
 
-    // 3. Mark run as payment_pending and record order_id
-    const updatedRun = this.runRepo.setOrderId(userId, runId, orderResult.orderId);
+    // 3. Mark run as payment_pending and record order_id, paypal_order_id, and USD amounts
+    const updatedRun = this.runRepo.setPaymentOrder(userId, runId, {
+      orderId: orderResult.orderId,
+      paypalOrderId: orderResult.orderId,
+      usdAmount: orderResult.usdAmount,
+      usdRate: orderResult.usdRate,
+    });
 
     return {
       ...orderResult,
@@ -148,11 +170,70 @@ export class PaymentService {
       );
     }
 
-    // 2. Capture through provider
-    const captureResult = await this.provider.captureOrder(orderId);
-    if (captureResult.status !== 'COMPLETED') {
-      this.runRepo.updateStatus(userId, runId, 'failed');
-      throw new AppError('PAYMENT_CAPTURE_FAILED', `Payment capture failed for order ${orderId}`, 402);
+    // 2. Capture through provider with failure isolation
+    let captureResult;
+    try {
+      captureResult = await this.provider.captureOrder(orderId);
+      if (captureResult.status !== 'COMPLETED') {
+        throw new Error(`Payment capture returned status "${captureResult.status}"`);
+      }
+    } catch (err: any) {
+      this.failRun(userId, runId, orderId, err.message || 'Declined');
+      if (err instanceof AppError) {
+        throw err;
+      }
+      throw new AppError('PAYMENT_CAPTURE_FAILED', `Payment capture failed for order ${orderId}: ${err.message}`, 402);
+    }
+
+    // 3. Atomic single-transaction settlement
+    const { receipt, updatedRun } = this.settleRunAtomically(userId, runId, orderId, {
+      captureId: captureResult.captureId,
+      currency: captureResult.currency,
+      usdAmount: captureResult.usdAmount,
+      usdRate: captureResult.usdRate,
+      payerEmail: captureResult.payerEmail,
+    });
+
+    return {
+      success: true,
+      receipt,
+      run: updatedRun,
+      alreadyCaptured: false,
+    };
+  }
+
+  failRun(userId: string, runId: string, orderId: string, reason: string): RunRecord {
+    const updatedRun = this.runRepo.updateStatus(userId, runId, 'failed');
+    const clock = this.clockRepo.getByUserId(userId);
+    const simDate = clock?.simulatedDate || new Date().toISOString();
+    this.auditRepo.create(userId, {
+      id: `audit-${Date.now()}-failed-${Math.random().toString(36).substring(2, 6)}`,
+      timestamp: new Date().toISOString(),
+      simulatedDate: simDate,
+      type: 'checkout_failed',
+      title: `Payment Failed (${orderId})`,
+      description: `Payment capture failed for order ${orderId}: ${reason}. Pantry unchanged.`,
+      statusBadge: 'Failed',
+      badgeColor: 'rose',
+    });
+    return updatedRun;
+  }
+
+  settleRunAtomically(
+    userId: string,
+    runId: string,
+    orderId: string,
+    captureDetails: {
+      captureId: string;
+      currency?: string;
+      usdAmount?: string | null;
+      usdRate?: number | null;
+      payerEmail?: string | null;
+    }
+  ): { receipt: ReceiptRecord; updatedRun: RunRecord } {
+    const run = this.runRepo.getById(userId, runId);
+    if (!run) {
+      throw new AppError('RUN_NOT_FOUND', `Run "${runId}" not found for settlement`, 404);
     }
 
     const clock = this.clockRepo.getByUserId(userId);
@@ -160,19 +241,18 @@ export class PaymentService {
     const lineItems = this.runItemRepo.getByRunId(userId, runId);
     const pantryItems = this.pantryRepo.getAllByUserId(userId);
 
-    // 3. Atomic single-transaction: mark paid, create receipt, restock pantry, log audit
     const captureTx = this.db.transaction(() => {
       // a. Mark run paid
       const updatedRun = this.runRepo.updateStatus(userId, runId, 'paid');
 
-      // b. Create receipt
+      // b. Create receipt with rich PayPal / USD metadata
       const receiptId = `rcpt-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
       const receipt = this.receiptRepo.create(userId, {
         id: receiptId,
         runId,
         orderId,
         amountPaise: run.grandTotalPaise,
-        currency: 'INR',
+        currency: captureDetails.currency || 'INR',
         paymentProvider: this.provider.providerId,
         itemsJson: JSON.stringify(lineItems),
         breakdownJson: JSON.stringify({
@@ -183,6 +263,11 @@ export class PaymentService {
           grandTotalPaise: run.grandTotalPaise,
         }),
         status: 'settled',
+        paypalCaptureId: captureDetails.captureId,
+        usdAmount: captureDetails.usdAmount || run.usdAmount || null,
+        usdRate: captureDetails.usdRate || run.usdRate || null,
+        inrPaise: run.grandTotalPaise,
+        payerEmail: captureDetails.payerEmail || null,
       });
 
       // c. Restock pantry items to target stock or add purchased qty
@@ -219,13 +304,6 @@ export class PaymentService {
       return { receipt, updatedRun };
     });
 
-    const { receipt, updatedRun } = captureTx();
-
-    return {
-      success: true,
-      receipt,
-      run: updatedRun,
-      alreadyCaptured: false,
-    };
+    return captureTx();
   }
 }

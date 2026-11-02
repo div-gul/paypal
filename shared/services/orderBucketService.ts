@@ -1,13 +1,18 @@
 import {
+  BasketItem,
+  BasketStrategyResult,
   PantryItem,
   ProductSwapRequest,
   SimulationState,
+  StoreId,
   StoreProduct,
+  StoreSubBasket,
   UpcomingOrderBucket,
   UpcomingOrderItem,
   WeeklySchedulerConfig,
 } from '../types';
-import { MOCK_STORE_CATALOG } from '../adapters/mockStoreData';
+import { MOCK_STORE_CATALOG, STORE_DEFINITIONS } from '../adapters/mockStoreData';
+import { AdapterRegistry } from '../adapters/AdapterRegistry';
 import { getDaysUntilNextShoppingRun } from './restockScheduler';
 
 /**
@@ -349,5 +354,132 @@ export function approveOrder(bucket: UpcomingOrderBucket): UpcomingOrderBucket {
     ...bucket,
     status: 'approved',
     approvedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Builds a valid, complete BasketStrategyResult directly from an UpcomingOrderBucket.
+ * Ensures that store sub-baskets, store fees, and line items are always non-empty and well-formed.
+ */
+export function buildStrategyFromUpcomingBucket(
+  bucket: UpcomingOrderBucket,
+  baseStrategy?: BasketStrategyResult
+): BasketStrategyResult {
+  const activeItems = (bucket?.items || []).filter(item => item.quantity > 0);
+
+  // Group items by storeId
+  const storeGroups = new Map<StoreId, BasketItem[]>();
+
+  for (const item of activeItems) {
+    const storeId: StoreId = (item.product?.storeId as StoreId) || 'blinkit';
+    const product: StoreProduct = item.product || {
+      id: item.id || `prod-${item.pantryItemId}`,
+      storeId,
+      pantryItemId: item.pantryItemId,
+      name: item.itemName || 'Grocery Item',
+      brand: 'Preferred Brand',
+      packageSize: item.packageSize || '1 unit',
+      unit: item.unit || 'units',
+      pricePaise: item.unitPricePaise || 0,
+      mrpPaise: item.unitPricePaise || 0,
+      inStock: true,
+      stockQuantity: 20,
+      isExactBrandMatch: !item.isSubstitution,
+    };
+
+    const basketItem: BasketItem = {
+      product,
+      pantryItemId: item.pantryItemId,
+      quantity: item.quantity,
+      totalPaise: item.totalPricePaise || item.quantity * product.pricePaise,
+      isSubstitution: Boolean(item.isSubstitution),
+    };
+
+    const existing = storeGroups.get(storeId) || [];
+    existing.push(basketItem);
+    storeGroups.set(storeId, existing);
+  }
+
+  // If no items, fallback to single store default
+  if (storeGroups.size === 0) {
+    const defaultStore: StoreId = 'blinkit';
+    storeGroups.set(defaultStore, []);
+  }
+
+  // Build store sub-baskets using store adapters
+  const storeBaskets: StoreSubBasket[] = [];
+
+  for (const [storeId, items] of storeGroups.entries()) {
+    try {
+      const adapter = AdapterRegistry.getAdapter(storeId);
+      const storeInfo = STORE_DEFINITIONS[storeId] || {
+        id: storeId,
+        name: storeId.charAt(0).toUpperCase() + storeId.slice(1),
+        minOrderThresholdPaise: 19900,
+      };
+
+      const productSubtotalPaise = items.reduce((acc, curr) => acc + curr.totalPaise, 0);
+      const fees = adapter.calculateStoreFees(productSubtotalPaise);
+      const totalPaise = productSubtotalPaise + fees.totalFeesPaise;
+      const meetsMinOrder = productSubtotalPaise >= storeInfo.minOrderThresholdPaise;
+
+      storeBaskets.push({
+        storeId,
+        storeName: storeInfo.name,
+        items,
+        productSubtotalPaise,
+        deliveryFeePaise: fees.deliveryFeePaise,
+        handlingFeePaise: fees.handlingFeePaise,
+        taxPaise: fees.taxPaise,
+        discountsPaise: 0,
+        minOrderShortfallPaise: fees.minOrderShortfallPaise,
+        totalPaise,
+        meetsMinOrder,
+        minOrderThresholdPaise: storeInfo.minOrderThresholdPaise,
+      });
+    } catch {
+      const productSubtotalPaise = items.reduce((acc, curr) => acc + curr.totalPaise, 0);
+      const deliveryFee = productSubtotalPaise > 39900 ? 0 : 2000;
+      const handlingFee = 500;
+      const tax = Math.round(productSubtotalPaise * 0.05);
+      storeBaskets.push({
+        storeId,
+        storeName: storeId,
+        items,
+        productSubtotalPaise,
+        deliveryFeePaise: deliveryFee,
+        handlingFeePaise: handlingFee,
+        taxPaise: tax,
+        discountsPaise: 0,
+        minOrderShortfallPaise: 0,
+        totalPaise: productSubtotalPaise + deliveryFee + handlingFee + tax,
+        meetsMinOrder: true,
+        minOrderThresholdPaise: 19900,
+      });
+    }
+  }
+
+  const totalProductPaise = storeBaskets.reduce((acc, b) => acc + b.productSubtotalPaise, 0);
+  const totalDeliveryFeePaise = storeBaskets.reduce((acc, b) => acc + b.deliveryFeePaise, 0);
+  const totalHandlingFeePaise = storeBaskets.reduce((acc, b) => acc + b.handlingFeePaise, 0);
+  const totalTaxPaise = storeBaskets.reduce((acc, b) => acc + b.taxPaise, 0);
+  const totalDiscountPaise = storeBaskets.reduce((acc, b) => acc + b.discountsPaise, 0);
+  const grandTotalPaise = storeBaskets.reduce((acc, b) => acc + b.totalPaise, 0);
+
+  return {
+    type: baseStrategy?.type || (storeBaskets.length === 1 ? 'STRATEGY_B_SINGLE_STORE' : 'STRATEGY_A_LOWEST_PRICE'),
+    title: baseStrategy?.title || (storeBaskets.length === 1 ? `${storeBaskets[0].storeName} Consolidated Order` : 'Multi-Store Split Order'),
+    tag: baseStrategy?.tag || (storeBaskets.length === 1 ? 'Consolidated' : 'Split Basket'),
+    description: baseStrategy?.description || `Consolidated order of ${activeItems.length} products across ${storeBaskets.length} store${storeBaskets.length === 1 ? '' : 's'}.`,
+    storeBaskets,
+    totalProductPaise,
+    totalDeliveryFeePaise,
+    totalHandlingFeePaise,
+    totalTaxPaise,
+    totalDiscountPaise,
+    grandTotalPaise,
+    isRecommended: true,
+    recommendationReason: baseStrategy?.recommendationReason || 'Autonomous restock plan verified with optimal delivery fee balance.',
+    storesInvolvedCount: storeBaskets.length,
   };
 }

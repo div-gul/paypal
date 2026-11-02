@@ -36,6 +36,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
     upcomingOrder,
     pendingSwaps,
     isUpcomingOrderSaved,
+    checkoutStrategy,
   } = useShopPilot();
 
   const [isWhyThisOpen, setIsWhyThisOpen] = useState(false);
@@ -45,9 +46,9 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
   const nextRunDate = new Date(schedulerConfig.nextShoppingDate);
   const nextRunDayName = nextRunDate.toLocaleDateString('en-IN', { weekday: 'long' });
 
-  // 2. Pending approvals check
+  // 2. Pending approvals check (only pending swaps require approval before checkout)
   const hasPendingSwaps = pendingSwaps.length > 0;
-  const needsApproval = hasPendingSwaps || !isUpcomingOrderSaved;
+  const needsApproval = hasPendingSwaps;
 
   // 3. Recommended & filtered strategies
   const strategies = optimizationResult?.strategies || [];
@@ -65,31 +66,34 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
     recommendedStrategy ||
     strategies[0];
 
-  const allFinalItems = upcomingOrder.items.filter(item => item.quantity > 0).map(item => ({
-    product: item.product,
-    pantryItemId: item.pantryItemId,
-    quantity: item.quantity,
-    totalPaise: item.totalPricePaise,
-    isSubstitution: Boolean(item.isSubstitution),
-    storeName: currentStrategy?.storeBaskets.find(b => b.storeId === item.product.storeId)?.storeName || item.product.storeId,
-    storeId: item.product.storeId,
-  }));
+  const allFinalItems = (upcomingOrder?.items || []).filter(item => item.quantity > 0).map(item => {
+    const storeId = item.product?.storeId || 'blinkit';
+    const storeName = currentStrategy?.storeBaskets?.find(b => b.storeId === storeId)?.storeName || storeId;
+    return {
+      product: item.product || {
+        id: item.id,
+        storeId,
+        pantryItemId: item.pantryItemId,
+        name: item.itemName || 'Product',
+        brand: 'Preferred Brand',
+        packageSize: item.packageSize || '1 unit',
+        unit: item.unit || 'units',
+        pricePaise: item.unitPricePaise || 0,
+        mrpPaise: item.unitPricePaise || 0,
+        inStock: true,
+        stockQuantity: 20,
+        isExactBrandMatch: !item.isSubstitution,
+      },
+      pantryItemId: item.pantryItemId,
+      quantity: item.quantity,
+      totalPaise: item.totalPricePaise,
+      isSubstitution: Boolean(item.isSubstitution),
+      storeName,
+      storeId,
+    };
+  });
 
-  const grandTotalPaise = upcomingOrder.totalPaise || currentStrategy?.grandTotalPaise || 0;
-  const checkoutStrategy = currentStrategy ? {
-    ...currentStrategy,
-    grandTotalPaise,
-    totalProductPaise: upcomingOrder.subtotalPaise,
-    totalDeliveryFeePaise: upcomingOrder.deliveryFeePaise,
-    storeBaskets: currentStrategy.storeBaskets.map(basket => {
-      const items = allFinalItems
-        .filter(item => item.storeId === basket.storeId)
-        .map(({ storeName: _storeName, storeId: _storeId, ...item }) => item);
-      const productSubtotalPaise = items.reduce((total, item) => total + item.totalPaise, 0);
-      const totalPaise = productSubtotalPaise + basket.deliveryFeePaise + basket.handlingFeePaise + basket.taxPaise - basket.discountsPaise;
-      return { ...basket, items, productSubtotalPaise, totalPaise };
-    }),
-  } : undefined;
+  const grandTotalPaise = upcomingOrder?.totalPaise || checkoutStrategy?.grandTotalPaise || currentStrategy?.grandTotalPaise || 0;
   const isBudgetSafe = grandTotalPaise <= schedulerConfig.perCycleBudgetPaise;
 
   // 4. Pantry health calculation
@@ -183,23 +187,23 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          {needsApproval && (
+          {hasPendingSwaps && (
             <Button
               variant="primary"
               size="sm"
               onClick={() => onNavigateToTab('approvals')}
               icon={<ArrowRight className="w-3.5 h-3.5" />}
             >
-              {hasPendingSwaps ? `Approve Swaps (${pendingSwaps.length})` : 'Review & Save Order'}
+              Approve Swaps ({pendingSwaps.length})
             </Button>
           )}
           <Button
             variant="success"
             size="sm"
-            disabled={!isUpcomingOrderSaved || upcomingOrder.items.length === 0 || !checkoutStrategy}
-            onClick={() => checkoutStrategy && openCheckoutModal(checkoutStrategy)}
+            disabled={hasPendingSwaps || (upcomingOrder?.items || []).length === 0}
+            onClick={() => openCheckoutModal(checkoutStrategy)}
             icon={<ShoppingBag className="w-3.5 h-3.5" />}
-            title={!isUpcomingOrderSaved ? 'Save the order in Approvals before paying' : undefined}
+            title={hasPendingSwaps ? 'Approve product swaps in Approvals before paying' : undefined}
             className="disabled:bg-emerald-200 disabled:text-emerald-800"
           >
             Confirm and Pay for Order
@@ -364,20 +368,18 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
                 size="md"
                 disabled={allFinalItems.length === 0}
                 onClick={() => {
-                  if (needsApproval) {
+                  if (hasPendingSwaps) {
                     onNavigateToTab('approvals');
-                  } else if (checkoutStrategy) {
+                  } else {
                     openCheckoutModal(checkoutStrategy);
                   }
                 }}
                 icon={<ShoppingBag className="w-4 h-4" />}
               >
                 {hasPendingSwaps ? (
-                  'Review Swaps in Approvals'
-                  ) : !isUpcomingOrderSaved ? (
-                  'Review & Save Order'
+                  `Review Swaps in Approvals (${pendingSwaps.length})`
                 ) : (
-                  <span>Confirm and Pay for Order (<span className="tabular-nums">{formatPaise(upcomingOrder.totalPaise || grandTotalPaise)}</span>)</span>
+                  <span>Confirm and Pay for Order (<span className="tabular-nums">{formatPaise(grandTotalPaise)}</span>)</span>
                 )}
               </Button>
             </div>

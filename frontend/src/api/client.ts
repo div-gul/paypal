@@ -181,6 +181,15 @@ export const api = {
   rejectRun: (id: string) =>
     request<{ run: any }>(`/runs/${encodeURIComponent(id)}/reject`, { method: 'POST' }),
 
+  // Configuration
+  getPublicConfig: () =>
+    request<{
+      paypalClientId: string;
+      paypalMode: 'mock' | 'sandbox';
+      currency: string;
+      usdRate: number;
+    }>('/config/public'),
+
   // Checkout & Payments
   createCheckoutOrder: (runId: string) =>
     request<{ orderId: string; run: any }>('/checkout/create-order', {

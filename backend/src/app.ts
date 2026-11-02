@@ -14,6 +14,7 @@ import { auditRouter } from './routes/audit.js';
 import { checkoutRouter } from './routes/checkout.js';
 import { webhookRouter } from './routes/webhooks.js';
 import { createAiRouter } from './routes/ai.js';
+import { configRouter } from './routes/config.js';
 
 export function createApp(): Express {
   const app = express();
@@ -41,6 +42,7 @@ export function createApp(): Express {
   app.use('/api', auditRouter);
   app.use('/api', checkoutRouter);
   app.use('/api', webhookRouter);
+  app.use('/api', configRouter);
   app.use('/api/ai', createAiRouter());
 
   // 404 handler for unknown API routes

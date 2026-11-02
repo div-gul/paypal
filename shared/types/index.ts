@@ -173,6 +173,7 @@ export interface ActivityLogItem {
     | 'approval_granted'
     | 'approval_rejected'
     | 'checkout_completed'
+    | 'checkout_failed'
     | 'pantry_updated'
     | 'stockout_warning'
     | 'policy_applied';

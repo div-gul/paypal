@@ -9,7 +9,7 @@ import { HouseholdRules } from './components/HouseholdRules';
 import { CheckoutModal } from './components/CheckoutModal';
 import { IntegrationInfoModal } from './components/IntegrationInfoModal';
 import { BackendHealthBadge } from './components/BackendHealthBadge';
-import { Badge } from './components/ui/Badge';
+import { Badge, ErrorBoundary } from './components/ui';
 import {
   Home,
   CheckSquare,
@@ -177,15 +177,17 @@ const MainLayout: React.FC = () => {
           )}
 
           {/* View Renderings */}
-          {activeTab === 'home' && <HomeView onNavigateToTab={setActiveTab} />}
+          <ErrorBoundary>
+            {activeTab === 'home' && <HomeView onNavigateToTab={setActiveTab} />}
 
-          {activeTab === 'approvals' && <ApprovalsView />}
+            {activeTab === 'approvals' && <ApprovalsView />}
 
-          {activeTab === 'pantry' && (
-            <PantryManager onOpenSettings={() => setActiveTab('settings')} />
-          )}
+            {activeTab === 'pantry' && (
+              <PantryManager onOpenSettings={() => setActiveTab('settings')} />
+            )}
 
-          {activeTab === 'settings' && <HouseholdRules />}
+            {activeTab === 'settings' && <HouseholdRules />}
+          </ErrorBoundary>
         </main>
       </div>
 
@@ -257,9 +259,11 @@ const MainLayout: React.FC = () => {
 
 const App: React.FC = () => {
   return (
-    <ShopPilotProvider>
-      <MainLayout />
-    </ShopPilotProvider>
+    <ErrorBoundary fallbackTitle="ShopPilot AI encountered an issue">
+      <ShopPilotProvider>
+        <MainLayout />
+      </ShopPilotProvider>
+    </ErrorBoundary>
   );
 };
 
