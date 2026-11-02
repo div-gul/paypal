@@ -125,7 +125,7 @@ export const HouseholdRules: React.FC = () => {
       </div>
 
       {/* AI Plain English Assistant Card */}
-      <div className="bg-gradient-to-r from-brand-900 via-brand-800 to-indigo-900 rounded-2xl p-5 text-white shadow-md border border-brand-700/50 space-y-3">
+      <div className="bg-slate-900 rounded-2xl p-5 text-white shadow-md border border-brand-600/50 space-y-3">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center border border-white/10">
             <Bot className="w-5 h-5 text-indigo-300" />
@@ -154,7 +154,7 @@ export const HouseholdRules: React.FC = () => {
           <button
             type="submit"
             disabled={isParsingAi || !nlPrompt.trim()}
-            className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-400 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
+            className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-900 font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
           >
             {isParsingAi ? (
               <>

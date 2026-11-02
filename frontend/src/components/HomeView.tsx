@@ -182,17 +182,29 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
           </div>
         </div>
 
-        {needsApproval && (
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {needsApproval && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => onNavigateToTab('approvals')}
+              icon={<ArrowRight className="w-3.5 h-3.5" />}
+            >
+              {hasPendingSwaps ? `Approve Swaps (${pendingSwaps.length})` : 'Review & Save Order'}
+            </Button>
+          )}
           <Button
-            variant="primary"
+            variant="success"
             size="sm"
-            onClick={() => onNavigateToTab('approvals')}
-            icon={<ArrowRight className="w-3.5 h-3.5" />}
-            className="shrink-0"
+            disabled={!isUpcomingOrderSaved || upcomingOrder.items.length === 0 || !checkoutStrategy}
+            onClick={() => checkoutStrategy && openCheckoutModal(checkoutStrategy)}
+            icon={<ShoppingBag className="w-3.5 h-3.5" />}
+            title={!isUpcomingOrderSaved ? 'Save the order in Approvals before paying' : undefined}
+            className="disabled:bg-emerald-200 disabled:text-emerald-800"
           >
-            {hasPendingSwaps ? 'Review Swaps' : 'Review & Approve Order'}
+            Confirm and Pay for Order
           </Button>
-        )}
+        </div>
       </div>
 
       {/* 2. Main Two-Column Grid: Recommended Order Card + Pantry Health Card */}
@@ -365,7 +377,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
                   ) : !isUpcomingOrderSaved ? (
                   'Review & Save Order'
                 ) : (
-                  <span>Simulate Checkout (<span className="tabular-nums">{formatPaise(upcomingOrder.totalPaise || grandTotalPaise)}</span>)</span>
+                  <span>Confirm and Pay for Order (<span className="tabular-nums">{formatPaise(upcomingOrder.totalPaise || grandTotalPaise)}</span>)</span>
                 )}
               </Button>
             </div>

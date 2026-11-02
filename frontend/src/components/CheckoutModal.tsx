@@ -70,7 +70,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ onNavigateToApprov
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
       <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
         {/* Modal Header */}
-        <div className="bg-gradient-to-r from-paypal-darkBlue via-paypal-blue to-paypal-lightBlue text-white p-5 flex items-center justify-between">
+        <div className="bg-paypal-darkBlue border-b-4 border-paypal-yellow text-white p-5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
               <CreditCard className="w-6 h-6 text-paypal-yellow" />

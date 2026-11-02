@@ -2,7 +2,7 @@ import React from 'react';
 import { Loader2 } from 'lucide-react';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'success';
   size?: 'sm' | 'md' | 'lg';
   isLoading?: boolean;
   icon?: React.ReactNode;
@@ -30,7 +30,7 @@ export const Button: React.FC<ButtonProps> = ({
 
   const variantStyles = {
     primary:
-      'bg-gradient-to-r from-paypal-blue via-paypal-lightBlue to-brand-600 hover:opacity-95 text-white shadow-sm shadow-paypal-blue/20 focus:ring-paypal-lightBlue',
+      'bg-amber-400 hover:bg-amber-500 text-slate-900 shadow-sm shadow-amber-600/20 focus:ring-amber-500',
     secondary:
       'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200/80 focus:ring-slate-300',
     outline:
@@ -39,6 +39,8 @@ export const Button: React.FC<ButtonProps> = ({
       'bg-transparent hover:bg-slate-100 text-slate-600 hover:text-slate-900 focus:ring-slate-200',
     danger:
       'bg-rose-600 hover:bg-rose-500 text-white shadow-sm shadow-rose-600/20 focus:ring-rose-400',
+    success:
+      'bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm shadow-emerald-600/20 focus:ring-emerald-500',
   };
 
   return (

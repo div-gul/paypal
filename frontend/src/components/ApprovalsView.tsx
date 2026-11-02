@@ -100,7 +100,7 @@ export const ApprovalsView: React.FC = () => {
                 <Card
                   key={swap.id}
                   variant="elevated"
-                  className="border-amber-200 bg-gradient-to-br from-amber-50/20 via-white to-white space-y-3.5 p-4 sm:p-5"
+                  className="border-amber-200 bg-white space-y-3.5 p-4 sm:p-5"
                 >
                   <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                     {/* Left: Product comparison details */}

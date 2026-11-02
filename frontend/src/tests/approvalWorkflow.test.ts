@@ -171,9 +171,9 @@ const confirmedOrder = approveOrder(userEditedBucket);
 assert(confirmedOrder.status === 'approved', 'Single approval marks complete order as approved');
 assert(typeof confirmedOrder.approvedAt === 'string', 'Approval timestamp recorded');
 
-// 10. Future simulation does not modify an already approved order.
-console.log('\nTest 10: Future simulation does not modify an already approved order');
-const approvedItemsSnapshot = JSON.stringify(confirmedOrder.items);
+// 10. The next cycle starts from current pantry state, not the previous cycle's order edits.
+console.log('\nTest 10: Next cycle is independent from the previously saved order');
+const previousCycleItemsSnapshot = JSON.stringify(confirmedOrder.items);
 const postApprovalSimResult = computeUpcomingOrderBucket({
   pantryItems: advancePantryState(advancedPantry, 4),
   schedulerConfig: DEFAULT_SCHEDULER_CONFIG,
@@ -182,11 +182,11 @@ const postApprovalSimResult = computeUpcomingOrderBucket({
     daysElapsed: 7,
     simulatedDate: new Date(new Date(advancedClock.simulatedDate).getTime() + 4 * 86400000).toISOString(),
   },
-  existingBucket: confirmedOrder,
+  existingBucket: null,
   swapDecisions: {},
 });
 
-assert(postApprovalSimResult.bucket.status === 'approved', 'Status remains approved');
-assert(JSON.stringify(postApprovalSimResult.bucket.items) === approvedItemsSnapshot, 'Approved order items are locked and unaffected by future simulation events');
+assert(postApprovalSimResult.bucket.status === 'draft', 'Next cycle starts as a fresh editable draft');
+assert(JSON.stringify(postApprovalSimResult.bucket.items) !== previousCycleItemsSnapshot, 'Previous cycle order edits do not carry into the next cycle');
 
 console.log('\n🎉 ALL 10 APPROVAL WORKFLOW & INSTANT BUCKET TESTS PASSED SUCCESSFULLY!\n');

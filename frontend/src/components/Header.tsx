@@ -76,7 +76,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenDemoDrawer }) => {
         {/* Brand & Status Pill */}
         <div className="flex items-center gap-3 sm:gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-paypal-blue via-paypal-lightBlue to-brand-500 flex items-center justify-center text-white shadow-sm shadow-paypal-blue/20">
+            <div className="w-9 h-9 rounded-xl bg-emerald-500 flex items-center justify-center text-amber-400 shadow-sm shadow-emerald-600/20">
               <Bot className="w-5 h-5" />
             </div>
             <div>
