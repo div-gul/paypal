@@ -274,6 +274,22 @@ export class PayPalSandboxProvider implements IPaymentProvider {
         return this.recoverCompletedOrder(orderId, token);
       }
 
+      // Special case: ORDER_NOT_APPROVED (payer hasn't completed authorization yet)
+      const isNotApproved =
+        res.status === 422 &&
+        (errorJson.details?.some(d => d.issue === 'ORDER_NOT_APPROVED') ||
+          errorJson.name === 'ORDER_NOT_APPROVED' ||
+          errorJson.message?.includes('ORDER_NOT_APPROVED') ||
+          errorJson.message?.includes('not yet approved'));
+
+      if (isNotApproved) {
+        throw new AppError(
+          'ORDER_NOT_APPROVED',
+          `Payer has not yet approved the Order for payment. Please log in and authorize the payment in PayPal Sandbox, or use 1-Click Instant Settle.`,
+          422
+        );
+      }
+
       const detailMsg = errorJson.details?.map(d => d.description || d.issue).filter(Boolean).join('; ');
       throw new AppError(
         errorJson.name || 'PAYPAL_CAPTURE_FAILED',

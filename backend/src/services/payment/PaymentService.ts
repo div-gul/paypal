@@ -47,7 +47,11 @@ export class PaymentService {
     return this.provider.providerId;
   }
 
-  async createCheckoutOrder(userId: string, runId: string): Promise<PaymentOrderResult & { run: RunRecord }> {
+  async createCheckoutOrder(
+    userId: string,
+    runId: string,
+    options?: { simulated?: boolean }
+  ): Promise<PaymentOrderResult & { run: RunRecord }> {
     const run = this.runRepo.getById(userId, runId);
     if (!run) {
       throw new AppError('RUN_NOT_FOUND', `Run "${runId}" not found`, 404);
@@ -82,25 +86,33 @@ export class PaymentService {
       );
     }
 
-    // Safe retry: if run is already payment_pending with an existing order, return it
+    // If simulated checkout is explicitly requested, use MockPaymentProvider regardless of global mode
+    const activeProvider = options?.simulated
+      ? new MockPaymentProvider()
+      : this.provider;
+
+    // Safe retry: if run is already payment_pending with an existing order of matching mode, return it
     if (run.status === 'payment_pending' && (run.paypalOrderId || run.orderId)) {
       const existingOrderId = run.paypalOrderId || run.orderId!;
-      return {
-        orderId: existingOrderId,
-        approvalUrl: `https://www.sandbox.paypal.com/checkoutnow?token=${existingOrderId}`,
-        amountPaise: run.grandTotalPaise,
-        currency: 'USD',
-        status: 'CREATED',
-        provider: this.provider.providerId,
-        usdAmount: run.usdAmount || undefined,
-        usdRate: run.usdRate || undefined,
-        inrPaise: run.grandTotalPaise,
-        run,
-      };
+      const isExistingMock = existingOrderId.startsWith('PAYPAL-MOCK-');
+      if (Boolean(options?.simulated) === isExistingMock) {
+        return {
+          orderId: existingOrderId,
+          approvalUrl: `https://www.sandbox.paypal.com/checkoutnow?token=${existingOrderId}`,
+          amountPaise: run.grandTotalPaise,
+          currency: 'USD',
+          status: 'CREATED',
+          provider: isExistingMock ? 'mock' : this.provider.providerId,
+          usdAmount: run.usdAmount || undefined,
+          usdRate: run.usdRate || undefined,
+          inrPaise: run.grandTotalPaise,
+          run,
+        };
+      }
     }
 
-    // Checkout requires status to be 'approved' or 'auto_approved'
-    if (run.status !== 'approved' && run.status !== 'auto_approved') {
+    // Checkout requires status to be 'approved', 'auto_approved', or existing 'payment_pending'
+    if (run.status !== 'approved' && run.status !== 'auto_approved' && run.status !== 'payment_pending') {
       throw new AppError(
         'APPROVAL_REQUIRED',
         `Run status is "${run.status}". Checkout refuses payment unless status is "approved" or "auto_approved". Reason: ${policyEval.reasons.join('; ')}`,
@@ -109,7 +121,7 @@ export class PaymentService {
     }
 
     // 2. Call Payment Provider
-    const orderResult = await this.provider.createOrder(run);
+    const orderResult = await activeProvider.createOrder(run);
 
     // 3. Mark run as payment_pending and record order_id, paypal_order_id, and USD amounts
     const updatedRun = this.runRepo.setPaymentOrder(userId, runId, {
@@ -173,12 +185,22 @@ export class PaymentService {
     // 2. Capture through provider with failure isolation
     let captureResult;
     try {
-      captureResult = await this.provider.captureOrder(orderId);
+      const activeProvider = orderId.startsWith('PAYPAL-MOCK-')
+        ? new MockPaymentProvider()
+        : this.provider;
+      captureResult = await activeProvider.captureOrder(orderId);
       if (captureResult.status !== 'COMPLETED') {
         throw new Error(`Payment capture returned status "${captureResult.status}"`);
       }
     } catch (err: any) {
-      this.failRun(userId, runId, orderId, err.message || 'Declined');
+      const isNotApproved =
+        err.code === 'ORDER_NOT_APPROVED' ||
+        err.message?.includes('ORDER_NOT_APPROVED') ||
+        err.message?.includes('not yet approved');
+
+      if (!isNotApproved) {
+        this.failRun(userId, runId, orderId, err.message || 'Declined');
+      }
       if (err instanceof AppError) {
         throw err;
       }

@@ -757,7 +757,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           console.info('Run approval check before checkout order:', e?.message || e);
         }
 
-        const orderRes = await api.createCheckoutOrder(runId);
+        const orderRes = await api.createCheckoutOrder(runId, { simulated: true });
         const captureRes = await api.captureCheckoutOrder(orderRes.orderId, runId);
 
         await reloadState();

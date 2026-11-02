@@ -43,6 +43,7 @@ export const CheckoutModalContent: React.FC<CheckoutModalProps> = ({ onNavigateT
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [sdkLoading, setSdkLoading] = useState(false);
+  const [approvalUrl, setApprovalUrl] = useState<string | null>(null);
 
   const paypalButtonRenderedRef = useRef(false);
   const checkedOutRunIdRef = useRef<string | null>(null);
@@ -75,11 +76,8 @@ export const CheckoutModalContent: React.FC<CheckoutModalProps> = ({ onNavigateT
     };
   }, []);
 
-  if (!checkoutModal.isOpen || !checkoutModal.strategy) {
-    return null;
-  }
-
   const {
+    isOpen,
     strategy,
     orderId,
     captureId,
@@ -92,7 +90,7 @@ export const CheckoutModalContent: React.FC<CheckoutModalProps> = ({ onNavigateT
 
   const isOrderPlaced = Boolean(orderId);
   const usdRate = publicConfig?.usdRate || 85;
-  const inrTotalPaise = inrAmount || strategy.grandTotalPaise;
+  const inrTotalPaise = inrAmount || strategy?.grandTotalPaise || 0;
   const usdConversion = paiseToUsd(inrTotalPaise, usdRate);
   const displayUsd = usdAmount || usdConversion.usd;
 
@@ -102,7 +100,7 @@ export const CheckoutModalContent: React.FC<CheckoutModalProps> = ({ onNavigateT
 
   // Handle Mock payment flow
   const handleMockPay = async () => {
-    if (needsApproval) return;
+    if (needsApproval || !strategy) return;
     setIsProcessing(true);
     setErrorMessage(null);
     try {
@@ -111,7 +109,7 @@ export const CheckoutModalContent: React.FC<CheckoutModalProps> = ({ onNavigateT
         const planRes = await api.planRun({ strategy: strategy.type });
         runId = planRes.run.id;
       }
-      if (activeRun?.status !== 'approved') {
+      if (activeRun?.status !== 'approved' && activeRun?.status !== 'payment_pending') {
         try {
           const approved = await api.approveRun(runId);
           if (approved?.run) runId = approved.run.id;
@@ -131,7 +129,7 @@ export const CheckoutModalContent: React.FC<CheckoutModalProps> = ({ onNavigateT
   const isSandboxMode = publicConfig?.paypalMode === 'sandbox' && Boolean(publicConfig?.paypalClientId);
 
   useEffect(() => {
-    if (!isSandboxMode || isOrderPlaced || needsApproval) {
+    if (!isOpen || !strategy || !isSandboxMode || isOrderPlaced || needsApproval) {
       return;
     }
 
@@ -190,6 +188,9 @@ export const CheckoutModalContent: React.FC<CheckoutModalProps> = ({ onNavigateT
 
                 checkedOutRunIdRef.current = runId;
                 const orderData = await api.createCheckoutOrder(runId);
+                if (orderData.approvalUrl) {
+                  setApprovalUrl(orderData.approvalUrl);
+                }
                 return orderData.orderId;
               } catch (err: any) {
                 const safeMsg = err.message || 'Unable to create PayPal order';
@@ -286,7 +287,11 @@ export const CheckoutModalContent: React.FC<CheckoutModalProps> = ({ onNavigateT
     return () => {
       isMounted = false;
     };
-  }, [isSandboxMode, strategy, activeRun, isOrderPlaced, needsApproval, publicConfig]);
+  }, [isOpen, isSandboxMode, strategy, activeRun, isOrderPlaced, needsApproval, publicConfig]);
+
+  if (!isOpen || !strategy) {
+    return null;
+  }
 
   const decisionReasons: string[] = activeRun?.decisionReasons || [];
 
@@ -330,11 +335,89 @@ export const CheckoutModalContent: React.FC<CheckoutModalProps> = ({ onNavigateT
         {/* Modal Content */}
         <div className="p-6 overflow-y-auto space-y-5 text-xs font-sans">
           {errorMessage && (
-            <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 flex items-start gap-2.5 text-rose-800">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-              <div>
-                <strong>Notice:</strong> {errorMessage}
+            <div
+              className={`rounded-xl p-3.5 space-y-2.5 border ${
+                errorMessage.includes('not yet approved') || errorMessage.includes('ORDER_NOT_APPROVED')
+                  ? 'bg-amber-50 border-amber-200 text-amber-900'
+                  : 'bg-rose-50 border-rose-200 text-rose-800'
+              }`}
+            >
+              <div className="flex items-start gap-2.5">
+                {errorMessage.includes('not yet approved') || errorMessage.includes('ORDER_NOT_APPROVED') ? (
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                )}
+                <div className="space-y-1">
+                  <strong className="text-xs font-semibold block text-slate-900">
+                    {errorMessage.includes('not yet approved') || errorMessage.includes('ORDER_NOT_APPROVED')
+                      ? 'PayPal Authorization Pending'
+                      : 'Notice'}
+                  </strong>
+                  <p className="text-xs leading-relaxed">
+                    {errorMessage.includes('not yet approved') || errorMessage.includes('ORDER_NOT_APPROVED')
+                      ? 'This PayPal order was created, but needs payer authorization. Complete approval in the PayPal window, or use 1-Click Instant Settle to test without sandbox credentials.'
+                      : errorMessage}
+                  </p>
+                </div>
               </div>
+
+              {(errorMessage.includes('not yet approved') || errorMessage.includes('ORDER_NOT_APPROVED')) && (
+                <div className="pt-1 flex flex-wrap items-center gap-2">
+                  {approvalUrl && (
+                    <a
+                      href={approvalUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-lg bg-paypal-blue hover:bg-blue-800 text-white font-semibold text-xs inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <span>Approve in PayPal Sandbox</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </a>
+                  )}
+                  <button
+                    onClick={async () => {
+                      const orderId = (checkoutModal as any).orderId || activeRun?.paypalOrderId || activeRun?.orderId;
+                      if (!orderId) {
+                        handleMockPay();
+                        return;
+                      }
+                      setIsProcessing(true);
+                      setErrorMessage(null);
+                      try {
+                        const runId = checkedOutRunIdRef.current || activeRun?.id;
+                        const captureRes = await api.captureCheckoutOrder(orderId, runId);
+                        const allPurchasedItems = strategy?.storeBaskets ? strategy.storeBaskets.flatMap(b => b.items) : [];
+                        await completeCheckout({
+                          strategy,
+                          orderId,
+                          captureId: captureRes.receipt?.paypalCaptureId || captureRes.receipt?.id,
+                          usdAmount: captureRes.receipt?.usdAmount || displayUsd,
+                          inrAmount: captureRes.receipt?.amountPaise || inrTotalPaise,
+                          payerEmail: captureRes.receipt?.payerEmail,
+                          timestamp: new Date().toLocaleTimeString(),
+                          itemsPurchased: allPurchasedItems,
+                        });
+                      } catch (err: any) {
+                        setErrorMessage(err.message || 'Payment not yet approved. You can also use 1-Click Instant Settle.');
+                      } finally {
+                        setIsProcessing(false);
+                      }
+                    }}
+                    disabled={isProcessing}
+                    className="px-3 py-1.5 rounded-lg border border-amber-300 bg-white hover:bg-amber-50 text-amber-900 font-semibold text-xs cursor-pointer disabled:opacity-50"
+                  >
+                    Check & Capture
+                  </button>
+                  <button
+                    onClick={handleMockPay}
+                    disabled={isProcessing}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  >
+                    1-Click Instant Settle
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -729,6 +812,12 @@ export const CheckoutModalContent: React.FC<CheckoutModalProps> = ({ onNavigateT
 };
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = (props) => {
+  const { checkoutModal } = useShopPilot();
+
+  if (!checkoutModal.isOpen || !checkoutModal.strategy) {
+    return null;
+  }
+
   return (
     <ErrorBoundary fallbackTitle="Unable to display PayPal checkout modal">
       <CheckoutModalContent {...props} />

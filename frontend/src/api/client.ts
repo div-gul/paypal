@@ -191,10 +191,10 @@ export const api = {
     }>('/config/public'),
 
   // Checkout & Payments
-  createCheckoutOrder: (runId: string) =>
-    request<{ orderId: string; run: any }>('/checkout/create-order', {
+  createCheckoutOrder: (runId: string, options?: { simulated?: boolean }) =>
+    request<{ orderId: string; approvalUrl?: string; run: any }>('/checkout/create-order', {
       method: 'POST',
-      body: JSON.stringify({ runId }),
+      body: JSON.stringify({ runId, simulated: options?.simulated }),
     }),
   captureCheckoutOrder: (orderId: string, runId?: string) =>
     request<{

@@ -257,6 +257,47 @@ describe('PayPalSandboxProvider', () => {
     expect(capture.payerEmail).toBe('already-captured@example.com');
   });
 
+  it('handles 422 ORDER_NOT_APPROVED by throwing clear error code and description', async () => {
+    global.fetch = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes('/v1/oauth2/token')) {
+        return new Response(
+          JSON.stringify({ access_token: 'valid-token', expires_in: 3600 }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      if (url.includes('/capture')) {
+        return new Response(
+          JSON.stringify({
+            name: 'UNPROCESSABLE_ENTITY',
+            details: [
+              {
+                issue: 'ORDER_NOT_APPROVED',
+                description:
+                  "Payer has not yet approved the Order for payment. Please redirect the payer to the 'rel':'approve' url returned as part of the HATEOAS links within the Create Order call or provide a valid payment_source in the request.",
+              },
+            ],
+            message: 'The requested action could not be performed.',
+            debug_id: 'test-not-approved-123',
+          }),
+          { status: 422, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
+      return new Response('{}', { status: 404 });
+    });
+
+    const provider = new PayPalSandboxProvider(
+      'test-id',
+      'test-secret',
+      'https://api-m.sandbox.paypal.com',
+      85
+    );
+
+    await expect(provider.captureOrder('ORDER-UNAPPROVED-123')).rejects.toMatchObject({
+      code: 'ORDER_NOT_APPROVED',
+      statusCode: 422,
+    });
+  });
+
   it('throws timeout error when fetch is aborted or times out', async () => {
     global.fetch = vi.fn().mockImplementation(async () => {
       const err = new Error('The operation was aborted');

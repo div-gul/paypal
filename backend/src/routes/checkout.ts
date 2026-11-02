@@ -7,6 +7,7 @@ export const checkoutRouter = Router();
 
 const CreateOrderSchema = z.object({
   runId: z.string().min(1),
+  simulated: z.boolean().optional(),
 });
 
 const CaptureOrderSchema = z.object({
@@ -16,9 +17,9 @@ const CaptureOrderSchema = z.object({
 
 checkoutRouter.post('/checkout/create-order', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { runId } = CreateOrderSchema.parse(req.body);
+    const { runId, simulated } = CreateOrderSchema.parse(req.body);
     const paymentService = new PaymentService(getDatabase());
-    const result = await paymentService.createCheckoutOrder(req.user!.id, runId);
+    const result = await paymentService.createCheckoutOrder(req.user!.id, runId, { simulated });
     res.json(result);
   } catch (err) {
     next(err);
