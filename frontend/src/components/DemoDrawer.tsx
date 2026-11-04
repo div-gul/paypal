@@ -27,30 +27,30 @@ export const DemoDrawer: React.FC<DemoDrawerProps> = ({ isOpen, onClose }) => {
       {/* Backdrop */}
       <div
         onClick={onClose}
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity animate-in fade-in"
+        className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in"
       />
 
       {/* Drawer Panel */}
       <div
         role="dialog"
         aria-modal="true"
-        className="relative w-full max-w-md bg-white h-full shadow-2xl border-l border-slate-200 z-10 flex flex-col justify-between overflow-y-auto animate-in slide-in-from-right duration-200"
+        className="relative w-full max-w-md bg-surface h-full shadow-card border-l border-secondary-tint z-10 flex flex-col justify-between overflow-y-auto animate-in slide-in-from-right duration-200"
       >
         {/* Drawer Header */}
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+        <div className="p-5 border-b border-secondary-tint flex items-center justify-between bg-paper">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-brand-tint text-brand flex items-center justify-center">
               <Sliders className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-900 text-sm font-heading">Demo & Testing Controls</h3>
-              <p className="text-[11px] text-slate-500">Fast-forward household time and test auto-restocking</p>
+              <h3 className="font-bold text-ink text-sm">Demo & Testing Controls</h3>
+              <p className="text-[11px] text-ink-muted">Fast-forward household time and test auto-restocking</p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 cursor-pointer transition"
+            className="p-2 rounded-xl text-ink-muted hover:text-ink hover:bg-secondary-tint/50 cursor-pointer transition min-w-[44px] min-h-[44px] flex items-center justify-center"
             aria-label="Close drawer"
           >
             <X className="w-4 h-4" />
@@ -58,25 +58,25 @@ export const DemoDrawer: React.FC<DemoDrawerProps> = ({ isOpen, onClose }) => {
         </div>
 
         {/* Drawer Body */}
-        <div className="p-5 space-y-6 flex-1">
-          {/* Time Machine & Clock */}
+        <div className="p-5 space-y-6 flex-1 text-ink">
+          {/* Time Machine & Clock (brand-dark) */}
           <div className="space-y-2">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+            <span className="text-[11px] font-bold text-ink-muted uppercase tracking-wider block">
               Simulation Clock
             </span>
             <TimeMachine />
           </div>
 
           {/* Integration Boundaries & Architecture Info */}
-          <div className="rounded-2xl border border-slate-200 p-4 bg-slate-50/60 space-y-3">
+          <div className="rounded-xl border border-secondary-tint p-4 bg-paper space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <Info className="w-4 h-4 text-brand-600" />
+              <span className="text-xs font-bold text-ink flex items-center gap-1.5">
+                <Info className="w-4 h-4 text-brand" />
                 Integration Architecture
               </span>
               <BackendHealthBadge />
             </div>
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <p className="text-xs text-ink-muted leading-relaxed">
               ShopPilot uses local mock store adapters with strict validation,
               autonomous budget caps, and simulated PayPal 1-Click checkout.
             </p>
@@ -87,7 +87,7 @@ export const DemoDrawer: React.FC<DemoDrawerProps> = ({ isOpen, onClose }) => {
                 setShowDemoInfoModal(true);
                 onClose();
               }}
-              icon={<ShieldCheck className="w-3.5 h-3.5 text-brand-600" />}
+              icon={<ShieldCheck className="w-3.5 h-3.5 text-secondary" />}
               className="w-full"
             >
               View System Architecture
@@ -95,14 +95,14 @@ export const DemoDrawer: React.FC<DemoDrawerProps> = ({ isOpen, onClose }) => {
           </div>
 
           {/* Reset Demo State */}
-          <div className="rounded-2xl border border-rose-200 p-4 bg-rose-50/40 space-y-2.5">
+          <div className="rounded-xl border border-danger/25 p-4 bg-danger/10 space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-rose-900 flex items-center gap-1.5">
-                <RotateCcw className="w-3.5 h-3.5 text-rose-600" />
+              <span className="text-xs font-bold text-danger flex items-center gap-1.5">
+                <RotateCcw className="w-3.5 h-3.5 text-danger" />
                 Reset Sandbox State
               </span>
             </div>
-            <p className="text-[11px] text-rose-700 leading-relaxed">
+            <p className="text-[11px] text-danger/90 leading-relaxed">
               Restore default demo items (Milk, Eggs, Bread, Oats, Coffee, Detergent) and reset simulation clock to Day 0.
             </p>
             <Button
@@ -121,14 +121,14 @@ export const DemoDrawer: React.FC<DemoDrawerProps> = ({ isOpen, onClose }) => {
         </div>
 
         {/* Drawer Footer */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between text-[11px] text-slate-500">
+        <div className="p-4 border-t border-secondary-tint bg-paper flex items-center justify-between text-[11px] text-ink-muted">
           <span className="flex items-center gap-1">
-            <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-            ShopPilot AI • Hackathon Ready
+            <CheckCircle className="w-3.5 h-3.5 text-good" />
+            <span>ShopPilot AI • Hackathon Ready</span>
           </span>
           <button
             onClick={onClose}
-            className="font-semibold text-slate-700 hover:text-slate-900 cursor-pointer"
+            className="font-semibold text-ink hover:underline cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
           >
             Done
           </button>

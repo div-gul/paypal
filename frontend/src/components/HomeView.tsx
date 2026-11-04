@@ -11,12 +11,13 @@ import {
   ArrowRight,
   CheckCircle2,
   AlertTriangle,
+  AlertCircle,
   ChevronDown,
   ChevronUp,
   HelpCircle,
   Calendar,
   Layers,
-  ShieldCheck,
+  Wallet,
 } from 'lucide-react';
 
 export interface HomeViewProps {
@@ -91,6 +92,10 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
     }),
   } : undefined;
   const isBudgetSafe = grandTotalPaise <= schedulerConfig.perCycleBudgetPaise;
+  const budgetUsagePercent = Math.min(
+    100,
+    Math.round((grandTotalPaise / Math.max(1, schedulerConfig.perCycleBudgetPaise)) * 100)
+  );
 
   // 4. Pantry health calculation
   let wellStockedCount = 0;
@@ -146,92 +151,79 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
     <div className="space-y-6 max-w-5xl mx-auto">
       {/* 1. Status Sentence Banner */}
       <div
-        className={`rounded-2xl p-4 sm:p-5 border transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs ${
+        className={`rounded-xl p-4 sm:p-5 border transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-soft ${
           needsApproval
-            ? 'bg-amber-50/70 border-amber-300 text-amber-950'
+            ? 'bg-accent-tint border-accent/25 text-accent-dark'
             : activeRun?.status === 'paid' || isUpcomingOrderSaved
-            ? 'bg-emerald-50/70 border-emerald-300 text-emerald-950'
-            : 'bg-white border-slate-200/90 text-slate-900'
+            ? 'bg-good/15 border-good/30 text-good'
+            : 'bg-surface border-secondary-tint text-ink'
         }`}
       >
         <div className="flex items-center gap-3">
           <div
-            className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
+            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
               needsApproval
-                ? 'bg-amber-200/80 text-amber-900'
+                ? 'bg-accent/15 text-accent-dark'
                 : activeRun?.status === 'paid' || isUpcomingOrderSaved
-                ? 'bg-emerald-200/80 text-emerald-900'
-                : 'bg-brand-100 text-brand-800'
+                ? 'bg-good/20 text-good'
+                : 'bg-brand-tint text-brand'
             }`}
           >
             {needsApproval ? (
-              <AlertTriangle className="w-5 h-5 text-amber-700" />
+              <AlertTriangle className="w-5 h-5 text-accent-dark" />
             ) : activeRun?.status === 'paid' || isUpcomingOrderSaved ? (
-              <CheckCircle2 className="w-5 h-5 text-emerald-700" />
+              <CheckCircle2 className="w-5 h-5 text-good" />
             ) : (
-              <Sparkles className="w-5 h-5 text-brand-600" />
+              <Sparkles className="w-5 h-5 text-brand" />
             )}
           </div>
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-ink-muted block">
               Household Status
             </span>
-            <p className="text-sm font-semibold text-slate-800 leading-snug">
+            <p className="text-sm font-semibold leading-snug">
               {getStatusSentence()}
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
-          {needsApproval && (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => onNavigateToTab('approvals')}
-              icon={<ArrowRight className="w-3.5 h-3.5" />}
-            >
-              {hasPendingSwaps ? `Approve Swaps (${pendingSwaps.length})` : 'Review & Save Order'}
-            </Button>
-          )}
-          <Button
-            variant="success"
-            size="sm"
-            disabled={!isUpcomingOrderSaved || upcomingOrder.items.length === 0 || !checkoutStrategy}
-            onClick={() => checkoutStrategy && openCheckoutModal(checkoutStrategy)}
-            icon={<ShoppingBag className="w-3.5 h-3.5" />}
-            title={!isUpcomingOrderSaved ? 'Save the order in Approvals before paying' : undefined}
-            className="disabled:bg-emerald-200 disabled:text-emerald-800"
+        {/* Quiet secondary action link */}
+        {needsApproval && (
+          <button
+            onClick={() => onNavigateToTab('approvals')}
+            className="text-xs font-semibold text-accent-dark hover:underline flex items-center gap-1.5 cursor-pointer py-1.5 px-3 rounded-lg hover:bg-accent/10 transition shrink-0"
           >
-            Confirm and Pay for Order
-          </Button>
-        </div>
+            <span>{hasPendingSwaps ? `Review Swaps (${pendingSwaps.length})` : 'Review in Approvals'}</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
-      {/* 2. Main Two-Column Grid: Recommended Order Card + Pantry Health Card */}
+      {/* 2. Main Two-Column Grid: Recommended Order Hero Card + Pantry Health & Budget Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Left 2 Cols: Recommended Order Hero Card */}
         <div className="lg:col-span-2 space-y-4">
-          <Card variant="elevated" className="border-slate-200 p-6 space-y-5">
+          <Card variant="elevated" className="p-6 space-y-5 border-secondary-tint">
             {/* Order Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-secondary-tint pb-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-brand-100 text-brand-800 tracking-wider">
+                  <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-brand-tint text-brand tracking-wider">
                     Recommended Order
                   </span>
-                  <span className="text-xs text-slate-500 font-medium flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5 text-slate-400" /> Scheduled for {nextRunDayName}
+                  <span className="text-xs text-ink-muted font-medium flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-secondary" /> Scheduled for {nextRunDayName}
                   </span>
                 </div>
-                <h3 className="text-xl font-bold text-slate-900 font-heading mt-1">
+                <h3 className="text-xl font-bold text-ink mt-1">
                   {storesCount === 1 ? `${primaryStoreName} Consolidated Order` : `Multi-Store Split (${storesCount} Stores)`}
                 </h3>
               </div>
 
               {/* Price & Delivery pill */}
               <div className="text-left sm:text-right">
-                <span className="text-[10px] uppercase font-semibold text-slate-400 block">Total Payable</span>
-                <span className="text-2xl font-extrabold text-slate-900 tabular-nums">
+                <span className="text-[10px] uppercase font-semibold text-ink-muted block">Total Payable</span>
+                <span className="text-2xl font-bold text-ink tabular-nums">
                   {formatPaise(grandTotalPaise)}
                 </span>
               </div>
@@ -239,33 +231,33 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
 
             {/* Quick Order Stats */}
             <div className="grid grid-cols-3 gap-3 py-1 text-xs">
-              <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-0.5">
-                <span className="text-[10px] text-slate-400 font-medium uppercase block">Items to Buy</span>
-                <span className="text-base font-bold text-slate-900 tabular-nums">
-                  {allFinalItems.length} <span className="text-xs font-normal text-slate-500">products</span>
+              <div className="bg-paper rounded-xl p-3 border border-secondary-tint space-y-0.5">
+                <span className="text-[10px] text-ink-muted font-medium uppercase block">Items to Buy</span>
+                <span className="text-base font-bold text-ink tabular-nums">
+                  {allFinalItems.length} <span className="text-xs font-normal text-ink-muted">products</span>
                 </span>
               </div>
 
-              <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-0.5">
-                <span className="text-[10px] text-slate-400 font-medium uppercase block">Delivery Time</span>
-                <span className="text-base font-bold text-slate-900 flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-emerald-600" /> ~10 min
+              <div className="bg-paper rounded-xl p-3 border border-secondary-tint space-y-0.5">
+                <span className="text-[10px] text-ink-muted font-medium uppercase block">Delivery Time</span>
+                <span className="text-base font-bold text-ink flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-secondary" /> ~10 min
                 </span>
               </div>
 
-              <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 space-y-0.5">
-                <span className="text-[10px] text-slate-400 font-medium uppercase block">Budget Limit</span>
-                <span className="text-base font-bold text-emerald-700 tabular-nums">
+              <div className="bg-paper rounded-xl p-3 border border-secondary-tint space-y-0.5">
+                <span className="text-[10px] text-ink-muted font-medium uppercase block">Budget Limit</span>
+                <span className="text-base font-bold text-good tabular-nums">
                   {formatPaise(schedulerConfig.perCycleBudgetPaise)}
                 </span>
               </div>
             </div>
 
             {/* Restock Item Chips */}
-            <div className="space-y-2 pt-2 border-t border-slate-100">
-              <div className="flex items-center justify-between text-xs text-slate-600">
-                <span className="font-semibold text-slate-700">Included In This Order:</span>
-                <span className="text-[11px] text-slate-400">Click any item for details</span>
+            <div className="space-y-2 pt-2 border-t border-secondary-tint">
+              <div className="flex items-center justify-between text-xs text-ink-muted">
+                <span className="font-semibold text-ink">Included In This Order:</span>
+                <span className="text-[11px] text-ink-muted">Click any item for details</span>
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -277,14 +269,14 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
                       onClick={() => setSelectedItemDetail(isSelected ? null : item.product.id)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition cursor-pointer flex items-center gap-1.5 ${
                         isSelected
-                          ? 'bg-brand-50 border-brand-500 text-brand-900 ring-2 ring-brand-500/20'
-                          : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800'
+                          ? 'bg-brand-tint border-brand text-brand ring-1 ring-brand'
+                          : 'bg-surface hover:bg-paper border-secondary-tint text-ink'
                       }`}
                     >
                       <span>{item.quantity}x {item.product.name}</span>
-                      <span className="text-[10px] text-slate-400 tabular-nums">({formatPaise(item.totalPaise)})</span>
+                      <span className="text-[10px] text-ink-muted tabular-nums">({formatPaise(item.totalPaise)})</span>
                       {item.isSubstitution && (
-                        <span className="w-2 h-2 rounded-full bg-amber-500" title="Substituted brand" />
+                        <span className="w-2 h-2 rounded-full bg-secondary" title="Substituted brand" />
                       )}
                     </button>
                   );
@@ -296,18 +288,18 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
                 const item = allFinalItems.find(i => i.product.id === selectedItemDetail);
                 if (!item) return null;
                 return (
-                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1 mt-2 animate-in fade-in">
-                    <div className="flex items-center justify-between font-bold text-slate-900">
+                  <div className="p-3.5 rounded-xl bg-paper border border-secondary-tint text-xs space-y-1 mt-2">
+                    <div className="flex items-center justify-between font-bold text-ink">
                       <span>{item.product.name}</span>
                       <span className="tabular-nums">{formatPaise(item.totalPaise)}</span>
                     </div>
-                    <div className="text-[11px] text-slate-500 flex items-center gap-3">
-                      <span>Brand: <strong className="text-slate-700">{item.product.brand}</strong></span>
-                      <span>Package: <strong className="text-slate-700">{item.product.packageSize}</strong></span>
-                      <span>Store: <strong className="capitalize text-slate-700">{item.storeName}</strong></span>
+                    <div className="text-[11px] text-ink-muted flex items-center gap-3">
+                      <span>Brand: <strong className="text-ink">{item.product.brand}</strong></span>
+                      <span>Package: <strong className="text-ink">{item.product.packageSize}</strong></span>
+                      <span>Store: <strong className="capitalize text-ink">{item.storeName}</strong></span>
                     </div>
                     {item.isSubstitution && (
-                      <p className="text-[11px] text-amber-800 bg-amber-50 p-1.5 rounded border border-amber-200 mt-1">
+                      <p className="text-[11px] text-secondary bg-secondary-tint p-2 rounded-lg border border-secondary/20 mt-1">
                         Substituted for preferred brand to prevent stockout.
                       </p>
                     )}
@@ -316,10 +308,10 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
               })()}
             </div>
 
-            {/* Alternate Options Selector (Max 3, no letters A/B/C/D) */}
+            {/* Alternate Options Selector */}
             {filteredStrategies.length > 1 && (
-              <div className="space-y-2 pt-2 border-t border-slate-100">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block">
+              <div className="space-y-2 pt-2 border-t border-secondary-tint">
+                <span className="text-[11px] font-bold text-ink-muted uppercase tracking-wide block">
                   Other Order Options:
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
@@ -331,19 +323,19 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
                         onClick={() => setSelectedStrategyType(strat.type)}
                         className={`p-3 rounded-xl border text-left transition cursor-pointer ${
                           isSelected
-                            ? 'border-brand-600 bg-brand-50/30 ring-1 ring-brand-500'
-                            : 'border-slate-200 hover:border-slate-300 bg-white'
+                            ? 'border-brand bg-brand-tint/30 ring-1 ring-brand'
+                            : 'border-secondary-tint hover:border-secondary bg-surface'
                         }`}
                       >
                         <div className="flex items-center justify-between text-[10px] font-bold mb-1">
-                          <span className={isSelected ? 'text-brand-700' : 'text-slate-600'}>
+                          <span className={isSelected ? 'text-brand' : 'text-ink'}>
                             {strat.friendlyName}
                           </span>
-                          <span className="text-slate-900 tabular-nums">
+                          <span className="text-ink tabular-nums">
                             {formatPaise(strat.grandTotalPaise)}
                           </span>
                         </div>
-                        <p className="text-[10px] text-slate-400 line-clamp-1 leading-tight">
+                        <p className="text-[10px] text-ink-muted line-clamp-1 leading-tight">
                           {strat.friendlyDescription}
                         </p>
                       </button>
@@ -353,9 +345,9 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
               </div>
             )}
 
-            {/* Order Action Buttons */}
-            <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-              <span className="text-xs text-slate-500">
+            {/* Order Action Footer — Single Primary Orange Button */}
+            <div className="pt-4 border-t border-secondary-tint flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <span className="text-xs text-ink-muted">
                 Autonomous order prepared • 1-Click PayPal simulated checkout
               </span>
 
@@ -370,35 +362,35 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
                     openCheckoutModal(checkoutStrategy);
                   }
                 }}
-                icon={<ShoppingBag className="w-4 h-4" />}
+                icon={needsApproval ? <ArrowRight className="w-4 h-4" /> : <ShoppingBag className="w-4 h-4" />}
               >
                 {hasPendingSwaps ? (
-                  'Review Swaps in Approvals'
-                  ) : !isUpcomingOrderSaved ? (
-                  'Review & Save Order'
+                  `Review Swaps in Approvals (${pendingSwaps.length})`
+                ) : !isUpcomingOrderSaved ? (
+                  'Review and Approve Order'
                 ) : (
-                  <span>Confirm and Pay for Order (<span className="tabular-nums">{formatPaise(upcomingOrder.totalPaise || grandTotalPaise)}</span>)</span>
+                  <span>Approve and Pay (<span className="tabular-nums">{formatPaise(upcomingOrder.totalPaise || grandTotalPaise)}</span>)</span>
                 )}
               </Button>
             </div>
           </Card>
         </div>
 
-        {/* Right 1 Col: Pantry Health & Deferred Items */}
+        {/* Right 1 Col: Pantry Health & Budget Bar */}
         <div className="space-y-4">
           {/* Pantry Health Card */}
-          <Card variant="default" className="space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <Card variant="default" className="space-y-4 border-secondary-tint">
+            <div className="flex items-center justify-between border-b border-secondary-tint pb-3">
               <div>
-                <h4 className="font-bold text-slate-900 text-sm font-heading flex items-center gap-1.5">
-                  <Layers className="w-4 h-4 text-brand-600" />
+                <h4 className="font-bold text-ink text-sm flex items-center gap-1.5">
+                  <Layers className="w-4 h-4 text-brand" />
                   Pantry Health
                 </h4>
-                <span className="text-[11px] text-slate-500">{pantryItems.length} household essentials tracked</span>
+                <span className="text-[11px] text-ink-muted">{pantryItems.length} household essentials tracked</span>
               </div>
               <button
                 onClick={() => onNavigateToTab('pantry')}
-                className="text-xs font-semibold text-brand-700 hover:text-brand-800 cursor-pointer"
+                className="text-xs font-semibold text-brand hover:underline cursor-pointer"
               >
                 Manage
               </button>
@@ -406,55 +398,64 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
 
             {/* Health Meter Bar */}
             <div className="space-y-1.5">
-              <div className="h-3 w-full rounded-full bg-slate-100 overflow-hidden flex">
+              <div className="h-3 w-full rounded-full bg-paper border border-secondary-tint overflow-hidden flex">
                 <div
                   style={{ width: `${wellStockedPct}%` }}
-                  className="bg-emerald-500 transition-all duration-500"
+                  className="bg-good transition-all duration-500"
                   title={`${wellStockedCount} Well Stocked`}
                 />
                 <div
                   style={{ width: `${runningLowPct}%` }}
-                  className="bg-amber-400 transition-all duration-500"
+                  className="bg-accent transition-all duration-500"
                   title={`${runningLowCount} Running Low`}
                 />
                 <div
                   style={{ width: `${ranOutPct}%` }}
-                  className="bg-rose-500 transition-all duration-500"
+                  className="bg-danger transition-all duration-500"
                   title={`${ranOutCount} Ran Out`}
                 />
               </div>
 
-              {/* Status Breakdown Chips */}
+              {/* Status Breakdown Chips with Icons & Text Labels */}
               <div className="grid grid-cols-3 gap-2 pt-2 text-center">
-                <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-100">
-                  <span className="text-sm font-extrabold text-emerald-800 block tabular-nums">{wellStockedCount}</span>
-                  <span className="text-[10px] text-emerald-700 font-medium">Safe</span>
+                <div className="p-2 rounded-xl bg-good/15 border border-good/30 text-good">
+                  <div className="flex items-center justify-center gap-1 mb-0.5">
+                    <CheckCircle2 className="w-3 h-3 text-good" />
+                    <span className="text-sm font-bold tabular-nums">{wellStockedCount}</span>
+                  </div>
+                  <span className="text-[10px] font-semibold">Safe</span>
                 </div>
-                <div className="p-2 rounded-lg bg-amber-50 border border-amber-100">
-                  <span className="text-sm font-extrabold text-amber-800 block tabular-nums">{runningLowCount}</span>
-                  <span className="text-[10px] text-amber-700 font-medium">Low</span>
+                <div className="p-2 rounded-xl bg-accent-tint border border-accent/25 text-accent-dark">
+                  <div className="flex items-center justify-center gap-1 mb-0.5">
+                    <Clock className="w-3 h-3 text-accent-dark" />
+                    <span className="text-sm font-bold tabular-nums">{runningLowCount}</span>
+                  </div>
+                  <span className="text-[10px] font-semibold">Low</span>
                 </div>
-                <div className="p-2 rounded-lg bg-rose-50 border border-rose-100">
-                  <span className="text-sm font-extrabold text-rose-800 block tabular-nums">{ranOutCount}</span>
-                  <span className="text-[10px] text-rose-700 font-medium">Out</span>
+                <div className="p-2 rounded-xl bg-danger/10 border border-danger/25 text-danger">
+                  <div className="flex items-center justify-center gap-1 mb-0.5">
+                    <AlertCircle className="w-3 h-3 text-danger" />
+                    <span className="text-sm font-bold tabular-nums">{ranOutCount}</span>
+                  </div>
+                  <span className="text-[10px] font-semibold">Out</span>
                 </div>
               </div>
             </div>
 
             {/* Deferred Items Callout */}
             {deferredRecs.length > 0 && (
-              <div className="pt-3 border-t border-slate-100 space-y-1.5 text-xs text-slate-600">
-                <span className="text-[11px] font-bold text-slate-700 block">
+              <div className="pt-3 border-t border-secondary-tint space-y-1.5 text-xs text-ink-muted">
+                <span className="text-[11px] font-bold text-ink block">
                   Deferred to Next Week:
                 </span>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-[11px] text-ink-muted">
                   {deferredRecs.length} item{deferredRecs.length === 1 ? '' : 's'} have enough stock to last past this cycle:
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {deferredRecs.map(r => (
                     <span
                       key={r.itemId}
-                      className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-medium"
+                      className="px-2 py-0.5 rounded-md bg-secondary-tint text-secondary text-[10px] font-medium"
                     >
                       {r.itemName} (~{r.daysRemaining}d left)
                     </span>
@@ -464,51 +465,85 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
             )}
           </Card>
 
-          {/* Quick Help Tip */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 text-xs space-y-2">
-            <div className="flex items-center gap-2 text-slate-800 font-bold">
-              <ShieldCheck className="w-4 h-4 text-brand-600" />
-              <span>Smart Order Consolidation</span>
+          {/* Budget Bar Card */}
+          <Card variant="default" className="space-y-3 border-secondary-tint">
+            <div className="flex items-center justify-between">
+              <h4 className="font-bold text-ink text-sm flex items-center gap-1.5">
+                <Wallet className="w-4 h-4 text-secondary" />
+                Cycle Budget
+              </h4>
+              <span className="text-xs font-semibold tabular-nums text-ink">
+                {formatPaise(grandTotalPaise)} / {formatPaise(schedulerConfig.perCycleBudgetPaise)}
+              </span>
             </div>
-            <p className="text-slate-600 leading-relaxed text-[11px]">
-              ShopPilot balances store delivery fees and individual SKU prices so you pay the absolute minimum for your entire basket.
-            </p>
-          </div>
+
+            {/* Budget Progress Bar */}
+            <div className="space-y-1.5">
+              <div className="h-2.5 w-full rounded-full bg-paper border border-secondary-tint overflow-hidden">
+                <div
+                  style={{ width: `${budgetUsagePercent}%` }}
+                  className={`h-full transition-all duration-500 ${
+                    isBudgetSafe ? 'bg-good' : 'bg-danger'
+                  }`}
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-ink-muted">
+                  {budgetUsagePercent}% allocated
+                </span>
+                <span className={`font-semibold flex items-center gap-1 ${isBudgetSafe ? 'text-good' : 'text-danger'}`}>
+                  {isBudgetSafe ? (
+                    <>
+                      <CheckCircle2 className="w-3 h-3 text-good" />
+                      <span>{formatPaise(schedulerConfig.perCycleBudgetPaise - grandTotalPaise)} under cap</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="w-3 h-3 text-danger" />
+                      <span>Exceeds cap by {formatPaise(grandTotalPaise - schedulerConfig.perCycleBudgetPaise)}</span>
+                    </>
+                  )}
+                </span>
+              </div>
+            </div>
+          </Card>
         </div>
       </div>
 
-      {/* 3. "Why this?" Collapsible Section */}
-      <Card variant="default" className="border-slate-200">
+      {/* 3. "Why this?" Collapsible Section (Secondary / Slate AI styling) */}
+      <Card variant="default" className="border-secondary-tint">
         <button
           onClick={() => setIsWhyThisOpen(!isWhyThisOpen)}
           className="w-full flex items-center justify-between text-left cursor-pointer select-none"
         >
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center">
-              <HelpCircle className="w-4 h-4 text-slate-700" />
+            <div className="w-8 h-8 rounded-xl bg-secondary-tint text-secondary flex items-center justify-center">
+              <HelpCircle className="w-4 h-4" />
             </div>
             <div>
-              <h4 className="font-bold text-slate-900 text-sm font-heading">Why this order?</h4>
-              <p className="text-[11px] text-slate-500">
+              <h4 className="font-bold text-ink text-sm">Why this order?</h4>
+              <p className="text-[11px] text-ink-muted">
                 View the optimizer logic, fee comparison, and store price matrix
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-semibold text-brand-700">
-            <span>{isWhyThisOpen ? 'Hide machinery' : 'Explore details'}</span>
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-secondary">
+            <span>{isWhyThisOpen ? 'Hide reasoning' : 'Explore reasoning'}</span>
             {isWhyThisOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </div>
         </button>
 
         {isWhyThisOpen && (
-          <div className="pt-5 mt-4 border-t border-slate-100 space-y-6 animate-in fade-in duration-200">
-            {/* Optimizer Reasoning */}
-            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-2">
-              <span className="text-xs font-bold text-slate-800 uppercase tracking-wide block">
-                Decision Breakdown
-              </span>
-              <p className="text-xs text-slate-600 leading-relaxed">
+          <div className="pt-5 mt-4 border-t border-secondary-tint space-y-6">
+            {/* Optimizer Reasoning Card */}
+            <div className="bg-secondary-tint/40 rounded-xl p-4 border border-secondary-tint space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-secondary uppercase tracking-wide">
+                <Sparkles className="w-3.5 h-3.5 text-secondary" />
+                <span>Decision Breakdown</span>
+              </div>
+              <p className="text-xs text-ink-muted leading-relaxed">
                 {currentStrategy?.recommendationReason ||
                   'ShopPilot evaluated local quick-commerce availability across Blinkit, Zepto, and Instamart to minimize delivery fees and prevent pantry stockouts.'}
               </p>
@@ -516,7 +551,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
 
             {/* Store Price Matrix */}
             <div className="space-y-2">
-              <h5 className="font-bold text-slate-900 text-xs">Live Cross-Store Catalog & Fees</h5>
+              <h5 className="font-bold text-ink text-xs">Live Cross-Store Catalog & Fees</h5>
               <StoreComparison />
             </div>
           </div>

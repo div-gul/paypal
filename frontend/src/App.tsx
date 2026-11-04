@@ -1,11 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ShopPilotProvider, useShopPilot } from './context/ShopPilotContext';
 import { Header } from './components/Header';
-import { DemoDrawer } from './components/DemoDrawer';
 import { HomeView } from './components/HomeView';
-import { PantryManager } from './components/PantryManager';
 import { ApprovalsView } from './components/ApprovalsView';
+import { PantryManager } from './components/PantryManager';
 import { HouseholdRules } from './components/HouseholdRules';
+import { DemoDrawer } from './components/DemoDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
 import { IntegrationInfoModal } from './components/IntegrationInfoModal';
 import { BackendHealthBadge } from './components/BackendHealthBadge';
@@ -15,31 +15,30 @@ import {
   Home,
   CheckSquare,
   Package,
+  Settings,
+  Sliders,
   AlertCircle,
   RefreshCw,
-  Sliders,
-  SlidersHorizontal,
 } from 'lucide-react';
 
-type MainTab = 'home' | 'approvals' | 'pantry' | 'settings';
-
 const MainLayout: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<MainTab>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'approvals' | 'pantry' | 'settings'>('home');
   const [isDemoDrawerOpen, setIsDemoDrawerOpen] = useState(false);
   const {
-    isLoading,
     error,
     clearError,
     reloadState,
     pendingSwaps,
     isUpcomingOrderSaved,
     openCheckoutModal,
-    cancelPayPalOrder,
     closeCheckoutModal,
+    cancelPayPalOrder,
+    isLoading,
   } = useShopPilot();
 
   const handledPayPalReturn = useRef<string>('');
 
+  // Handle return from PayPal Checkout
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
@@ -71,7 +70,12 @@ const MainLayout: React.FC = () => {
   const pendingApprovalsCount = pendingSwaps.length + (isUpcomingOrderSaved ? 0 : 1);
 
   return (
-    <div className="min-h-screen bg-[#FAF3DD] flex flex-col font-['Inter',sans-serif]">
+    <div className="min-h-screen bg-paper text-ink flex flex-col font-sans">
+      {/* Demo Mode Top Banner (Slate with white text) */}
+      <div className="bg-secondary text-white text-xs py-1.5 px-4 text-center font-medium flex items-center justify-center gap-2">
+        <span>Demo mode — simulated quick-commerce prices and PayPal sandbox. No real money or delivery.</span>
+      </div>
+
       {/* Top Header */}
       <Header onOpenDemoDrawer={() => setIsDemoDrawerOpen(true)} />
 
@@ -80,17 +84,17 @@ const MainLayout: React.FC = () => {
         {/* Desktop Sidebar Navigation */}
         <aside className="hidden md:flex flex-col justify-between w-60 shrink-0 space-y-6">
           <div className="space-y-1.5">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-2 block">
+            <span className="text-[10px] font-bold text-ink-muted uppercase tracking-wider px-3 mb-2 block">
               Navigation
             </span>
 
             {/* Tab: Home */}
             <button
               onClick={() => setActiveTab('home')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition cursor-pointer ${
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer min-h-[44px] ${
                 activeTab === 'home'
-                  ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/20'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                  ? 'bg-brand text-white shadow-soft'
+                  : 'text-ink-muted hover:text-ink hover:bg-secondary-tint/50'
               }`}
             >
               <div className="flex items-center gap-2.5">
@@ -102,10 +106,10 @@ const MainLayout: React.FC = () => {
             {/* Tab: Approvals */}
             <button
               onClick={() => setActiveTab('approvals')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition cursor-pointer ${
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer min-h-[44px] ${
                 activeTab === 'approvals'
-                  ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/20'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                  ? 'bg-brand text-white shadow-soft'
+                  : 'text-ink-muted hover:text-ink hover:bg-secondary-tint/50'
               }`}
             >
               <div className="flex items-center gap-2.5">
@@ -115,7 +119,7 @@ const MainLayout: React.FC = () => {
               {pendingApprovalsCount > 0 && (
                 <Badge
                   variant={activeTab === 'approvals' ? 'neutral' : 'count'}
-                  className={activeTab === 'approvals' ? 'bg-white text-brand-800' : ''}
+                  className={activeTab === 'approvals' ? 'bg-white text-brand' : ''}
                 >
                   {pendingApprovalsCount}
                 </Badge>
@@ -125,10 +129,10 @@ const MainLayout: React.FC = () => {
             {/* Tab: Pantry */}
             <button
               onClick={() => setActiveTab('pantry')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition cursor-pointer ${
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer min-h-[44px] ${
                 activeTab === 'pantry'
-                  ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/20'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                  ? 'bg-brand text-white shadow-soft'
+                  : 'text-ink-muted hover:text-ink hover:bg-secondary-tint/50'
               }`}
             >
               <div className="flex items-center gap-2.5">
@@ -137,34 +141,36 @@ const MainLayout: React.FC = () => {
               </div>
             </button>
 
-            {/* Tab: Settings / Restock Rules */}
-            <button
-              onClick={() => setActiveTab('settings')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition cursor-pointer ${
-                activeTab === 'settings'
-                  ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/20'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <SlidersHorizontal className="w-4 h-4" />
-                <span>Restock Rules</span>
-              </div>
-            </button>
+            {/* Tab: Settings behind gear icon */}
+            <div className="pt-2">
+              <button
+                onClick={() => setActiveTab('settings')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer min-h-[44px] ${
+                  activeTab === 'settings'
+                    ? 'bg-brand text-white shadow-soft'
+                    : 'text-ink-muted hover:text-ink hover:bg-secondary-tint/50'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Settings className="w-4 h-4" />
+                  <span>Settings</span>
+                </div>
+              </button>
+            </div>
           </div>
 
           {/* Sidebar Footer Card: Demo Trigger & System Health */}
-          <div className="rounded-2xl border border-slate-200 bg-white p-3.5 space-y-3 shadow-2xs">
-            <div className="flex items-center justify-between text-[11px] text-slate-500">
-              <span className="font-semibold text-slate-700">System Mode</span>
+          <div className="rounded-xl border border-secondary-tint bg-surface p-3.5 space-y-3 shadow-soft">
+            <div className="flex items-center justify-between text-[11px] text-ink-muted">
+              <span className="font-semibold text-ink">System Mode</span>
               <BackendHealthBadge />
             </div>
 
             <button
               onClick={() => setIsDemoDrawerOpen(true)}
-              className="w-full py-2 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer transition"
+              className="w-full py-2.5 px-3 rounded-xl border border-secondary-tint hover:bg-secondary-tint/40 text-ink font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer transition min-h-[44px]"
             >
-              <Sliders className="w-3.5 h-3.5 text-brand-600" />
+              <Sliders className="w-3.5 h-3.5 text-secondary" />
               <span>Simulation Controls</span>
             </button>
           </div>
@@ -174,9 +180,9 @@ const MainLayout: React.FC = () => {
         <main className="flex-1 min-w-0 pb-20 md:pb-6 space-y-6">
           {/* Error Alert Banner */}
           {error && (
-            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-center justify-between gap-3 text-rose-900 shadow-xs">
+            <div className="bg-danger/10 border border-danger/25 rounded-xl p-4 flex items-center justify-between gap-3 text-danger shadow-soft">
               <div className="flex items-center gap-2.5">
-                <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+                <AlertCircle className="w-5 h-5 text-danger shrink-0" />
                 <div className="text-xs">
                   <strong>Notice:</strong> {error}
                 </div>
@@ -184,13 +190,13 @@ const MainLayout: React.FC = () => {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => reloadState()}
-                  className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  className="px-3.5 py-2 rounded-xl bg-danger hover:bg-red-700 text-white font-semibold text-xs flex items-center gap-1.5 cursor-pointer shadow-soft min-h-[44px]"
                 >
                   <RefreshCw className="w-3.5 h-3.5" /> Retry
                 </button>
                 <button
                   onClick={clearError}
-                  className="text-xs text-rose-700 hover:text-rose-900 px-2 py-1 cursor-pointer"
+                  className="text-xs text-danger/80 hover:text-danger px-2.5 py-2 cursor-pointer min-h-[44px] flex items-center"
                 >
                   Dismiss
                 </button>
@@ -200,8 +206,8 @@ const MainLayout: React.FC = () => {
 
           {/* Syncing indicator */}
           {isLoading && (
-            <div className="bg-brand-50 border border-brand-200 rounded-xl p-2.5 flex items-center justify-center gap-2 text-brand-900 text-xs font-medium">
-              <span className="w-3.5 h-3.5 border-2 border-brand-600 border-t-transparent rounded-full animate-spin"></span>
+            <div className="bg-secondary-tint border border-secondary/20 rounded-xl p-2.5 flex items-center justify-center gap-2 text-secondary text-xs font-medium">
+              <span className="w-3.5 h-3.5 border-2 border-secondary border-t-transparent rounded-full animate-spin"></span>
               <span>Updating restock plans...</span>
             </div>
           )}
@@ -219,15 +225,15 @@ const MainLayout: React.FC = () => {
         </main>
       </div>
 
-      {/* Mobile Bottom Navigation Bar (fixed bottom for screens < md) */}
+      {/* Mobile Bottom Navigation Bar (390px mobile viewport tested) */}
       <nav
         aria-label="Mobile Navigation"
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-3 py-2 shadow-lg flex items-center justify-around"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface/95 backdrop-blur-md border-t border-secondary-tint px-3 py-1.5 shadow-card flex items-center justify-around"
       >
         <button
           onClick={() => setActiveTab('home')}
-          className={`flex flex-col items-center gap-1 py-1 px-2 rounded-xl transition cursor-pointer min-w-[56px] ${
-            activeTab === 'home' ? 'text-brand-600 font-bold' : 'text-slate-500 font-medium'
+          className={`flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-xl transition cursor-pointer min-w-[56px] min-h-[44px] ${
+            activeTab === 'home' ? 'text-brand font-bold' : 'text-ink-muted font-medium'
           }`}
         >
           <Home className="w-5 h-5" />
@@ -236,14 +242,14 @@ const MainLayout: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('approvals')}
-          className={`relative flex flex-col items-center gap-1 py-1 px-2 rounded-xl transition cursor-pointer min-w-[56px] ${
-            activeTab === 'approvals' ? 'text-brand-600 font-bold' : 'text-slate-500 font-medium'
+          className={`relative flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-xl transition cursor-pointer min-w-[56px] min-h-[44px] ${
+            activeTab === 'approvals' ? 'text-brand font-bold' : 'text-ink-muted font-medium'
           }`}
         >
           <div className="relative">
             <CheckSquare className="w-5 h-5" />
             {pendingApprovalsCount > 0 && (
-              <span className="absolute -top-1 -right-2 bg-rose-500 text-white rounded-full text-[9px] font-extrabold w-4 h-4 flex items-center justify-center">
+              <span className="absolute -top-1 -right-2 bg-accent text-white rounded-full text-[9px] font-extrabold w-4 h-4 flex items-center justify-center shadow-soft">
                 {pendingApprovalsCount}
               </span>
             )}
@@ -253,8 +259,8 @@ const MainLayout: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('pantry')}
-          className={`flex flex-col items-center gap-1 py-1 px-2 rounded-xl transition cursor-pointer min-w-[56px] ${
-            activeTab === 'pantry' ? 'text-brand-600 font-bold' : 'text-slate-500 font-medium'
+          className={`flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-xl transition cursor-pointer min-w-[56px] min-h-[44px] ${
+            activeTab === 'pantry' ? 'text-brand font-bold' : 'text-ink-muted font-medium'
           }`}
         >
           <Package className="w-5 h-5" />
@@ -263,12 +269,12 @@ const MainLayout: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('settings')}
-          className={`flex flex-col items-center gap-1 py-1 px-2 rounded-xl transition cursor-pointer min-w-[56px] ${
-            activeTab === 'settings' ? 'text-brand-600 font-bold' : 'text-slate-500 font-medium'
+          className={`flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-xl transition cursor-pointer min-w-[56px] min-h-[44px] ${
+            activeTab === 'settings' ? 'text-brand font-bold' : 'text-ink-muted font-medium'
           }`}
         >
-          <SlidersHorizontal className="w-5 h-5" />
-          <span className="text-[10px]">Rules</span>
+          <Settings className="w-5 h-5" />
+          <span className="text-[10px]">Settings</span>
         </button>
       </nav>
 

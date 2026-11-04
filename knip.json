@@ -9,7 +9,8 @@
         "src/tests/**/*.ts",
         "vite.config.ts"
       ],
-      "project": ["src/**/*.{ts,tsx}"]
+      "project": ["src/**/*.{ts,tsx}"],
+      "ignore": ["src/components/ApprovalsView.tsx"]
     },
     "backend": {
       "entry": [

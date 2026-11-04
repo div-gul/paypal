@@ -12,11 +12,11 @@ export const Card: React.FC<CardProps> = ({
   ...props
 }) => {
   const variantStyles = {
-    default: 'bg-white rounded-2xl border border-slate-200/90 shadow-2xs',
-    elevated: 'bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow',
-    glass: 'glass-card rounded-2xl shadow-xs',
+    default: 'bg-surface rounded-xl border border-secondary-tint shadow-soft',
+    elevated: 'bg-surface rounded-xl border border-secondary-tint shadow-card hover:shadow-md transition-shadow',
+    glass: 'glass-card rounded-xl shadow-soft',
     interactive:
-      'bg-white rounded-2xl border border-slate-200 hover:border-brand-500/80 hover:shadow-sm transition-all cursor-pointer',
+      'bg-surface rounded-xl border border-secondary-tint hover:border-brand/40 shadow-soft hover:shadow-card transition-all cursor-pointer',
   };
 
   return (

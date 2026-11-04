@@ -4,57 +4,53 @@ export default {
   theme: {
     extend: {
       colors: {
-        slate: {
-          50: '#FAF3DD', 100: '#F4EED9', 200: '#E8E2CD', 300: '#D1D3B7',
-          400: '#A0AA91', 500: '#71816F', 600: '#536B59', 700: '#3A7D44',
-          800: '#24563A', 900: '#16302B', 950: '#0B211C',
-        },
         brand: {
-          50: '#F3EBFA', 100: '#E6D8F2', 200: '#CDB5E3', 300: '#B18BD1',
-          400: '#9162B8', 500: '#7543A1', 600: '#5E2B97', 700: '#4D237B',
-          800: '#3B1B5F', 900: '#291442',
+          DEFAULT: '#0F4C5C',
+          dark: '#0A3540',
+          tint: '#E3F0F1',
         },
-        emerald: {
-          50: '#EDF5EC', 100: '#DDEBDD', 200: '#BED8C0', 300: '#9AC09E',
-          400: '#72A979', 500: '#3A7D44', 600: '#326C3B', 700: '#285832',
-          800: '#21472B', 900: '#1A3824', 950: '#102619',
+        'brand-dark': '#0A3540',
+        'brand-tint': '#E3F0F1',
+        secondary: {
+          DEFAULT: '#475C7A',
+          tint: '#E8ECF2',
         },
-        blue: {
-          50: '#EDF5EC', 100: '#DDEBDD', 200: '#BED8C0', 300: '#9AC09E',
-          400: '#72A979', 500: '#3A7D44', 600: '#326C3B', 700: '#285832',
-          800: '#21472B', 900: '#1A3824', 950: '#102619',
+        'secondary-tint': '#E8ECF2',
+        accent: {
+          DEFAULT: '#C2561A',
+          dark: '#A8450F',
+          tint: '#FBEBDD',
         },
-        amber: {
-          50: '#F8F6DF', 100: '#F1EFC2', 200: '#E7E99D', 300: '#DDE36E',
-          400: '#CDDC39', 500: '#B7C72F', 600: '#94A526', 700: '#71801F',
-          800: '#4F5B1B', 900: '#374016', 950: '#252D10',
+        'accent-dark': '#A8450F',
+        'accent-tint': '#FBEBDD',
+        ink: {
+          DEFAULT: '#14232B',
+          muted: '#5C6B75',
         },
-        yellow: {
-          50: '#F8F6DF', 100: '#F1EFC2', 200: '#E7E99D', 300: '#DDE36E',
-          400: '#CDDC39', 500: '#B7C72F', 600: '#94A526', 700: '#71801F',
-          800: '#4F5B1B', 900: '#374016', 950: '#252D10',
+        'ink-muted': '#5C6B75',
+        paper: '#F6F8F9',
+        surface: '#FFFFFF',
+        good: {
+          DEFAULT: '#2A9D8F',
+          tint: '#E6F6F4',
         },
-        rose: {
-          50: '#F3EBFA', 100: '#E6D8F2', 200: '#CDB5E3', 300: '#B18BD1',
-          400: '#9162B8', 500: '#7543A1', 600: '#5E2B97', 700: '#4D237B',
-          800: '#3B1B5F', 900: '#291442', 950: '#1A0D2C',
+        'good-tint': '#E6F6F4',
+        danger: {
+          DEFAULT: '#B3261E',
+          tint: '#FDECEB',
         },
-        purple: {
-          50: '#F3EBFA', 100: '#E6D8F2', 200: '#CDB5E3', 300: '#B18BD1',
-          400: '#9162B8', 500: '#7543A1', 600: '#5E2B97', 700: '#4D237B',
-          800: '#3B1B5F', 900: '#291442', 950: '#1A0D2C',
-        },
-        indigo: {
-          50: '#F3EBFA', 100: '#E6D8F2', 200: '#CDB5E3', 300: '#B18BD1',
-          400: '#9162B8', 500: '#7543A1', 600: '#5E2B97', 700: '#4D237B',
-          800: '#3B1B5F', 900: '#291442', 950: '#1A0D2C',
-        },
-        paypal: {
-          blue: '#3A7D44',
-          lightBlue: '#5E2B97',
-          darkBlue: '#16302B',
-          yellow: '#CDDC39',
-        },
+        'danger-tint': '#FDECEB',
+      },
+      fontFamily: {
+        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+      },
+      borderRadius: {
+        xl: '12px',
+        card: '12px',
+      },
+      boxShadow: {
+        soft: '0 2px 10px -2px rgba(20, 35, 43, 0.05), 0 1px 3px -1px rgba(20, 35, 43, 0.03)',
+        card: '0 4px 16px -2px rgba(20, 35, 43, 0.06)',
       },
     },
   },

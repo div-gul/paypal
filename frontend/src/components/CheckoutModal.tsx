@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { useShopPilot } from '../context/ShopPilotContext';
 import { api } from '../api/client';
 import { formatPaise } from '../services/currency';
+import { Button } from './ui/Button';
 import {
   CheckCircle,
   X,
@@ -14,6 +15,8 @@ import {
   ChevronUp,
   QrCode,
   ExternalLink,
+  ShieldCheck,
+  Info,
 } from 'lucide-react';
 
 interface PayPalButtons {
@@ -86,7 +89,7 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
     return () => { cancelled = true; };
   }, [checkoutModal.isOpen]);
 
-  // Create or recover a persistent server-side PayPal order; the same approval link feeds the QR code.
+  // Create or recover a persistent server-side PayPal order
   useEffect(() => {
     if (!checkoutModal.isOpen || !isSandbox || !strategy || !runId || orderId || paymentState === 'CAPTURED') return;
     let cancelled = false;
@@ -109,7 +112,7 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
     return () => { cancelled = true; };
   }, [approvalUrl, isSandbox]);
 
-  // Render the official PayPal button. Approval always goes through the backend capture endpoint.
+  // Render the official PayPal button
   useEffect(() => {
     if (!checkoutModal.isOpen || !isSandbox || !providerConfig?.clientId || !strategy || !runId || !orderId || isOrderPlaced) return;
     let cancelled = false;
@@ -143,7 +146,7 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
     };
   }, [checkoutModal.isOpen, isSandbox, providerConfig, strategy, runId, orderId, isOrderPlaced, capturePayPalOrder, cancelPayPalOrder]);
 
-  // Poll the server so a second device's approval is captured and reflected in this session.
+  // Poll server for status
   useEffect(() => {
     if (!checkoutModal.isOpen || !isSandbox || !strategy || !runId || !orderId || isOrderPlaced) return;
     let cancelled = false;
@@ -154,7 +157,7 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
           setErrorMessage(status.paymentState === 'CANCELLED' ? 'PayPal checkout was cancelled. You can retry this order.' : 'PayPal payment failed. Your order is available to retry.');
         }
       } catch {
-        // Keep polling through short network interruptions; the server owns payment state.
+        // Keep polling through short network interruptions
       }
     };
     void checkStatus();
@@ -185,129 +188,262 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-      <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
-        <div className="bg-paypal-darkBlue border-b-4 border-paypal-yellow text-white p-5 flex items-center justify-between">
+      <div className="bg-surface rounded-xl max-w-xl w-full shadow-card border border-secondary-tint overflow-hidden flex flex-col max-h-[92vh]">
+        {/* Header styled in brand-dark with high contrast */}
+        <div className="bg-brand-dark text-white p-5 flex items-center justify-between border-b border-brand-dark">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-              <CreditCard className="w-6 h-6 text-paypal-yellow" />
+            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-brand-tint">
+              <CreditCard className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-extrabold text-base tracking-tight">PayPal</span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-paypal-yellow text-slate-900 uppercase">
+                <span className="font-extrabold text-base tracking-tight text-white">PayPal</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-tint text-brand-dark uppercase">
                   {isSandbox ? 'Sandbox' : 'Mock'}
                 </span>
               </div>
-              <p className="text-xs text-blue-100">{isOrderPlaced ? 'Payment Captured' : 'Review & Pay for Restock Order'}</p>
+              <p className="text-xs text-brand-tint/80">{isOrderPlaced ? 'Payment Captured' : 'Review & Pay for Restock Order'}</p>
             </div>
           </div>
-          <button onClick={closeCheckoutModal} className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 cursor-pointer" aria-label="Close dialog">
+          <button
+            onClick={closeCheckoutModal}
+            className="text-white/80 hover:text-white p-2 rounded-xl hover:bg-white/10 cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center transition"
+            aria-label="Close dialog"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto space-y-5 text-xs font-sans">
+        <div className="p-6 overflow-y-auto space-y-5 text-xs font-sans text-ink">
           {errorMessage && (
-            <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 flex items-start gap-2.5 text-rose-800">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <div className="bg-danger/10 border border-danger/25 rounded-xl p-3 flex items-start gap-2.5 text-danger">
+              <AlertCircle className="w-4 h-4 text-danger shrink-0 mt-0.5" />
               <div><strong>Notice:</strong> {errorMessage}</div>
             </div>
           )}
 
           {isOrderPlaced ? (
+            /* Success Screen with Receipt Summary */
             <div className="space-y-5 text-center py-2">
-              <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
+              <div className="w-14 h-14 bg-good/15 text-good rounded-full flex items-center justify-center mx-auto shadow-soft">
                 <CheckCircle className="w-8 h-8" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-900 font-heading">Payment Confirmed!</h3>
-                <p className="text-slate-500 text-xs mt-1">PayPal Sandbox confirmed capture. No live funds were moved.</p>
-                <div className="inline-block mt-2 bg-slate-100 text-slate-700 px-3 py-1 rounded-lg font-mono font-semibold text-xs border border-slate-200">
+                <h3 className="text-lg font-bold text-ink font-heading">Payment Confirmed!</h3>
+                <p className="text-ink-muted text-xs mt-1">PayPal Sandbox confirmed capture. No real money was moved.</p>
+                <div className="inline-block mt-2 bg-paper text-ink-muted px-3 py-1 rounded-lg tabular-nums font-semibold text-xs border border-secondary-tint">
                   PayPal order {orderId} {checkoutModal.timestamp ? `• ${checkoutModal.timestamp}` : ''}
                 </div>
               </div>
-              <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 text-left space-y-3">
-                <div className="flex items-center gap-2 font-bold text-slate-800 text-xs border-b border-slate-200 pb-2">
-                  <PackageCheck className="w-4 h-4 text-emerald-600" /><span>Paid Grocery Order</span>
+              <div className="bg-paper rounded-xl border border-secondary-tint p-4 text-left space-y-3 shadow-soft">
+                <div className="flex items-center gap-2 font-bold text-ink text-xs border-b border-secondary-tint pb-2">
+                  <PackageCheck className="w-4 h-4 text-good" />
+                  <span>Paid Grocery Order Receipt</span>
                 </div>
                 <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
                   {itemsPurchased?.map((item, idx) => (
-                    <div key={idx} className="flex justify-between items-center text-slate-700 text-xs">
+                    <div key={idx} className="flex justify-between items-center text-ink text-xs">
                       <span>• {item.quantity}× {item.product.name}</span>
-                      <span className="font-semibold text-slate-900 tabular-nums">{formatPaise(item.totalPaise)}</span>
+                      <span className="font-semibold text-ink tabular-nums">{formatPaise(item.totalPaise)}</span>
                     </div>
                   ))}
                 </div>
-                <div className="pt-2 border-t border-slate-200 flex justify-between font-bold text-slate-900 text-sm">
-                  <span>Grocery total:</span><span className="tabular-nums text-emerald-700">{formatPaise(strategy.grandTotalPaise)}</span>
+                <div className="pt-2 border-t border-secondary-tint flex justify-between font-bold text-ink text-sm">
+                  <span>Grocery total:</span>
+                  <span className="tabular-nums text-good">{formatPaise(strategy.grandTotalPaise)}</span>
                 </div>
               </div>
-              <button onClick={closeCheckoutModal} className="w-full py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-md transition cursor-pointer">Done</button>
+              <Button
+                variant="outline"
+                size="md"
+                onClick={closeCheckoutModal}
+                className="w-full"
+              >
+                Done
+              </Button>
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="bg-blue-50/80 border border-blue-200/80 rounded-xl p-3 flex items-center gap-2.5 text-blue-900">
-                <CreditCard className="w-4 h-4 text-paypal-lightBlue shrink-0" />
+              {/* Sandbox payment note */}
+              <div className="bg-secondary-tint text-secondary border border-secondary/20 rounded-xl p-3 flex items-center gap-2.5">
+                <Info className="w-4 h-4 shrink-0" />
                 <p className="text-xs font-medium">
-                  {isSandbox ? 'PayPal Sandbox checkout — test payment only; no live funds will be moved.' : 'Mock checkout mode — no PayPal transaction will be created.'}
+                  {isSandbox
+                    ? 'Sandbox payment, no real money — test transaction only; no live funds will be charged.'
+                    : 'Mock checkout mode — no live transaction will be processed.'}
                 </p>
               </div>
 
               {needsApproval ? (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-start justify-between gap-3 text-amber-900">
+                <div className="bg-accent-tint border border-accent/25 rounded-xl p-3.5 flex items-start justify-between gap-3 text-accent-dark">
                   <div className="flex items-start gap-2.5">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                    <div><strong className="text-xs block font-semibold">Approval Required Before Checkout</strong><p className="text-xs text-amber-800 mt-0.5">{pendingApprovalsCount || 1} product approval{(pendingApprovalsCount || 1) === 1 ? '' : 's'} still need review.</p></div>
+                    <AlertTriangle className="w-4 h-4 text-accent-dark shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="text-xs block font-semibold">Approval Required Before Checkout</strong>
+                      <p className="text-xs text-accent-dark/90 mt-0.5">{pendingApprovalsCount || 1} product approval{(pendingApprovalsCount || 1) === 1 ? '' : 's'} still need review.</p>
+                    </div>
                   </div>
-                  {onNavigateToApprovals && <button onClick={() => { closeCheckoutModal(); onNavigateToApprovals(); }} className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition cursor-pointer shadow-xs">Review Swaps</button>}
+                  {onNavigateToApprovals && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => { closeCheckoutModal(); onNavigateToApprovals(); }}
+                      className="shrink-0"
+                    >
+                      Review Swaps
+                    </Button>
+                  )}
                 </div>
               ) : (
-                <div className="bg-emerald-50/70 border border-emerald-200/70 rounded-xl p-3 flex items-center justify-between text-emerald-900">
-                  <div className="flex items-center gap-2 text-xs"><CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" /><span className="font-medium">Order verified against your budget and restock guidelines.</span></div>
-                  {decisionReasons.length > 0 && <button onClick={() => setShowDetails(!showDetails)} className="text-[11px] text-emerald-700 hover:text-emerald-900 font-semibold flex items-center gap-0.5 ml-2 cursor-pointer shrink-0"><span>Why this?</span>{showDetails ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}</button>}
+                <div className="bg-good/15 border border-good/30 rounded-xl p-3 flex items-center justify-between text-good">
+                  <div className="flex items-center gap-2 text-xs">
+                    <CheckCircle className="w-4 h-4 text-good shrink-0" />
+                    <span className="font-medium">Order verified against your budget and restock guidelines.</span>
+                  </div>
+                  {decisionReasons.length > 0 && (
+                    <button
+                      onClick={() => setShowDetails(!showDetails)}
+                      className="text-[11px] text-good hover:underline font-semibold flex items-center gap-0.5 ml-2 cursor-pointer shrink-0"
+                    >
+                      <span>Why this?</span>
+                      {showDetails ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    </button>
+                  )}
                 </div>
               )}
 
-              {showDetails && decisionReasons.length > 0 && <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-600 space-y-1.5"><span className="font-semibold text-slate-800 block text-[11px] uppercase tracking-wider">Verification Details:</span><ul className="list-disc list-inside space-y-1 text-[11px]">{decisionReasons.map((reason, idx) => <li key={idx}>{reason}</li>)}</ul></div>}
+              {/* "Why this is cheapest" reasoning box (Secondary / Slate AI token) */}
+              {showDetails && decisionReasons.length > 0 && (
+                <div className="bg-secondary-tint/40 border border-secondary-tint rounded-xl p-3 text-xs text-ink-muted space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-secondary font-semibold uppercase text-[10px] tracking-wider">
+                    <ShieldCheck className="w-3.5 h-3.5 text-secondary" />
+                    <span>Why This Is Cheapest:</span>
+                  </div>
+                  <ul className="list-disc list-inside space-y-1 text-[11px]">
+                    {decisionReasons.map((reason, idx) => <li key={idx}>{reason}</li>)}
+                  </ul>
+                </div>
+              )}
 
+              {/* Order Summary & Dual Currency Display */}
               <div className="space-y-3">
-                <div className="flex justify-between items-center px-1"><span className="text-xs font-bold text-slate-900 font-heading">Order Summary ({strategy.storeBaskets.reduce((count, basket) => count + basket.items.length, 0)} items)</span><span className="font-sans tabular-nums font-bold text-sm text-slate-900">{formatPaise(strategy.grandTotalPaise)}</span></div>
-                {isSandbox && providerConfig?.currency === 'USD' && checkoutModal.chargedAmount && <p className="text-[11px] rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-slate-800">PayPal will charge <strong>USD {checkoutModal.chargedAmount}</strong> using the explicitly configured INR conversion rate. Grocery total remains {formatPaise(strategy.grandTotalPaise)}.</p>}
+                <div className="flex justify-between items-center px-1">
+                  <span className="text-xs font-bold text-ink">
+                    Order Summary ({strategy.storeBaskets.reduce((count, basket) => count + basket.items.length, 0)} items)
+                  </span>
+                  <span className="tabular-nums font-bold text-sm text-ink">{formatPaise(strategy.grandTotalPaise)}</span>
+                </div>
+
+                {/* Dual INR and USD note */}
+                {isSandbox && providerConfig?.currency === 'USD' && checkoutModal.chargedAmount && (
+                  <div className="rounded-xl bg-paper border border-secondary-tint p-3 text-ink flex items-center justify-between text-xs tabular-nums">
+                    <span>
+                      USD Amount: <strong className="text-ink">USD ${checkoutModal.chargedAmount}</strong>
+                    </span>
+                    <span className="text-ink-muted text-[11px]">
+                      Grocery total: {formatPaise(strategy.grandTotalPaise)}
+                    </span>
+                  </div>
+                )}
+
+                {/* Store-grouped lines */}
                 <div className="space-y-3">
                   {strategy.storeBaskets.map(basket => (
-                    <div key={basket.storeId} className="bg-white rounded-xl border border-slate-200 p-3.5 space-y-2.5 shadow-2xs">
-                      <div className="flex justify-between items-center border-b border-slate-100 pb-2"><div className="flex items-center gap-2"><span className="text-xs font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 capitalize">{basket.storeName}</span><span className="text-xs text-slate-500">({basket.items.length} items)</span></div><span className="font-sans tabular-nums font-bold text-xs text-slate-900">{formatPaise(basket.totalPaise)}</span></div>
-                      <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">{basket.items.map((item, idx) => <div key={idx} className="flex justify-between items-center text-xs py-0.5"><span className="truncate pr-3 text-slate-700"><strong className="text-slate-900">{item.quantity}×</strong> {item.product.name}{item.isSubstitution && <span className="ml-1.5 text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded">Swap</span>}</span><span className="font-sans tabular-nums font-medium text-slate-800 shrink-0">{formatPaise(item.totalPaise)}</span></div>)}</div>
-                      <div className="pt-2 border-t border-slate-100 flex justify-between text-[11px] text-slate-500"><span>Delivery and handling</span><span className="font-medium text-slate-700">{formatPaise(basket.deliveryFeePaise + basket.handlingFeePaise)}</span></div>
+                    <div key={basket.storeId} className="bg-surface rounded-xl border border-secondary-tint p-3.5 space-y-2.5 shadow-soft">
+                      <div className="flex justify-between items-center border-b border-secondary-tint pb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-secondary-tint text-secondary capitalize">
+                            {basket.storeName}
+                          </span>
+                          <span className="text-xs text-ink-muted">({basket.items.length} items)</span>
+                        </div>
+                        <span className="tabular-nums font-bold text-xs text-ink">{formatPaise(basket.totalPaise)}</span>
+                      </div>
+                      <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                        {basket.items.map((item, idx) => (
+                          <div key={idx} className="flex justify-between items-center text-xs py-0.5">
+                            <span className="truncate pr-3 text-ink">
+                              <strong>{item.quantity}×</strong> {item.product.name}
+                              {item.isSubstitution && (
+                                <span className="ml-1.5 text-[10px] font-semibold text-secondary bg-secondary-tint border border-secondary/20 px-1 py-0.5 rounded">
+                                  Swap
+                                </span>
+                              )}
+                            </span>
+                            <span className="tabular-nums font-medium text-ink shrink-0">{formatPaise(item.totalPaise)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="pt-2 border-t border-secondary-tint flex justify-between text-[11px] text-ink-muted">
+                        <span>Delivery and handling</span>
+                        <span className="font-medium text-ink tabular-nums">{formatPaise(basket.deliveryFeePaise + basket.handlingFeePaise)}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
 
+              {/* PayPal Sandbox / Mock Checkout Area */}
               {isSandbox ? (
-                <div className="space-y-4 border-t border-slate-100 pt-4">
-                  {isPreparing && <p className="text-center text-xs text-slate-500">Creating secure PayPal Sandbox order…</p>}
-                  {!providerConfig?.clientId && providerConfig && <p className="text-center text-xs text-rose-700">PayPal Sandbox Client ID is missing. Set PAYPAL_CLIENT_ID in backend/.env.</p>}
+                <div className="space-y-4 border-t border-secondary-tint pt-4">
+                  {isPreparing && <p className="text-center text-xs text-ink-muted">Preparing secure PayPal Sandbox order…</p>}
+                  {!providerConfig?.clientId && providerConfig && (
+                    <p className="text-center text-xs text-danger">PayPal Sandbox Client ID is missing. Set PAYPAL_CLIENT_ID in backend/.env.</p>
+                  )}
                   {orderId && <div ref={paypalButtonContainer} className={needsApproval ? 'pointer-events-none opacity-40' : ''} />}
                   {approvalUrl && (
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 flex flex-col sm:flex-row items-center gap-4">
-                      <div className="w-32 h-32 bg-white border border-slate-200 rounded-lg flex items-center justify-center shrink-0">
-                        {qrImage ? <img src={qrImage} alt="QR code linking to this PayPal Sandbox order" className="w-28 h-28" /> : <QrCode className="w-8 h-8 text-slate-400" />}
+                    <div className="rounded-xl border border-secondary-tint bg-paper p-4 flex flex-col sm:flex-row items-center gap-4">
+                      <div className="w-32 h-32 bg-surface border border-secondary-tint rounded-xl flex items-center justify-center shrink-0 shadow-soft">
+                        {qrImage ? (
+                          <img src={qrImage} alt="QR code linking to PayPal Sandbox order" className="w-28 h-28" />
+                        ) : (
+                          <QrCode className="w-8 h-8 text-ink-muted" />
+                        )}
                       </div>
                       <div className="space-y-1.5 text-center sm:text-left">
-                        <h4 className="font-bold text-slate-900">Scan to continue with PayPal Sandbox</h4>
-                        <p className="text-[11px] text-slate-600">This QR opens the buyer approval page for this order. Keep this page open to see payment status update.</p>
-                        <a href={approvalUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11px] text-brand-700 hover:text-brand-900 font-semibold">Open PayPal checkout <ExternalLink className="w-3 h-3" /></a>
-                        <p className="text-[11px] text-slate-500">Order total: <strong className="text-slate-800">{formatPaise(strategy.grandTotalPaise)}</strong>{checkoutModal.currency && ` • PayPal ${checkoutModal.currency} ${checkoutModal.chargedAmount || ''}`}</p>
+                        <h4 className="font-bold text-ink text-xs">Scan to pay with PayPal Sandbox</h4>
+                        <p className="text-[11px] text-ink-muted">Open the buyer approval page on your mobile device. Payment status updates automatically.</p>
+                        <a
+                          href={approvalUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] text-brand hover:underline font-semibold"
+                        >
+                          Open PayPal checkout <ExternalLink className="w-3 h-3" />
+                        </a>
+                        <p className="text-[11px] text-ink-muted tabular-nums">
+                          Order total: <strong className="text-ink">{formatPaise(strategy.grandTotalPaise)}</strong>
+                          {checkoutModal.currency && ` • PayPal ${checkoutModal.currency} ${checkoutModal.chargedAmount || ''}`}
+                        </p>
                       </div>
                     </div>
                   )}
-                  {paymentState === 'CANCELLED' && <button onClick={handleRetry} className="w-full py-2.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-900 font-bold text-xs">Retry PayPal checkout</button>}
-                  {paymentState === 'FAILED' && <button onClick={handleRetry} className="w-full py-2.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-900 font-bold text-xs">Retry payment</button>}
-                  {orderId && <p className="text-center text-[11px] text-slate-500">Payment status: {paymentState || 'PENDING'} · This page checks PayPal for approval and capture.</p>}
+                  {paymentState === 'CANCELLED' && (
+                    <Button variant="outline" size="md" onClick={handleRetry} className="w-full">
+                      Retry PayPal checkout
+                    </Button>
+                  )}
+                  {paymentState === 'FAILED' && (
+                    <Button variant="outline" size="md" onClick={handleRetry} className="w-full">
+                      Retry payment
+                    </Button>
+                  )}
+                  {orderId && (
+                    <p className="text-center text-[11px] text-ink-muted">
+                      Payment status: {paymentState || 'PENDING'} · Waiting for PayPal capture confirmation.
+                    </p>
+                  )}
                 </div>
               ) : (
-                <button onClick={handleMockPayment} disabled={isPreparing || needsApproval} className="w-full py-3 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-900 font-bold text-xs shadow-md transition disabled:opacity-50">{isPreparing ? 'Processing mock checkout…' : 'Run mock checkout (no PayPal transaction)'}</button>
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={handleMockPayment}
+                  disabled={isPreparing || needsApproval}
+                  className="w-full"
+                >
+                  {isPreparing ? 'Processing mock checkout…' : 'Run mock checkout (no PayPal transaction)'}
+                </Button>
               )}
             </div>
           )}

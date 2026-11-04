@@ -14,6 +14,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { Card, Button } from './ui';
+import { isCountableUnit, getItemStep, formatStockQuantity } from '../lib/pantryHelpers';
 
 const CATEGORIES: ProductCategory[] = [
   'Dairy',
@@ -28,7 +29,6 @@ const CATEGORIES: ProductCategory[] = [
 ];
 
 const UNITS: UnitOfMeasurement[] = ['L', 'kg', 'g', 'ml', 'packs', 'pcs', 'units', 'eggs'];
-import { isCountableUnit, getItemStep, formatStockQuantity } from '../lib/pantryHelpers';
 
 interface PantryManagerProps {
   onOpenSettings?: () => void;
@@ -167,13 +167,13 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
   return (
     <div className="space-y-6 max-w-7xl mx-auto font-sans">
       {/* Top Header & Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-secondary-tint pb-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 font-heading flex items-center gap-2">
-            <Layers className="w-5 h-5 text-brand-600" />
+          <h2 className="text-xl font-bold text-ink flex items-center gap-2">
+            <Layers className="w-5 h-5 text-brand" />
             <span>Household Pantry Inventory</span>
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-ink-muted mt-0.5">
             Track daily consumption, set safety thresholds, and keep essentials restocked on autopilot.
           </p>
         </div>
@@ -184,7 +184,7 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
               variant="outline"
               size="sm"
               onClick={onOpenSettings}
-              icon={<SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />}
+              icon={<SlidersHorizontal className="w-3.5 h-3.5 text-secondary" />}
             >
               Restock Rules
             </Button>
@@ -205,13 +205,13 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
         {/* Search */}
         <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-ink-muted absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Search items or preferred brands..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white placeholder-slate-400 shadow-2xs"
+            className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-secondary-tint focus:outline-none focus-visible:ring-2 focus-visible:ring-brand bg-surface placeholder-ink-muted shadow-soft text-ink min-h-[44px]"
           />
         </div>
 
@@ -220,7 +220,7 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
           <select
             value={selectedCategory}
             onChange={e => setSelectedCategory(e.target.value)}
-            className="w-full sm:w-auto text-xs px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer shadow-2xs"
+            className="w-full sm:w-auto text-xs px-3.5 py-2 rounded-xl border border-secondary-tint bg-surface text-ink font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-brand cursor-pointer shadow-soft min-h-[44px]"
           >
             <option value="all">All Categories ({pantryItems.length})</option>
             {CATEGORIES.map(cat => (
@@ -234,13 +234,13 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
 
       {/* Pantry Grid Cards */}
       {filteredItems.length === 0 ? (
-        <Card variant="default" className="p-12 text-center space-y-3">
-          <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
+        <Card variant="default" className="p-12 text-center space-y-3 border-secondary-tint">
+          <div className="w-12 h-12 rounded-xl bg-paper flex items-center justify-center mx-auto text-ink-muted border border-secondary-tint">
             <Layers className="w-6 h-6" />
           </div>
           <div className="space-y-1">
-            <h3 className="font-bold text-slate-900 text-sm font-heading">No Pantry Items Found</h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            <h3 className="font-bold text-ink text-sm">No Pantry Items Found</h3>
+            <p className="text-xs text-ink-muted max-w-sm mx-auto">
               {pantryItems.length === 0
                 ? 'Your pantry is currently empty. Add your essential household groceries to enable autonomous tracking.'
                 : 'No items match your active search filter.'}
@@ -270,47 +270,47 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
             return (
               <div
                 key={item.id}
-                className={`bg-white rounded-2xl border p-4 shadow-2xs hover:shadow-md transition-all duration-150 flex flex-col justify-between ${
+                className={`bg-surface rounded-xl border p-4 shadow-soft hover:shadow-card transition-all duration-150 flex flex-col justify-between ${
                   isStockout
-                    ? 'border-rose-300 bg-rose-50/20'
+                    ? 'border-danger/30 bg-danger/5'
                     : isBelowSafety
-                    ? 'border-amber-300 bg-amber-50/20'
-                    : 'border-slate-200'
+                    ? 'border-accent/30 bg-accent-tint/30'
+                    : 'border-secondary-tint'
                 }`}
               >
                 {/* Top Section */}
                 <div className="space-y-2">
-                  {/* Category and Health Badge */}
+                  {/* Category and Health Badge with icon and text label */}
                   <div className="flex items-center justify-between gap-1.5">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    <span className="text-[10px] font-bold text-ink-muted uppercase tracking-wider">
                       {item.category}
                     </span>
                     <span
-                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                        health.badgeColor === 'red' || health.badgeColor === 'rose'
-                          ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                          : health.badgeColor === 'amber'
-                          ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                          : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                        isStockout
+                          ? 'bg-danger/10 text-danger border border-danger/25'
+                          : isBelowSafety
+                          ? 'bg-accent-tint text-accent-dark border border-accent/25'
+                          : 'bg-good/15 text-good border border-good/30'
                       }`}
                     >
                       {isStockout || isBelowSafety ? (
                         <AlertTriangle className="w-3 h-3 text-current" />
                       ) : (
-                        <CheckCircle className="w-3 h-3 text-emerald-600" />
+                        <CheckCircle className="w-3 h-3 text-good" />
                       )}
-                      {health.daysRemainingText}
+                      <span>{health.daysRemainingText}</span>
                     </span>
                   </div>
 
                   {/* Item Name & Preferred Brand */}
                   <div>
-                    <h3 className="font-bold text-slate-900 text-sm leading-snug font-heading">
+                    <h3 className="font-bold text-ink text-sm leading-snug">
                       {item.name}
                     </h3>
-                    <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
+                    <div className="text-xs text-ink-muted flex items-center gap-2 mt-0.5">
                       <span>
-                        Brand: <strong className="text-slate-700">{item.preferredBrand}</strong>
+                        Brand: <strong className="text-ink">{item.preferredBrand}</strong>
                       </span>
                       <span>•</span>
                       <span>{item.preferredPackageSize}</span>
@@ -319,15 +319,15 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
                 </div>
 
                 {/* Middle Section: Stock Level Box */}
-                <div className="my-3 py-2.5 px-3 rounded-xl bg-slate-50 border border-slate-100 space-y-2">
+                <div className="my-3 py-2.5 px-3 rounded-xl bg-paper border border-secondary-tint space-y-2">
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider">
+                      <span className="text-[10px] text-ink-muted block uppercase font-bold tracking-wider">
                         In Pantry
                       </span>
-                      <div className="text-lg font-extrabold text-slate-900 font-sans tabular-nums leading-none mt-0.5">
+                      <div className="text-lg font-bold text-ink tabular-nums leading-none mt-0.5">
                         {formatStockQuantity(item.currentQuantity, item.unit)}{' '}
-                        <span className="text-xs font-semibold text-slate-500">{item.unit}</span>
+                        <span className="text-xs font-semibold text-ink-muted">{item.unit}</span>
                       </div>
                     </div>
 
@@ -336,14 +336,14 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
                       <button
                         onClick={() => quickAdjustQuantity(item.id, -step)}
                         title={`Consume ${step} ${item.unit}`}
-                        className="w-7 h-7 rounded-lg bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-300 text-slate-700 font-extrabold text-sm flex items-center justify-center cursor-pointer transition shadow-2xs"
+                        className="w-8 h-8 rounded-lg bg-surface hover:bg-secondary-tint active:bg-secondary-tint/80 border border-secondary-tint text-ink font-bold text-sm flex items-center justify-center cursor-pointer transition shadow-soft"
                       >
                         -
                       </button>
                       <button
                         onClick={() => quickAdjustQuantity(item.id, step)}
                         title={`Add ${step} ${item.unit}`}
-                        className="w-7 h-7 rounded-lg bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-300 text-slate-700 font-extrabold text-sm flex items-center justify-center cursor-pointer transition shadow-2xs"
+                        className="w-8 h-8 rounded-lg bg-surface hover:bg-secondary-tint active:bg-secondary-tint/80 border border-secondary-tint text-ink font-bold text-sm flex items-center justify-center cursor-pointer transition shadow-soft"
                       >
                         +
                       </button>
@@ -351,16 +351,16 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
                   </div>
 
                   {/* Burn rate and safety threshold */}
-                  <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 pt-1.5 border-t border-slate-200/60">
+                  <div className="grid grid-cols-2 gap-2 text-[11px] text-ink-muted pt-1.5 border-t border-secondary-tint">
                     <div>
-                      <span className="text-slate-400 block text-[9px] uppercase font-semibold">Burn Rate</span>
-                      <span className="font-semibold text-slate-700 font-sans tabular-nums">
+                      <span className="text-ink-muted block text-[9px] uppercase font-semibold">Burn Rate</span>
+                      <span className="font-semibold text-ink tabular-nums">
                         {item.averageDailyConsumption} {item.unit}/day
                       </span>
                     </div>
                     <div>
-                      <span className="text-slate-400 block text-[9px] uppercase font-semibold">Safety Min</span>
-                      <span className="font-semibold text-slate-700 font-sans tabular-nums">
+                      <span className="text-ink-muted block text-[9px] uppercase font-semibold">Safety Min</span>
+                      <span className="font-semibold text-ink tabular-nums">
                         {item.minStockThreshold} {item.unit}
                       </span>
                     </div>
@@ -368,27 +368,27 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
                 </div>
 
                 {/* Bottom Row: Aligned Uniform Row Height Across All Cards */}
-                <div className="mt-auto pt-2.5 flex items-center justify-between min-h-[38px] border-t border-slate-100 text-xs">
+                <div className="mt-auto pt-2.5 flex items-center justify-between min-h-[38px] border-t border-secondary-tint text-xs">
                   {/* Left: Brand swap policy pill */}
                   <div>
                     {item.requireApprovalForBrandChange ? (
                       <span
                         title="ShopPilot will ask you before ordering an alternate brand"
-                        className="text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1"
+                        className="text-[10px] font-semibold text-secondary bg-secondary-tint border border-secondary/20 px-2 py-0.5 rounded-full flex items-center gap-1"
                       >
-                        <Shield className="w-3 h-3 text-amber-600" /> Ask before swap
+                        <Shield className="w-3 h-3 text-secondary" /> Ask before swap
                       </span>
                     ) : item.allowSubstitutions ? (
                       <span
                         title="Automatic brand substitutions allowed"
-                        className="text-[10px] font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full"
+                        className="text-[10px] font-medium text-ink-muted bg-paper border border-secondary-tint px-2 py-0.5 rounded-full"
                       >
                         Auto-swap
                       </span>
                     ) : (
                       <span
                         title="Only exact brand permitted"
-                        className="text-[10px] font-semibold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full"
+                        className="text-[10px] font-semibold text-brand bg-brand-tint border border-brand/20 px-2 py-0.5 rounded-full"
                       >
                         Exact brand
                       </span>
@@ -400,14 +400,14 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
                     <button
                       onClick={() => openEditModal(item)}
                       title="Edit item settings"
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer transition"
+                      className="p-2 rounded-lg text-ink-muted hover:text-ink hover:bg-secondary-tint/50 cursor-pointer transition min-w-[36px] min-h-[36px] flex items-center justify-center"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => deletePantryItem(item.id)}
                       title="Delete item"
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer transition"
+                      className="p-2 rounded-lg text-ink-muted hover:text-danger hover:bg-danger/10 cursor-pointer transition min-w-[36px] min-h-[36px] flex items-center justify-center"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -422,135 +422,140 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
       {/* Edit / Add Item Modal */}
       {(isAddingNew || editingItem) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto space-y-4">
-            <h3 className="text-base font-bold text-slate-900 font-heading">
-              {isAddingNew ? 'Add Household Pantry Item' : `Edit ${editingItem?.name}`}
+          <div className="bg-surface rounded-xl max-w-lg w-full p-6 shadow-card border border-secondary-tint max-h-[90vh] overflow-y-auto space-y-4">
+            <h3 className="text-base font-bold text-ink">
+              {isAddingNew ? 'Add Household Pantry Essential' : `Edit ${editingItem?.name}`}
             </h3>
 
             <form onSubmit={handleSave} className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2">
-                  <label className="block text-slate-700 font-semibold mb-1">Product Name</label>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-ink font-semibold mb-1">Product Name</label>
                   <input
                     type="text"
                     required
+                    placeholder="e.g., Toned Fresh Milk"
                     value={formData.name || ''}
                     onChange={e => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-xl border-slate-300 focus:ring-2 focus:ring-brand-500"
-                    placeholder="e.g. Fresh Toned Milk"
+                    className="w-full px-3 py-2 border rounded-xl border-secondary-tint bg-surface text-ink focus-visible:ring-brand min-h-[44px]"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Category</label>
-                  <select
-                    value={formData.category}
-                    onChange={e => setFormData({ ...formData, category: e.target.value as ProductCategory })}
-                    className="w-full px-3 py-2 border rounded-xl border-slate-300"
-                  >
-                    {CATEGORIES.map(c => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-ink font-semibold mb-1">Category</label>
+                    <select
+                      value={formData.category || 'Dairy'}
+                      onChange={e => setFormData({ ...formData, category: e.target.value as ProductCategory })}
+                      className="w-full px-3 py-2 border rounded-xl border-secondary-tint bg-surface text-ink min-h-[44px]"
+                    >
+                      {CATEGORIES.map(cat => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-ink font-semibold mb-1">Unit of Measurement</label>
+                    <select
+                      value={formData.unit || 'L'}
+                      onChange={e => handleUnitChange(e.target.value as UnitOfMeasurement)}
+                      className="w-full px-3 py-2 border rounded-xl border-secondary-tint bg-surface text-ink min-h-[44px]"
+                    >
+                      {UNITS.map(u => (
+                        <option key={u} value={u}>
+                          {u}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Unit of Measurement</label>
-                  <select
-                    value={formData.unit}
-                    onChange={e => handleUnitChange(e.target.value as UnitOfMeasurement)}
-                    className="w-full px-3 py-2 border rounded-xl border-slate-300"
-                  >
-                    {UNITS.map(u => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-ink font-semibold mb-1">Preferred Brand</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Amul"
+                      value={formData.preferredBrand || ''}
+                      onChange={e => setFormData({ ...formData, preferredBrand: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-xl border-secondary-tint bg-surface text-ink min-h-[44px]"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Preferred Brand</label>
-                  <input
-                    type="text"
-                    value={formData.preferredBrand || ''}
-                    onChange={e => setFormData({ ...formData, preferredBrand: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-xl border-slate-300"
-                    placeholder="e.g. Amul, Quaker, Nescafe"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Preferred Package Size</label>
-                  <input
-                    type="text"
-                    value={formData.preferredPackageSize || ''}
-                    onChange={e => setFormData({ ...formData, preferredPackageSize: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-xl border-slate-300"
-                    placeholder="e.g. 1 L, 500g, Pack of 6"
-                  />
+                  <div>
+                    <label className="block text-ink font-semibold mb-1">Preferred Package Size</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., 500 ml pouch"
+                      value={formData.preferredPackageSize || ''}
+                      onChange={e => setFormData({ ...formData, preferredPackageSize: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-xl border-secondary-tint bg-surface text-ink min-h-[44px]"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-200">
+              {/* Consumption and Thresholds */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-secondary-tint">
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Current Stock</label>
+                  <label className="block text-ink font-semibold mb-1">Current Stock</label>
                   <input
                     type="number"
-                    step={formData.quantityStep ?? 1}
-                    inputMode={formData.allowFractions ? 'decimal' : 'numeric'}
+                    step="any"
                     min="0"
+                    required
                     value={formData.currentQuantity ?? 0}
                     onChange={e => setFormData({ ...formData, currentQuantity: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border rounded-xl border-slate-300 font-sans tabular-nums"
+                    className="w-full px-3 py-2 border rounded-xl border-secondary-tint bg-surface text-ink tabular-nums min-h-[44px]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Daily Burn Rate</label>
+                  <label className="block text-ink font-semibold mb-1">Daily Burn Rate</label>
                   <input
                     type="number"
-                    step="0.01"
-                    inputMode="decimal"
+                    step="any"
                     min="0"
-                    value={formData.averageDailyConsumption ?? 0}
+                    required
+                    value={formData.averageDailyConsumption ?? 0.1}
                     onChange={e => setFormData({ ...formData, averageDailyConsumption: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border rounded-xl border-slate-300 font-sans tabular-nums"
+                    className="w-full px-3 py-2 border rounded-xl border-secondary-tint bg-surface text-ink tabular-nums min-h-[44px]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Min Safe Stock</label>
+                  <label className="block text-ink font-semibold mb-1">Min Safe Stock</label>
                   <input
                     type="number"
-                    step={formData.quantityStep ?? 1}
-                    inputMode={formData.allowFractions ? 'decimal' : 'numeric'}
+                    step="any"
                     min="0"
-                    value={formData.minStockThreshold ?? 0}
+                    required
+                    value={formData.minStockThreshold ?? 1}
                     onChange={e => setFormData({ ...formData, minStockThreshold: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border rounded-xl border-slate-300 font-sans tabular-nums"
+                    className="w-full px-3 py-2 border rounded-xl border-secondary-tint bg-surface text-ink tabular-nums min-h-[44px]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Target Restock</label>
+                  <label className="block text-ink font-semibold mb-1">Target Restock</label>
                   <input
                     type="number"
-                    step={formData.quantityStep ?? 1}
-                    inputMode={formData.allowFractions ? 'decimal' : 'numeric'}
-                    min={formData.quantityStep ?? 1}
-                    value={formData.targetStock ?? 1}
+                    step="any"
+                    min="1"
+                    required
+                    value={formData.targetStock ?? 2}
                     onChange={e => setFormData({ ...formData, targetStock: parseFloat(e.target.value) || 1 })}
-                    className="w-full px-3 py-2 border rounded-xl border-slate-300 font-sans tabular-nums"
+                    className="w-full px-3 py-2 border rounded-xl border-secondary-tint bg-surface text-ink tabular-nums min-h-[44px]"
                   />
                 </div>
               </div>
 
               {/* Single Brand Swap Approval Toggle */}
-              <div className="pt-2 border-t border-slate-200">
-                <label className="flex items-start gap-2.5 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 transition cursor-pointer">
+              <div className="pt-2 border-t border-secondary-tint">
+                <label className="flex items-start gap-2.5 p-3 rounded-xl border border-secondary-tint hover:bg-paper transition cursor-pointer">
                   <input
                     type="checkbox"
                     checked={!!formData.requireApprovalForBrandChange}
@@ -562,13 +567,13 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
                         allowSubstitutions: true,
                       });
                     }}
-                    className="mt-0.5 rounded text-brand-600 focus:ring-brand-500 w-4 h-4 cursor-pointer"
+                    className="mt-0.5 rounded text-brand focus:ring-brand w-4 h-4 cursor-pointer"
                   />
                   <div>
-                    <span className="font-semibold text-slate-900 text-xs block">
+                    <span className="font-semibold text-ink text-xs block">
                       Ask before swapping brands
                     </span>
-                    <span className="text-[11px] text-slate-500 block leading-tight mt-0.5">
+                    <span className="text-[11px] text-ink-muted block leading-tight mt-0.5">
                       When checked, ShopPilot will always ask for your confirmation if substituting an alternate brand.
                     </span>
                   </div>
@@ -576,9 +581,9 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
               </div>
 
               {/* Modal Actions */}
-              <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
+              <div className="pt-3 border-t border-secondary-tint flex justify-end gap-2">
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
                   type="button"
                   onClick={() => {

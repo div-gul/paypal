@@ -9,52 +9,70 @@
   }
 
   body {
-    @apply bg-[#FAF3DD] text-slate-900 antialiased;
+    @apply bg-paper text-ink antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum" 1;
     font-variant-numeric: tabular-nums;
   }
 
-  h1, h2, h3, .font-heading {
-    font-family: 'Outfit', 'Inter', -apple-system, sans-serif;
+  h1, h2, h3, h4, h5, h6, .font-heading {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #14232B;
+  }
+
+  :focus-visible {
+    outline: 2px solid #0F4C5C;
+    outline-offset: 1px;
   }
 }
 
 /* Custom scrollbars */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #5E2B97;
+  background: #475C7A;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #16302B;
+  background: #0A3540;
 }
 
-/* Glassmorphism utility classes */
+/* Card and header styling */
 .glass-header {
-  background: rgba(250, 243, 221, 0.92);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid #E8ECF2;
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(232, 226, 205, 0.9);
+  background: #FFFFFF;
+  border: 1px solid #E8ECF2;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px 0 rgba(20, 35, 43, 0.04), 0 1px 2px -1px rgba(20, 35, 43, 0.04);
 }
 
 /* Pulse animation for active simulation updates */
 @keyframes highlightPulse {
-  0% { background-color: rgba(58, 125, 68, 0.2); }
+  0% { background-color: rgba(42, 157, 143, 0.2); }
   100% { background-color: transparent; }
 }
 
 .flash-update {
   animation: highlightPulse 1.4s ease-out;
+}
+
+/* Respect user motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

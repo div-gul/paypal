@@ -34,24 +34,24 @@ export const TimeMachine: React.FC = () => {
   });
 
   return (
-    <div className="bg-slate-900 rounded-2xl p-4 text-white shadow-md border border-slate-700">
+    <div className="bg-brand-dark rounded-xl p-4 text-white shadow-soft border border-brand-dark">
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
         {/* Left Side: Clock & Details */}
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white/10 text-brand-tint border border-white/20">
               <Clock className="w-3.5 h-3.5" /> Simulation Clock
             </span>
           </div>
 
           <div className="flex flex-wrap items-baseline gap-3 pt-1">
-            <h2 className="text-xl font-bold tracking-tight text-white font-mono">
+            <h2 className="text-xl font-bold tracking-tight text-white tabular-nums">
               {formattedSimDate}
             </h2>
-            <div className="text-xs px-2.5 py-1 rounded-md bg-white/10 text-slate-200 flex items-center gap-1.5 font-medium">
-              <span>Days Elapsed: <strong>{simulationState.daysElapsed}d</strong></span>
+            <div className="text-xs px-2.5 py-1 rounded-xl bg-white/10 text-white/90 flex items-center gap-1.5 font-medium tabular-nums">
+              <span>Days Elapsed: <strong className="text-white">{simulationState.daysElapsed}d</strong></span>
               <span className="text-white/40">•</span>
-              <span>Next Weekly Run: <strong>in {daysUntilNextRun} day{daysUntilNextRun === 1 ? '' : 's'}</strong></span>
+              <span>Next Weekly Run: <strong className="text-white">in {daysUntilNextRun} day{daysUntilNextRun === 1 ? '' : 's'}</strong></span>
             </div>
           </div>
         </div>
@@ -61,25 +61,25 @@ export const TimeMachine: React.FC = () => {
           <button
             onClick={() => handleAdvance(1)}
             disabled={advancing !== null || isAnalyzing}
-            className="flex-1 sm:flex-none px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold border border-slate-600 transition flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-sm hover:border-slate-500"
+            className="flex-1 sm:flex-none px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/20 transition flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer min-h-[44px]"
           >
-            <FastForward className="w-3.5 h-3.5 text-brand-400" />
+            <FastForward className="w-3.5 h-3.5 text-brand-tint" />
             <span>+1 Day</span>
           </button>
 
           <button
             onClick={() => handleAdvance(3)}
             disabled={advancing !== null || isAnalyzing}
-            className="flex-1 sm:flex-none px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold border border-slate-600 transition flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-sm hover:border-slate-500"
+            className="flex-1 sm:flex-none px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/20 transition flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer min-h-[44px]"
           >
-            <FastForward className="w-3.5 h-3.5 text-amber-400" />
+            <FastForward className="w-3.5 h-3.5 text-brand-tint" />
             <span>+3 Days</span>
           </button>
 
           <button
             onClick={() => handleAdvance(7)}
             disabled={advancing !== null || isAnalyzing}
-            className="flex-1 sm:flex-none px-3.5 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-md shadow-brand-600/30"
+            className="flex-1 sm:flex-none px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/20 transition flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer min-h-[44px]"
           >
             <FastForward className="w-3.5 h-3.5 text-white" />
             <span>+7 Days</span>
@@ -88,17 +88,17 @@ export const TimeMachine: React.FC = () => {
           <button
             onClick={runShoppingAnalysis}
             disabled={isAnalyzing || advancing !== null}
-            className="flex-1 sm:flex-none px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-md shadow-indigo-600/30"
+            className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-secondary hover:bg-secondary/80 text-white text-xs font-semibold transition flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-soft min-h-[44px]"
           >
             {isAnalyzing ? (
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                Analyzing...
+                <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                <span>Analyzing...</span>
               </span>
             ) : (
               <span className="flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
-                Run Analysis
+                <Sparkles className="w-3.5 h-3.5 text-secondary-tint" />
+                <span>Run Analysis</span>
               </span>
             )}
           </button>
