@@ -173,22 +173,45 @@ export function runMigrations(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_webhook_events_user_id ON webhook_events(user_id);
   `);
 
-  try { db.exec('ALTER TABLE runs ADD COLUMN order_id TEXT;'); } catch {}
-  try { db.exec('ALTER TABLE runs ADD COLUMN all_strategies TEXT;'); } catch {}
-  try { db.exec("ALTER TABLE runs ADD COLUMN payment_state TEXT NOT NULL DEFAULT 'PENDING';"); } catch {}
-  try { db.exec('ALTER TABLE runs ADD COLUMN paypal_approval_url TEXT;'); } catch {}
-  try { db.exec('ALTER TABLE runs ADD COLUMN payment_amount TEXT;'); } catch {}
-  try { db.exec('ALTER TABLE runs ADD COLUMN payment_currency TEXT;'); } catch {}
-  try { db.exec('ALTER TABLE runs ADD COLUMN paypal_capture_id TEXT;'); } catch {}
-  try { db.exec('ALTER TABLE runs ADD COLUMN payment_details TEXT;'); } catch {}
-  try { db.exec('ALTER TABLE receipts ADD COLUMN capture_id TEXT;'); } catch {}
-  try { db.exec('ALTER TABLE receipts ADD COLUMN charged_amount TEXT;'); } catch {}
-  try { db.exec('ALTER TABLE receipts ADD COLUMN charged_currency TEXT;'); } catch {}
-  try { db.exec('ALTER TABLE receipts ADD COLUMN transaction_json TEXT;'); } catch {}
-  try { db.exec('CREATE INDEX IF NOT EXISTS idx_runs_order_id ON runs(order_id);'); } catch {}
+  function addColumnIfNotExists(table: string, column: string, definition: string): void {
+    const columns = db.pragma(`table_info(${table})`) as Array<{ name: string }>;
+    if (!columns.some(c => c.name === column)) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
+    }
+  }
 
-  try { db.exec('ALTER TABLE pantry_items ADD COLUMN quantity_step REAL;'); } catch {}
-  try { db.exec('ALTER TABLE pantry_items ADD COLUMN allow_fractions INTEGER;'); } catch {}
+  // Idempotent column additions for runs
+  addColumnIfNotExists('runs', 'order_id', 'TEXT');
+  addColumnIfNotExists('runs', 'paypal_order_id', 'TEXT');
+  addColumnIfNotExists('runs', 'usd_amount', 'TEXT');
+  addColumnIfNotExists('runs', 'usd_rate', 'REAL');
+  addColumnIfNotExists('runs', 'payment_amount', 'TEXT');
+  addColumnIfNotExists('runs', 'payment_currency', 'TEXT');
+  addColumnIfNotExists('runs', 'payment_state', "TEXT NOT NULL DEFAULT 'PENDING'");
+  addColumnIfNotExists('runs', 'paypal_approval_url', 'TEXT');
+  addColumnIfNotExists('runs', 'paypal_capture_id', 'TEXT');
+  addColumnIfNotExists('runs', 'payment_details', 'TEXT');
+  addColumnIfNotExists('runs', 'all_strategies', 'TEXT');
+
+  // Idempotent column additions for receipts
+  addColumnIfNotExists('receipts', 'capture_id', 'TEXT');
+  addColumnIfNotExists('receipts', 'paypal_capture_id', 'TEXT');
+  addColumnIfNotExists('receipts', 'charged_amount', 'TEXT');
+  addColumnIfNotExists('receipts', 'charged_currency', 'TEXT');
+  addColumnIfNotExists('receipts', 'usd_amount', 'TEXT');
+  addColumnIfNotExists('receipts', 'usd_rate', 'REAL');
+  addColumnIfNotExists('receipts', 'inr_paise', 'INTEGER');
+  addColumnIfNotExists('receipts', 'payer_email', 'TEXT');
+  addColumnIfNotExists('receipts', 'transaction_json', 'TEXT');
+
+  // Idempotent indexes
+  try { db.exec('CREATE INDEX IF NOT EXISTS idx_runs_order_id ON runs(order_id);'); } catch {}
+  try { db.exec('CREATE INDEX IF NOT EXISTS idx_runs_paypal_order_id ON runs(paypal_order_id);'); } catch {}
+  try { db.exec('CREATE INDEX IF NOT EXISTS idx_receipts_paypal_capture_id ON receipts(paypal_capture_id);'); } catch {}
+
+  // Pantry items quantity step and fractions
+  addColumnIfNotExists('pantry_items', 'quantity_step', 'REAL');
+  addColumnIfNotExists('pantry_items', 'allow_fractions', 'INTEGER');
   try {
     db.exec(`
       UPDATE pantry_items SET

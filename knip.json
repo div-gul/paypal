@@ -1,0 +1,23 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "ignoreExportsUsedInFile": true,
+  "ignoreBinaries": ["esbuild"],
+  "workspaces": {
+    "frontend": {
+      "entry": [
+        "src/main.tsx",
+        "src/tests/**/*.ts",
+        "vite.config.ts"
+      ],
+      "project": ["src/**/*.{ts,tsx}"]
+    },
+    "backend": {
+      "entry": [
+        "src/index.ts",
+        "src/__tests__/**/*.ts",
+        "vitest.config.ts"
+      ],
+      "project": ["src/**/*.ts"]
+    }
+  }
+}

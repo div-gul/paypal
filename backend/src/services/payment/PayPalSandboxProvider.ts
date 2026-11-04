@@ -117,9 +117,12 @@ export class PayPalSandboxProvider implements IPaymentProvider {
   }
 
   private payPalError(status: number, data: any, fallback: string): AppError {
-    const name = String(data?.name || data?.details?.[0]?.issue || 'PAYPAL_API_ERROR');
-    const message = String(data?.message || fallback);
-    const errorText = `${name} ${message}`;
+    const detail = Array.isArray(data?.details) && data.details.length > 0 ? data.details[0] : undefined;
+    const issue = detail?.issue ? String(detail.issue) : '';
+    const detailDescription = detail?.description ? String(detail.description) : '';
+    const name = String(issue || data?.name || 'PAYPAL_API_ERROR');
+    const message = String(detailDescription || data?.message || fallback);
+    const errorText = `${name} ${issue} ${detailDescription} ${data?.name || ''} ${data?.message || ''}`;
     if (/unsupported_payee_currency|(?:owner|merchant|payee|seller).{0,80}(?:does not|doesn't|cannot|can't).{0,40}accept.{0,40}currenc|currenc.{0,80}(?:not enabled|not accepted|not configured to accept)/i.test(errorText)) {
       return new AppError(
         'PAYPAL_MERCHANT_CURRENCY_NOT_ACCEPTED',

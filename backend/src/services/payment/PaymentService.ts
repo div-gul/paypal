@@ -4,7 +4,7 @@ import { MockPaymentProvider } from './MockPaymentProvider.js';
 import { PayPalSandboxProvider } from './PayPalSandboxProvider.js';
 import { RunRepository, RunRecord } from '../../repositories/RunRepository.js';
 import { RunItemRepository } from '../../repositories/RunItemRepository.js';
-import { ReceiptRepository, ReceiptRecord } from '../../repositories/ReceiptRepository.js';
+import { ReceiptRepository } from '../../repositories/ReceiptRepository.js';
 import { PantryRepository } from '../../repositories/PantryRepository.js';
 import { PolicyRepository } from '../../repositories/PolicyRepository.js';
 import { SimClockRepository } from '../../repositories/SimClockRepository.js';
@@ -199,7 +199,7 @@ export class PaymentService {
       const simDate = clock?.simulatedDate || new Date().toISOString();
       const lineItems = this.runItemRepo.getByRunId(userId, run.id);
       const pantryItems = this.pantryRepo.getAllByUserId(userId);
-      const updatedRun = this.runRepo.updateStatus(userId, run.id, 'paid');
+      this.runRepo.updateStatus(userId, run.id, 'paid');
       const capturedRun = this.runRepo.setPaymentState(userId, run.id, 'CAPTURED', {
         captureId: capture.captureId,
         paymentDetails: capture.rawResponse ? JSON.stringify(capture.rawResponse) : undefined,

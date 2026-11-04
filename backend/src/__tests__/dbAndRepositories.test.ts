@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 import { runMigrations } from '../db/migrate.js';
 import { seedDatabase } from '../db/seed.js';
+import { RunService } from '../services/RunService.js';
+import { PaymentService } from '../services/payment/PaymentService.js';
 import {
   UserRepository,
   SimClockRepository,
@@ -228,5 +233,73 @@ describe('Phase 2: Database Schema, Seed, and Repositories', () => {
       payloadJson: '{"status":"COMPLETED"}',
     });
     expect(secondAttempt.recorded).toBe(false); // Idempotent!
+  });
+
+  it('migrates an empty DB, adds PayPal columns idempotently, and completes a mock checkout', async () => {
+    const tmpDbPath = path.join(os.tmpdir(), `test-shoppilot-fresh-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.db`);
+    const freshDb = new Database(tmpDbPath);
+    freshDb.pragma('foreign_keys = ON');
+
+    try {
+      // 1. Run migrations and verify schema on an initially empty database
+      runMigrations(freshDb);
+
+      const runColumns = (freshDb.pragma('table_info(runs)') as Array<{ name: string }>).map(c => c.name);
+      const receiptColumns = (freshDb.pragma('table_info(receipts)') as Array<{ name: string }>).map(c => c.name);
+
+      expect(runColumns).toContain('order_id');
+      expect(runColumns).toContain('paypal_order_id');
+      expect(runColumns).toContain('usd_amount');
+      expect(runColumns).toContain('usd_rate');
+      expect(runColumns).toContain('paypal_capture_id');
+      expect(runColumns).toContain('payment_state');
+
+      expect(receiptColumns).toContain('capture_id');
+      expect(receiptColumns).toContain('paypal_capture_id');
+      expect(receiptColumns).toContain('usd_amount');
+      expect(receiptColumns).toContain('usd_rate');
+      expect(receiptColumns).toContain('inr_paise');
+      expect(receiptColumns).toContain('payer_email');
+
+      // 2. Re-run migrations to verify strict idempotency
+      expect(() => runMigrations(freshDb)).not.toThrow();
+
+      // 3. Seed demo user
+      seedDatabase(freshDb, 'demo-user');
+
+      // 4. Run full mock checkout flow
+      const runService = new RunService(freshDb);
+      const paymentService = new PaymentService(freshDb);
+      const receiptRepo = new ReceiptRepository(freshDb);
+
+      // Plan run
+      const plan = await runService.planRun('demo-user');
+      expect(plan.run.id).toBeDefined();
+
+      // Approve run
+      const approved = runService.approveRun('demo-user', plan.run.id);
+      expect(approved.status).toBe('approved');
+
+      // Create checkout order
+      const order = await paymentService.createCheckoutOrder('demo-user', plan.run.id);
+      expect(order.orderId).toBeDefined();
+      expect(order.provider).toBe('mock');
+
+      // Capture checkout order
+      const capture = await paymentService.captureCheckoutOrder('demo-user', order.orderId, plan.run.id);
+      expect(capture.success).toBe(true);
+      expect(capture.receipt).toBeDefined();
+
+      // Verify receipt stored and retrievable
+      const stored = receiptRepo.findByOrderId('demo-user', order.orderId);
+      expect(stored).not.toBeNull();
+      expect(stored?.orderId).toBe(order.orderId);
+      expect(stored?.runId).toBe(plan.run.id);
+    } finally {
+      freshDb.close();
+      if (fs.existsSync(tmpDbPath)) {
+        fs.unlinkSync(tmpDbPath);
+      }
+    }
   });
 });

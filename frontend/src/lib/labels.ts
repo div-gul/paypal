@@ -28,32 +28,6 @@ const STRATEGY_FRIENDLY_NAMES: Record<string, { label: string; badge: string; de
 };
 
 
-/**
- * Returns a friendly stock status sentence.
- * E.g., "Runs out in 2 days" or "Ran out" instead of "Emergency Stockout".
- */
-export function getFriendlyStockUrgencyLabel(daysRemaining: number | null): string {
-  if (daysRemaining === null) return 'Stable stock';
-  if (daysRemaining <= 0) return 'Ran out';
-  if (daysRemaining === 1) return 'Runs out in 1 day';
-  return `Runs out in ${daysRemaining} days`;
-}
-
-/**
- * Fixes pluralization for quantity + unit (e.g. "1 pack" instead of "1 packs").
- */
-export function formatQuantityWithUnit(quantity: number, unit: string): string {
-  const cleanUnit = unit.toLowerCase();
-  if (quantity === 1) {
-    if (cleanUnit === 'packs' || cleanUnit === 'pack') return '1 pack';
-    if (cleanUnit === 'eggs' || cleanUnit === 'egg') return '1 egg';
-    if (cleanUnit === 'pcs' || cleanUnit === 'pc') return '1 pc';
-    if (cleanUnit === 'units' || cleanUnit === 'unit') return '1 unit';
-    if (cleanUnit === 'loaves' || cleanUnit === 'loaf') return '1 loaf';
-  }
-  return `${quantity} ${unit}`;
-}
-
 import { BasketStrategyResult } from '../types';
 
 export interface RankedStrategy extends BasketStrategyResult {

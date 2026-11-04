@@ -7,11 +7,21 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Build outputs
 node_modules
 dist
+dist/
+**/dist/
 dist-test
 dist-ssr
+coverage
+coverage/
 *.local
+
+# Compiled artifacts in shared
+shared/**/*.js
+shared/**/*.d.ts
+shared/**/*.js.map
 # Local environment secrets (keep the example templates tracked)
 /.env
 .env
@@ -40,5 +50,6 @@ backend/data/
 *.db
 *.db-journal
 *.sqlite
+*.sqlite*
 *.sqlite-wal
 *.sqlite-shm
