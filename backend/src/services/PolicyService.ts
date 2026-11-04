@@ -11,8 +11,24 @@ export class PolicyService {
   getPolicy(userId: string): PolicyEntity {
     let policy = this.policyRepo.getByUserId(userId);
     if (!policy) {
-      // Upsert default
-      policy = this.policyRepo.upsert(userId, {});
+      // Defaults keep the existing UI and planner usable without persisting
+      // any restocking preferences until the user saves their own settings.
+      const now = new Date().toISOString();
+      policy = {
+        id: 'default-policy',
+        preferredShoppingDay: 2,
+        shoppingFrequency: 'weekly',
+        nextShoppingDate: now,
+        emergencyRestockPreference: 'ask_approval',
+        urgentThresholdDays: 3,
+        perCycleBudgetPaise: 250000,
+        perOrderCapPaise: 150000,
+        requireApprovalBrandSubstitution: true,
+        requireApprovalEmergencyRun: true,
+        blockedCategories: [],
+        createdAt: now,
+        updatedAt: now,
+      };
     }
     return policy;
   }

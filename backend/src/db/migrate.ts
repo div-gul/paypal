@@ -7,7 +7,24 @@ export function runMigrations(db: Database.Database): void {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       email TEXT NOT NULL,
+      password_hash TEXT,
+      role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'guest')),
       created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS auth_sessions (
+      token_hash TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id ON auth_sessions(user_id);
+
+    CREATE TABLE IF NOT EXISTS user_workspace (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      upcoming_order_json TEXT,
+      swap_decisions_json TEXT NOT NULL DEFAULT '{}',
       updated_at TEXT NOT NULL
     );
 
@@ -179,6 +196,11 @@ export function runMigrations(db: Database.Database): void {
       db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
     }
   }
+
+  addColumnIfNotExists('users', 'password_hash', 'TEXT');
+  addColumnIfNotExists('users', 'role', "TEXT NOT NULL DEFAULT 'user'");
+  addColumnIfNotExists('user_workspace', 'swap_decisions_json', "TEXT NOT NULL DEFAULT '{}'");
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_ci ON users(LOWER(email));');
 
   // Idempotent column additions for runs
   addColumnIfNotExists('runs', 'order_id', 'TEXT');

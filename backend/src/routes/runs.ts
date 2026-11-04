@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { getDatabase } from '../db/connection.js';
-import { RunService } from '../services/RunService.js';
+import { OrderRunItemInput, RunService } from '../services/RunService.js';
 import { RunItemRepository } from '../repositories/RunItemRepository.js';
 
 export const runsRouter = Router();
@@ -23,6 +23,14 @@ const ChangeStrategyInputSchema = z.object({
   strategy: StrategyTypeSchema,
 });
 
+const CreateOrderRunSchema = z.object({
+  items: z.array(z.object({
+    pantryItemId: z.string().min(1),
+    storeProductId: z.string().min(1),
+    quantity: z.number().int().min(1).max(99),
+  })).min(1),
+});
+
 const LimitQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
@@ -33,6 +41,17 @@ runsRouter.post('/runs/plan', async (req: Request, res: Response, next: NextFunc
     const runService = new RunService(getDatabase());
     const planResult = await runService.planRun(req.user!.id, overrides);
     res.status(201).json(planResult);
+  } catch (err) {
+    next(err);
+  }
+});
+
+runsRouter.post('/runs/order', (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { items } = CreateOrderRunSchema.parse(req.body);
+    const runService = new RunService(getDatabase());
+    const run = runService.createOrderRun(req.user!.id, items as OrderRunItemInput[]);
+    res.status(201).json({ run });
   } catch (err) {
     next(err);
   }

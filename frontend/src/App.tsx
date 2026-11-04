@@ -11,6 +11,8 @@ import { IntegrationInfoModal } from './components/IntegrationInfoModal';
 import { BackendHealthBadge } from './components/BackendHealthBadge';
 import { api } from './api/client';
 import { Badge } from './components/ui/Badge';
+import { AuthScreen } from './components/AuthScreen';
+import { AuthUser } from './api/client';
 import {
   Home,
   CheckSquare,
@@ -21,7 +23,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 
-const MainLayout: React.FC = () => {
+const MainLayout: React.FC<{ user: AuthUser; onLogout: () => void; logoutError?: string }> = ({ user, onLogout, logoutError }) => {
   const [activeTab, setActiveTab] = useState<'home' | 'approvals' | 'pantry' | 'settings'>('home');
   const [isDemoDrawerOpen, setIsDemoDrawerOpen] = useState(false);
   const {
@@ -73,11 +75,12 @@ const MainLayout: React.FC = () => {
     <div className="min-h-screen bg-paper text-ink flex flex-col font-sans">
       {/* Demo Mode Top Banner (Slate with white text) */}
       <div className="bg-secondary text-white text-xs py-1.5 px-4 text-center font-medium flex items-center justify-center gap-2">
-        <span>Demo mode — simulated quick-commerce prices and PayPal sandbox. No real money or delivery.</span>
+        <span>Sandbox checkout and simulated quick-commerce prices. No real money or delivery.</span>
       </div>
 
       {/* Top Header */}
-      <Header onOpenDemoDrawer={() => setIsDemoDrawerOpen(true)} />
+      <Header onOpenDemoDrawer={() => setIsDemoDrawerOpen(true)} user={user} onLogout={onLogout} />
+      {logoutError && <div role="alert" className="mx-auto mt-3 w-full max-w-7xl px-4 text-sm text-danger">{logoutError}</div>}
 
       {/* Main Shell Container with Desktop Sidebar + Content */}
       <div className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-5 flex flex-col md:flex-row gap-6">
@@ -166,13 +169,13 @@ const MainLayout: React.FC = () => {
               <BackendHealthBadge />
             </div>
 
-            <button
+            {user.role === 'guest' && <button
               onClick={() => setIsDemoDrawerOpen(true)}
               className="w-full py-2.5 px-3 rounded-xl border border-secondary-tint hover:bg-secondary-tint/40 text-ink font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer transition min-h-[44px]"
             >
               <Sliders className="w-3.5 h-3.5 text-secondary" />
               <span>Simulation Controls</span>
-            </button>
+            </button>}
           </div>
         </aside>
 
@@ -279,7 +282,7 @@ const MainLayout: React.FC = () => {
       </nav>
 
       {/* Modals & Slide-out Drawers */}
-      <DemoDrawer isOpen={isDemoDrawerOpen} onClose={() => setIsDemoDrawerOpen(false)} />
+      {user.role === 'guest' && <DemoDrawer isOpen={isDemoDrawerOpen} onClose={() => setIsDemoDrawerOpen(false)} />}
       <CheckoutModal
         onNavigateToApprovals={() => {
           closeCheckoutModal();
@@ -292,11 +295,45 @@ const MainLayout: React.FC = () => {
 };
 
 const App: React.FC = () => {
-  return (
-    <ShopPilotProvider>
-      <MainLayout />
-    </ShopPilotProvider>
-  );
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [checking, setChecking] = useState(true);
+  const [logoutError, setLogoutError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    api.getCurrentUser().then(({ user: currentUser }) => {
+      if (active) setUser(currentUser);
+    }).catch(() => {
+      if (active) setUser(null);
+    }).finally(() => {
+      if (active) setChecking(false);
+    });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    const handleExpiredSession = () => setUser(null);
+    window.addEventListener('shoppilot:session-expired', handleExpiredSession);
+    return () => window.removeEventListener('shoppilot:session-expired', handleExpiredSession);
+  }, []);
+
+  useEffect(() => {
+    try { localStorage.removeItem('shoppilot-upcoming-order'); } catch { /* storage may be unavailable */ }
+  }, [user?.id]);
+
+  const logout = async () => {
+    setLogoutError('');
+    try {
+      await api.logout();
+      setUser(null);
+    } catch {
+      setLogoutError('Could not log out. Check your connection and try again.');
+    }
+  };
+
+  if (checking) return <div className="min-h-screen bg-paper flex items-center justify-center text-sm text-ink-muted">Checking your session…</div>;
+  if (!user) return <AuthScreen onAuthenticated={setUser} />;
+  return <ShopPilotProvider key={user.id}><MainLayout user={user} logoutError={logoutError} onLogout={() => { void logout(); }} /></ShopPilotProvider>;
 };
 
 export default App;

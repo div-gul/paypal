@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { getDatabase } from '../db/connection.js';
 import { ClockService } from '../services/ClockService.js';
+import { requireGuest } from '../middleware/auth.js';
 
 export const timeRouter = Router();
 
@@ -9,7 +10,7 @@ const AdvanceTimeSchema = z.object({
   days: z.union([z.literal(1), z.literal(3), z.literal(7)]),
 });
 
-timeRouter.get('/time', (req: Request, res: Response, next: NextFunction) => {
+timeRouter.get('/time', requireGuest, (req: Request, res: Response, next: NextFunction) => {
   try {
     const clockService = new ClockService(getDatabase());
     const clock = clockService.getClock(req.user!.id);
@@ -19,7 +20,7 @@ timeRouter.get('/time', (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-timeRouter.post('/time/advance', (req: Request, res: Response, next: NextFunction) => {
+timeRouter.post('/time/advance', requireGuest, (req: Request, res: Response, next: NextFunction) => {
   try {
     const { days } = AdvanceTimeSchema.parse(req.body);
     const clockService = new ClockService(getDatabase());

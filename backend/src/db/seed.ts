@@ -12,10 +12,7 @@ export function seedDatabase(db: Database.Database, userId: string = 'demo-user'
   const insertUser = db.prepare(`
     INSERT INTO users (id, name, email, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
-      name = excluded.name,
-      email = excluded.email,
-      updated_at = excluded.updated_at
+    ON CONFLICT(id) DO NOTHING
   `);
 
   const insertClock = db.prepare(`

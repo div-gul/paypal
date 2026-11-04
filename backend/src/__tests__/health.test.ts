@@ -3,7 +3,7 @@ import { createApp } from '../app.js';
 
 describe('GET /api/health', () => {
   it('returns healthy status with demo user and service mode', async () => {
-    const app = createApp();
+    const app = createApp({ testAuth: true });
 
     const server = app.listen(0);
     const address = server.address();
@@ -26,7 +26,7 @@ describe('GET /api/health', () => {
   });
 
   it('returns 404 for unknown /api route in standard error format', async () => {
-    const app = createApp();
+    const app = createApp({ testAuth: true });
     const server = app.listen(0);
     const address = server.address();
     const port = typeof address === 'object' && address ? address.port : 0;

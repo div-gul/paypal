@@ -54,7 +54,7 @@ export function createAiRouter(llmService?: LLMService): Router {
         });
       }
 
-      const userId = req.user?.id || 'demo-user';
+      const userId = req.user!.id;
       const policyService = new PolicyService(getDatabase());
       const currentPolicy = policyService.getPolicy(userId);
       const proposal = await service.parsePolicy(parsed.data.prompt, currentPolicy);

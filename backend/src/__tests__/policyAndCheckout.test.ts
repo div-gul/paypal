@@ -89,7 +89,7 @@ describe('Phase 4: Policy Enforcement & Checkout Flow', () => {
     runMigrations(db);
     seedDatabase(db, 'demo-user');
 
-    const app = createApp();
+    const app = createApp({ testAuth: true });
     await new Promise<void>(resolve => {
       server = app.listen(0, () => {
         const addr = server.address();
@@ -218,6 +218,31 @@ describe('Phase 4: Policy Enforcement & Checkout Flow', () => {
   });
 
   describe('Checkout API Endpoints & Server-Side Enforcement', () => {
+    it('creates the payable run from the exact saved cart items and total', async () => {
+      const response = await fetch(`${baseUrl}/api/runs/order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: [{ pantryItemId: 'item-milk', storeProductId: 'zp-milk-1', quantity: 1 }] }),
+      });
+      expect(response.status).toBe(201);
+      const { run } = await response.json() as any;
+      const detail = await fetch(`${baseUrl}/api/runs/${run.id}`);
+      const detailData: any = await detail.json();
+      expect(detailData.items).toHaveLength(1);
+      expect(run.selectedStrategyDetails.storeBaskets.flatMap((basket: any) => basket.items)).toHaveLength(1);
+      expect(run.grandTotalPaise).toBe(8600); // ₹66 product + ₹20 delivery
+      expect(run.selectedStrategyDetails.grandTotalPaise).toBe(run.grandTotalPaise);
+    });
+
+    it('refuses to create a payable run from an empty cart', async () => {
+      const response = await fetch(`${baseUrl}/api/runs/order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: [] }),
+      });
+      expect(response.status).toBe(400);
+    });
+
     it('refuses to create an order if run status is not approved or auto_approved', async () => {
       // 1. Plan a run
       const planRes = await fetch(`${baseUrl}/api/runs/plan`, { method: 'POST' });

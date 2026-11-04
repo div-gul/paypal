@@ -79,6 +79,13 @@ export interface AiSubstituteResult {
   reasoning: string;
 }
 
+export interface AuthUser {
+  id: string;
+  name: string;
+  email: string;
+  role: 'user' | 'guest';
+}
+
 const BASE_URL = '/api';
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -86,6 +93,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   const config: RequestInit = {
     ...options,
+    credentials: 'same-origin',
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -106,6 +114,9 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   }
 
   if (!response.ok) {
+    if (response.status === 401 && !['/auth/me', '/auth/login', '/auth/register', '/auth/logout'].includes(endpoint)) {
+      window.dispatchEvent(new Event('shoppilot:session-expired'));
+    }
     const errorPayload = data as ApiResponseError | undefined;
     const code = errorPayload?.error?.code || `HTTP_${response.status}`;
     const message = errorPayload?.error?.message || `Request failed with status ${response.status}`;
@@ -117,6 +128,19 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const api = {
+  getCurrentUser: () => request<{ user: AuthUser }>('/auth/me'),
+  login: (email: string, password: string) => request<{ user: AuthUser }>('/auth/login', {
+    method: 'POST', body: JSON.stringify({ email, password }),
+  }),
+  register: (name: string, email: string, password: string) => request<{ user: AuthUser }>('/auth/register', {
+    method: 'POST', body: JSON.stringify({ name, email, password }),
+  }),
+  logout: () => request<void>('/auth/logout', { method: 'POST' }),
+  getWorkspace: () => request<{ upcomingOrder: any | null; swapDecisions: Record<string, 'approved' | 'rejected'> }>('/workspace'),
+  saveWorkspace: (workspace: { upcomingOrder?: any | null; swapDecisions?: Record<string, 'approved' | 'rejected'> }) => request<{ success: boolean }>('/workspace', {
+    method: 'PUT', body: JSON.stringify(workspace),
+  }),
+
   // State
   getState: () => request<StateResponse>('/state'),
   resetState: () => request<{ success: boolean; message: string }>('/state/reset', { method: 'POST' }),
@@ -175,6 +199,11 @@ export const api = {
     request<PlanRunResponse>(`/runs/${encodeURIComponent(id)}/strategy`, {
       method: 'PUT',
       body: JSON.stringify({ strategy }),
+    }),
+  createOrderRun: (items: Array<{ pantryItemId: string; storeProductId: string; quantity: number }>) =>
+    request<{ run: any }>('/runs/order', {
+      method: 'POST',
+      body: JSON.stringify({ items }),
     }),
   approveRun: (id: string) =>
     request<{ run: any }>(`/runs/${encodeURIComponent(id)}/approve`, { method: 'POST' }),

@@ -15,7 +15,7 @@ describe('Phase 3: Core API Endpoints', () => {
     runMigrations(db);
     seedDatabase(db, 'demo-user');
 
-    const app = createApp();
+    const app = createApp({ testAuth: true });
     await new Promise<void>(resolve => {
       server = app.listen(0, () => {
         const addr = server.address();

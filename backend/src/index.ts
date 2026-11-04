@@ -3,12 +3,15 @@ import { config } from './config.js';
 import { getDatabase, closeDatabase } from './db/connection.js';
 import { runMigrations } from './db/migrate.js';
 import { seedDatabase } from './db/seed.js';
+import { AuthService } from './services/AuthService.js';
 
 // Initialize and migrate database
 const db = getDatabase();
 console.log(`📦 Initializing SQLite database at: ${config.DATABASE_PATH}`);
 runMigrations(db);
-seedDatabase(db);
+const guestAlreadySeeded = db.prepare('SELECT 1 FROM users WHERE LOWER(email) = ?').get('guest_paypal@example.com');
+if (!guestAlreadySeeded) seedDatabase(db);
+new AuthService(db).seedGuest();
 console.log('✅ Database migrations & seed completed.');
 
 const app = createApp();

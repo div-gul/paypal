@@ -1,13 +1,15 @@
 import React from 'react';
 import { useShopPilot } from '../context/ShopPilotContext';
-import { Bot, Sliders, Info, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Bot, Sliders, Info, CheckCircle2, AlertTriangle, LogOut } from 'lucide-react';
 import { Button } from './ui/Button';
 
 export interface HeaderProps {
   onOpenDemoDrawer: () => void;
+  user: { name: string; role: 'user' | 'guest' };
+  onLogout: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onOpenDemoDrawer }) => {
+export const Header: React.FC<HeaderProps> = ({ onOpenDemoDrawer, user, onLogout }) => {
   const { simulationState, activeRun, recommendations, setShowDemoInfoModal, isLoading } = useShopPilot();
 
   // Pending approvals counter
@@ -101,7 +103,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenDemoDrawer }) => {
           <div className="block sm:hidden">{renderStatusPill()}</div>
 
           {/* Demo Controls Button */}
-          <Button
+          {user.role === 'guest' && <Button
             variant="outline"
             size="sm"
             onClick={onOpenDemoDrawer}
@@ -110,7 +112,12 @@ export const Header: React.FC<HeaderProps> = ({ onOpenDemoDrawer }) => {
           >
             <span className="hidden sm:inline text-ink-muted font-normal mr-1 tabular-nums">{formattedSimDate} •</span>
             <span>Demo Controls</span>
-          </Button>
+          </Button>}
+
+          <span className="hidden sm:inline text-xs text-ink-muted">{user.name}</span>
+          <button onClick={onLogout} className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-semibold text-ink-muted hover:bg-secondary-tint/50 min-h-[44px]" title="Log out">
+            <LogOut className="w-4 h-4" /><span className="hidden sm:inline">Log out</span>
+          </button>
 
           {/* Why this? / Info Modal Button */}
           <button

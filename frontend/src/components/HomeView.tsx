@@ -32,7 +32,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
     optimizationResult,
     selectedStrategyType,
     setSelectedStrategyType,
-    openCheckoutModal,
+    prepareUpcomingOrderCheckout,
     activeRun,
     upcomingOrder,
     pendingSwaps,
@@ -76,21 +76,9 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
     storeId: item.product.storeId,
   }));
 
-  const grandTotalPaise = upcomingOrder.totalPaise || currentStrategy?.grandTotalPaise || 0;
-  const checkoutStrategy = currentStrategy ? {
-    ...currentStrategy,
-    grandTotalPaise,
-    totalProductPaise: upcomingOrder.subtotalPaise,
-    totalDeliveryFeePaise: upcomingOrder.deliveryFeePaise,
-    storeBaskets: currentStrategy.storeBaskets.map(basket => {
-      const items = allFinalItems
-        .filter(item => item.storeId === basket.storeId)
-        .map(({ storeName: _storeName, storeId: _storeId, ...item }) => item);
-      const productSubtotalPaise = items.reduce((total, item) => total + item.totalPaise, 0);
-      const totalPaise = productSubtotalPaise + basket.deliveryFeePaise + basket.handlingFeePaise + basket.taxPaise - basket.discountsPaise;
-      return { ...basket, items, productSubtotalPaise, totalPaise };
-    }),
-  } : undefined;
+  // The displayed and payable amount must come from the same editable order.
+  // Do not fall back to an optimizer total when this cart is empty.
+  const grandTotalPaise = allFinalItems.length > 0 ? upcomingOrder.totalPaise : 0;
   const isBudgetSafe = grandTotalPaise <= schedulerConfig.perCycleBudgetPaise;
   const budgetUsagePercent = Math.min(
     100,
@@ -358,8 +346,8 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
                 onClick={() => {
                   if (needsApproval) {
                     onNavigateToTab('approvals');
-                  } else if (checkoutStrategy) {
-                    openCheckoutModal(checkoutStrategy);
+                  } else {
+                    void prepareUpcomingOrderCheckout();
                   }
                 }}
                 icon={needsApproval ? <ArrowRight className="w-4 h-4" /> : <ShoppingBag className="w-4 h-4" />}

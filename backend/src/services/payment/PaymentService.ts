@@ -6,7 +6,7 @@ import { RunRepository, RunRecord } from '../../repositories/RunRepository.js';
 import { RunItemRepository } from '../../repositories/RunItemRepository.js';
 import { ReceiptRepository } from '../../repositories/ReceiptRepository.js';
 import { PantryRepository } from '../../repositories/PantryRepository.js';
-import { PolicyRepository } from '../../repositories/PolicyRepository.js';
+import { PolicyService } from '../PolicyService.js';
 import { SimClockRepository } from '../../repositories/SimClockRepository.js';
 import { AuditLogRepository } from '../../repositories/AuditLogRepository.js';
 import { evaluatePolicy } from '@shared/policy';
@@ -20,7 +20,6 @@ export class PaymentService {
   private runItemRepo: RunItemRepository;
   private receiptRepo: ReceiptRepository;
   private pantryRepo: PantryRepository;
-  private policyRepo: PolicyRepository;
   private clockRepo: SimClockRepository;
   private auditRepo: AuditLogRepository;
 
@@ -32,7 +31,6 @@ export class PaymentService {
     this.runItemRepo = new RunItemRepository(db);
     this.receiptRepo = new ReceiptRepository(db);
     this.pantryRepo = new PantryRepository(db);
-    this.policyRepo = new PolicyRepository(db);
     this.clockRepo = new SimClockRepository(db);
     this.auditRepo = new AuditLogRepository(db);
   }
@@ -44,6 +42,18 @@ export class PaymentService {
   async createCheckoutOrder(userId: string, runId: string): Promise<PaymentOrderResult & { run: RunRecord }> {
     let run = this.runRepo.getById(userId, runId);
     if (!run) throw new AppError('RUN_NOT_FOUND', `Run "${runId}" not found`, 404);
+
+    // A checkout must have purchasable lines and a positive total. This also
+    // catches old or inconsistent runs before returning a cached PayPal order.
+    const runItems = this.runItemRepo.getByRunId(userId, runId);
+    if (runItems.length === 0 || run.grandTotalPaise <= 0) {
+      throw new AppError('EMPTY_ORDER', 'This restock order has no items to purchase. Generate a new restock plan before checkout.', 400);
+    }
+    const strategyItemCount = run.selectedStrategyDetails?.storeBaskets
+      .reduce((count, basket) => count + basket.items.length, 0) ?? 0;
+    if (strategyItemCount !== runItems.length) {
+      throw new AppError('ORDER_DATA_MISMATCH', 'This restock plan is out of sync with its saved items. Generate a new restock plan before checkout.', 409);
+    }
 
     if (run.paymentState === 'CAPTURED' || run.status === 'paid') {
       throw new AppError('ORDER_ALREADY_PAID', 'This ShopPilot order has already been paid.', 409);
@@ -61,7 +71,7 @@ export class PaymentService {
       };
     }
 
-    const policy = this.policyRepo.getByUserId(userId);
+    const policy = new PolicyService(this.db).getPolicy(userId);
     const pantryItems = this.pantryRepo.getAllByUserId(userId);
     const clock = this.clockRepo.getByUserId(userId);
     if (!policy || !clock) throw new AppError('CONFIG_ERROR', 'Policy or clock not initialized', 500);

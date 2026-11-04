@@ -8,6 +8,7 @@ import { PolicyService } from '../services/PolicyService.js';
 import { ClockService } from '../services/ClockService.js';
 import { RunService } from '../services/RunService.js';
 import { AuditLogService } from '../services/AuditLogService.js';
+import { requireGuest } from '../middleware/auth.js';
 
 export const stateRouter = Router();
 
@@ -45,7 +46,7 @@ stateRouter.get('/state', async (req: Request, res: Response, next: NextFunction
  * Resets the authenticated user's pantry, policies, clock, and runs to initial demo state.
  * Disabled in production unless DEMO_MODE=true.
  */
-stateRouter.post('/state/reset', (req: Request, res: Response, next: NextFunction) => {
+stateRouter.post('/state/reset', requireGuest, (req: Request, res: Response, next: NextFunction) => {
   try {
     if (config.NODE_ENV === 'production' && process.env.DEMO_MODE !== 'true') {
       throw new AppError('FORBIDDEN', 'Reset is disabled in production unless DEMO_MODE=true', 403);
@@ -64,6 +65,7 @@ stateRouter.post('/state/reset', (req: Request, res: Response, next: NextFunctio
       db.prepare('DELETE FROM policies WHERE user_id = ?').run(userId);
       db.prepare('DELETE FROM sim_clock WHERE user_id = ?').run(userId);
       db.prepare('DELETE FROM webhook_events WHERE user_id = ?').run(userId);
+      db.prepare('DELETE FROM user_workspace WHERE user_id = ?').run(userId);
     });
 
     resetTx();

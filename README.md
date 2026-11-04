@@ -56,7 +56,15 @@ npm run dev
 - **Backend API**: [http://localhost:3001](http://localhost:3001)
 - **Frontend App**: [http://localhost:5173](http://localhost:5173) (or dynamic Vite port)
 
-### 4. Run Test Suites
+### 4. Accounts
+The app opens on the Login page. Register for a personal account, or use the seeded Guest account to explore the demo pantry and Future Simulation controls:
+
+- **Guest email**: `guest_paypal@example.com`
+- **Guest password**: `GUEST_paypal@1502`
+
+New accounts start with an empty pantry, no saved restocking policy, orders, approvals, or activity history. Future Simulation is available to the Guest account only; the backend enforces this restriction.
+
+### 5. Run Test Suites
 ```bash
 # Run all tests across backend (Vitest) and frontend (autonomous suite)
 npm test

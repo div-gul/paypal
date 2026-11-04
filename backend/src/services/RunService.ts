@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { RunRepository, RunRecord, RunStatus } from '../repositories/RunRepository.js';
 import { RunItemRepository } from '../repositories/RunItemRepository.js';
 import { PantryRepository } from '../repositories/PantryRepository.js';
-import { PolicyRepository } from '../repositories/PolicyRepository.js';
+import { PolicyService } from './PolicyService.js';
 import { SimClockRepository } from '../repositories/SimClockRepository.js';
 import { AuditLogRepository } from '../repositories/AuditLogRepository.js';
 import { generateRestockRecommendations } from '@shared/services/restockScheduler';
@@ -10,7 +10,8 @@ import { optimizeBaskets } from '@shared/services/basketOptimizer';
 import { evaluatePolicy } from '@shared/policy';
 import { formatPaise } from '@shared/services/currency';
 import { AppError } from '../middleware/errorHandler.js';
-import { BasketStrategyResult, BasketStrategyType, RestockRecommendation } from '@shared/types';
+import { BasketItem, BasketStrategyResult, BasketStrategyType, RestockRecommendation, StoreId } from '@shared/types';
+import { MOCK_STORE_CATALOG, STORE_DEFINITIONS } from '@shared/adapters/mockStoreData';
 
 export interface PlanRunOverrides {
   includeItemIds?: string[];
@@ -25,11 +26,16 @@ export interface PlanRunResult {
   recommendedStrategy: BasketStrategyResult;
 }
 
+export interface OrderRunItemInput {
+  pantryItemId: string;
+  storeProductId: string;
+  quantity: number;
+}
+
 export class RunService {
   private runRepo: RunRepository;
   private runItemRepo: RunItemRepository;
   private pantryRepo: PantryRepository;
-  private policyRepo: PolicyRepository;
   private clockRepo: SimClockRepository;
   private auditRepo: AuditLogRepository;
 
@@ -37,14 +43,16 @@ export class RunService {
     this.runRepo = new RunRepository(db);
     this.runItemRepo = new RunItemRepository(db);
     this.pantryRepo = new PantryRepository(db);
-    this.policyRepo = new PolicyRepository(db);
     this.clockRepo = new SimClockRepository(db);
     this.auditRepo = new AuditLogRepository(db);
   }
 
   async planRun(userId: string, overrides?: PlanRunOverrides): Promise<PlanRunResult> {
     const pantryItems = this.pantryRepo.getAllByUserId(userId);
-    const policy = this.policyRepo.getByUserId(userId);
+    if (pantryItems.length === 0) {
+      throw new AppError('PANTRY_EMPTY', 'Add pantry items before planning a restock run.', 400);
+    }
+    const policy = new PolicyService(this.db).getPolicy(userId);
     const clock = this.clockRepo.getByUserId(userId);
 
     if (!policy || !clock) {
@@ -188,6 +196,138 @@ export class RunService {
     };
   }
 
+  createOrderRun(userId: string, requestedItems: OrderRunItemInput[]): RunRecord {
+    if (requestedItems.length === 0) {
+      throw new AppError('EMPTY_ORDER', 'Add at least one item before checkout.', 400);
+    }
+
+    const runItems: Array<{ basketItem: BasketItem; storeId: StoreId }> = [];
+    const pantryItems = this.pantryRepo.getAllByUserId(userId);
+    const pantryById = new Map(pantryItems.map(item => [item.id, item]));
+    for (const requested of requestedItems) {
+      if (!Number.isInteger(requested.quantity) || requested.quantity < 1 || requested.quantity > 99) {
+        throw new AppError('INVALID_ORDER_ITEM', 'Order quantities must be whole numbers from 1 to 99.', 400);
+      }
+      const pantryItem = pantryById.get(requested.pantryItemId);
+      const product = MOCK_STORE_CATALOG.find(candidate =>
+        candidate.id === requested.storeProductId && candidate.pantryItemId === requested.pantryItemId && candidate.inStock
+      );
+      if (!pantryItem || !product) {
+        throw new AppError('INVALID_ORDER_ITEM', 'An order item is unavailable or does not belong to this household.', 400);
+      }
+      runItems.push({
+        storeId: product.storeId,
+        basketItem: {
+          product,
+          pantryItemId: pantryItem.id,
+          quantity: requested.quantity,
+          totalPaise: product.pricePaise * requested.quantity,
+          isSubstitution: product.brand.toLowerCase() !== pantryItem.preferredBrand.toLowerCase(),
+        },
+      });
+    }
+
+    const grouped = new Map<StoreId, BasketItem[]>();
+    for (const { storeId, basketItem } of runItems) {
+      const basket = grouped.get(storeId) || [];
+      basket.push(basketItem);
+      grouped.set(storeId, basket);
+    }
+    const subtotalPaise = runItems.reduce((sum, item) => sum + item.basketItem.totalPaise, 0);
+    // Match the editable order bucket: one ₹20 delivery fee, waived at ₹399.
+    const deliveryFeePaise = subtotalPaise === 0 || subtotalPaise >= 39900 ? 0 : 2000;
+    const storeBaskets = [...grouped.entries()].map(([storeId, items], index) => {
+      const productSubtotalPaise = items.reduce((sum, item) => sum + item.totalPaise, 0);
+      const basketDeliveryFeePaise = index === 0 ? deliveryFeePaise : 0;
+      return {
+        storeId,
+        storeName: STORE_DEFINITIONS[storeId].name,
+        items,
+        productSubtotalPaise,
+        deliveryFeePaise: basketDeliveryFeePaise,
+        handlingFeePaise: 0,
+        taxPaise: 0,
+        discountsPaise: 0,
+        minOrderShortfallPaise: 0,
+        totalPaise: productSubtotalPaise + basketDeliveryFeePaise,
+        meetsMinOrder: true,
+        minOrderThresholdPaise: STORE_DEFINITIONS[storeId].minOrderThresholdPaise,
+      };
+    });
+    const strategyType: BasketStrategyType = storeBaskets.length > 1 ? 'STRATEGY_C_SMART_SPLIT' : 'STRATEGY_B_SINGLE_STORE';
+    const strategy: BasketStrategyResult = {
+      type: strategyType,
+      title: 'Approved Household Order',
+      tag: 'User approved',
+      description: 'The exact products and quantities from the approved upcoming order.',
+      storeBaskets,
+      totalProductPaise: subtotalPaise,
+      totalDeliveryFeePaise: deliveryFeePaise,
+      totalHandlingFeePaise: 0,
+      totalTaxPaise: 0,
+      totalDiscountPaise: 0,
+      grandTotalPaise: subtotalPaise + deliveryFeePaise,
+      isRecommended: true,
+      recommendationReason: 'Matches the saved order contents.',
+      storesInvolvedCount: storeBaskets.length,
+    };
+
+    const policy = new PolicyService(this.db).getPolicy(userId);
+    const clock = this.clockRepo.getByUserId(userId);
+    if (!policy || !clock) throw new AppError('CONFIG_ERROR', 'User policy or clock not initialized', 500);
+    const policyResult = evaluatePolicy({ strategy, policy, pantryItems });
+    if (policyResult.decision === 'blocked') {
+      throw new AppError('POLICY_VIOLATION_BLOCKED', `This order is blocked by policy: ${policyResult.reasons.join('; ')}`, 403);
+    }
+
+    const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const createTx = this.db.transaction(() => {
+      const run = this.runRepo.create(userId, {
+        id: runId,
+        status: 'approved',
+        strategyType,
+        grandTotalPaise: strategy.grandTotalPaise,
+        productSubtotalPaise: subtotalPaise,
+        deliveryFeePaise,
+        handlingFeePaise: 0,
+        taxPaise: 0,
+        discountPaise: 0,
+        decisionReasons: ['User explicitly approved the saved upcoming order.'],
+        selectedStrategyDetails: strategy,
+        allStrategies: [strategy],
+        simulatedDate: clock.simulatedDate,
+      });
+      this.runItemRepo.createBatch(userId, runItems.map(({ storeId, basketItem }, index) => ({
+        id: `ri-${runId}-${storeId}-${basketItem.pantryItemId}-${index + 1}`,
+        runId,
+        pantryItemId: basketItem.pantryItemId,
+        itemName: basketItem.product.name,
+        storeId,
+        storeProductId: basketItem.product.id,
+        quantity: basketItem.quantity,
+        unitPricePaise: basketItem.product.pricePaise,
+        totalPricePaise: basketItem.totalPaise,
+        isSubstitution: basketItem.isSubstitution,
+        isUrgent: false,
+        outcome: 'INCLUDE_IN_WEEKLY_BASKET',
+        reasoning: 'Included in the user-approved upcoming order.',
+        approvalStatus: 'approved' as const,
+      })));
+      this.auditRepo.create(userId, {
+        id: `audit-${Date.now()}-order-${Math.random().toString(36).slice(2, 6)}`,
+        timestamp: new Date().toISOString(),
+        simulatedDate: clock.simulatedDate,
+        type: 'approval_granted',
+        title: 'Upcoming Order Approved',
+        description: `Approved ${runItems.length} saved order item(s) totaling ${formatPaise(strategy.grandTotalPaise)}.`,
+        statusBadge: 'Approved',
+        badgeColor: 'emerald',
+      });
+      return run;
+    });
+    return createTx();
+  }
+
   /**
    * Switch the chosen strategy on an active run.
    * Re-evaluates policy and resets approval if the decision changes.
@@ -206,7 +346,7 @@ export class RunService {
       );
     }
 
-    const policy = this.policyRepo.getByUserId(userId);
+    const policy = new PolicyService(this.db).getPolicy(userId);
     const pantryItems = this.pantryRepo.getAllByUserId(userId);
     const clock = this.clockRepo.getByUserId(userId);
     if (!policy || !clock) {

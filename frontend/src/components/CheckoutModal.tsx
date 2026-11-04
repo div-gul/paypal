@@ -78,6 +78,7 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
     ? 0
     : recommendations.filter(r => r.approvalStatus !== 'approved' && r.approvalStatus !== 'rejected' && (r.requiresApproval || r.isSubstitution)).length;
   const needsApproval = activeRun?.id === runId && (pendingApprovalsCount > 0 || activeRun?.status === 'needs_approval');
+  const checkoutItemCount = strategy?.storeBaskets.reduce((count, basket) => count + basket.items.length, 0) || 0;
 
   useEffect(() => {
     if (!checkoutModal.isOpen) return;
@@ -91,14 +92,14 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
 
   // Create or recover a persistent server-side PayPal order
   useEffect(() => {
-    if (!checkoutModal.isOpen || !isSandbox || !strategy || !runId || orderId || paymentState === 'CAPTURED') return;
+    if (!checkoutModal.isOpen || !isSandbox || !strategy || !runId || orderId || paymentState === 'CAPTURED' || checkoutItemCount === 0) return;
     let cancelled = false;
     setIsPreparing(true);
     createPayPalOrder(runId, strategy)
       .catch(error => { if (!cancelled) setErrorMessage(error.message || 'Could not create PayPal Sandbox order.'); })
       .finally(() => { if (!cancelled) setIsPreparing(false); });
     return () => { cancelled = true; };
-  }, [checkoutModal.isOpen, isSandbox, strategy, runId, orderId, paymentState, createPayPalOrder]);
+  }, [checkoutModal.isOpen, isSandbox, strategy, runId, orderId, paymentState, checkoutItemCount, createPayPalOrder]);
 
   useEffect(() => {
     if (!approvalUrl || !isSandbox) {
@@ -114,7 +115,7 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
 
   // Render the official PayPal button
   useEffect(() => {
-    if (!checkoutModal.isOpen || !isSandbox || !providerConfig?.clientId || !strategy || !runId || !orderId || isOrderPlaced) return;
+    if (!checkoutModal.isOpen || !isSandbox || !providerConfig?.clientId || !strategy || !runId || !orderId || isOrderPlaced || checkoutItemCount === 0) return;
     let cancelled = false;
     const container = paypalButtonContainer.current;
     if (!container) return;
@@ -144,11 +145,11 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
       cancelled = true;
       container.replaceChildren();
     };
-  }, [checkoutModal.isOpen, isSandbox, providerConfig, strategy, runId, orderId, isOrderPlaced, capturePayPalOrder, cancelPayPalOrder]);
+  }, [checkoutModal.isOpen, isSandbox, providerConfig, strategy, runId, orderId, isOrderPlaced, checkoutItemCount, capturePayPalOrder, cancelPayPalOrder]);
 
   // Poll server for status
   useEffect(() => {
-    if (!checkoutModal.isOpen || !isSandbox || !strategy || !runId || !orderId || isOrderPlaced) return;
+    if (!checkoutModal.isOpen || !isSandbox || !strategy || !runId || !orderId || isOrderPlaced || checkoutItemCount === 0) return;
     let cancelled = false;
     const checkStatus = async () => {
       try {
@@ -163,7 +164,7 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
     void checkStatus();
     const timer = window.setInterval(() => { void checkStatus(); }, 3000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [checkoutModal.isOpen, isSandbox, strategy, runId, orderId, isOrderPlaced, getCheckoutStatus]);
+  }, [checkoutModal.isOpen, isSandbox, strategy, runId, orderId, isOrderPlaced, checkoutItemCount, getCheckoutStatus]);
 
   if (!checkoutModal.isOpen || !strategy) return null;
 
@@ -329,10 +330,16 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
               <div className="space-y-3">
                 <div className="flex justify-between items-center px-1">
                   <span className="text-xs font-bold text-ink">
-                    Order Summary ({strategy.storeBaskets.reduce((count, basket) => count + basket.items.length, 0)} items)
+                    Order Summary ({checkoutItemCount} items)
                   </span>
-                  <span className="tabular-nums font-bold text-sm text-ink">{formatPaise(strategy.grandTotalPaise)}</span>
+                  <span className="tabular-nums font-bold text-sm text-ink">{formatPaise(checkoutItemCount > 0 ? strategy.grandTotalPaise : 0)}</span>
                 </div>
+
+                {checkoutItemCount === 0 && (
+                  <div role="alert" className="rounded-xl border border-danger/30 bg-danger/5 px-3 py-2 text-xs text-danger">
+                    There are no items to purchase, so checkout is unavailable. Close this window and generate a new restock plan.
+                  </div>
+                )}
 
                 {/* Dual INR and USD note */}
                 {isSandbox && providerConfig?.currency === 'USD' && checkoutModal.chargedAmount && (
