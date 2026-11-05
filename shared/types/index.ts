@@ -225,6 +225,8 @@ export interface UpcomingOrderBucket {
   status: 'draft' | 'approved';
   approvedAt?: string;
   savedAt?: string;
+  paidAt?: string;
+  paidQuantities?: Record<string, number>;
   subtotalPaise: number;
   deliveryFeePaise: number;
   totalPaise: number;

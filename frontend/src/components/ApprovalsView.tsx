@@ -310,6 +310,9 @@ export const ApprovalsView: React.FC = () => {
                       <span>Pack: <strong className="text-ink">{item.packageSize}</strong></span>
                       <span>•</span>
                       <span>Unit Price: <strong className="text-ink tabular-nums">{formatPaise(item.unitPricePaise)}</strong></span>
+                      {(upcomingOrder.paidQuantities?.[item.pantryItemId] || 0) > 0 && (
+                        <span>Paid: <strong className="text-good">{upcomingOrder.paidQuantities?.[item.pantryItemId]} {item.unit}</strong></span>
+                      )}
                       {isModified && (
                         <span className="text-[10px] text-brand bg-brand-tint px-2 py-0.5 rounded font-semibold border border-brand/20">
                           User set: {item.quantity} • AI suggested: {item.suggestedQuantity}
@@ -322,7 +325,7 @@ export const ApprovalsView: React.FC = () => {
                   <div className="flex items-center gap-4 shrink-0">
                     <div className="flex items-center gap-1.5 bg-paper p-1 rounded-xl border border-secondary-tint">
                       <button
-                        disabled={item.quantity <= 1}
+                        disabled={item.quantity <= Math.max(1, upcomingOrder.paidQuantities?.[item.pantryItemId] || 0)}
                         onClick={() => updateOrderItemQty(item.id, -1)}
                         title="Decrease quantity by 1"
                         className="w-8 h-8 rounded-lg bg-surface hover:bg-secondary-tint active:bg-secondary-tint/80 border border-secondary-tint text-ink font-bold text-sm flex items-center justify-center cursor-pointer transition disabled:opacity-40 disabled:cursor-not-allowed shadow-soft"
@@ -350,9 +353,10 @@ export const ApprovalsView: React.FC = () => {
 
                     {/* Delete Item */}
                     <button
+                      disabled={(upcomingOrder.paidQuantities?.[item.pantryItemId] || 0) > 0}
                       onClick={() => removeOrderItemFromBucket(item.id)}
                       title="Remove product from this order"
-                      className="text-ink-muted hover:text-danger p-2 rounded-lg hover:bg-danger/10 cursor-pointer transition min-w-[44px] min-h-[44px] flex items-center justify-center"
+                      className="text-ink-muted hover:text-danger p-2 rounded-lg hover:bg-danger/10 cursor-pointer transition min-w-[44px] min-h-[44px] flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -394,7 +398,7 @@ export const ApprovalsView: React.FC = () => {
                   onClick={saveUpcomingOrder}
                   icon={<Check className="w-4 h-4" />}
                 >
-                  Save and Approve Order ({formatPaise(upcomingOrder.totalPaise)})
+                  {upcomingOrder.paidAt ? `Save Changes (${formatPaise(upcomingOrder.totalPaise)})` : `Save and Approve Order (${formatPaise(upcomingOrder.totalPaise)})`}
                 </Button>
               </div>
             </div>
@@ -413,7 +417,7 @@ export const ApprovalsView: React.FC = () => {
             icon={<Check className="w-4 h-4" />}
             className="w-full"
           >
-            Save and Approve Order ({formatPaise(upcomingOrder.totalPaise)})
+            {upcomingOrder.paidAt ? `Save Changes (${formatPaise(upcomingOrder.totalPaise)})` : `Save and Approve Order (${formatPaise(upcomingOrder.totalPaise)})`}
           </Button>
         </div>
       )}

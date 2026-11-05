@@ -13,3 +13,4 @@ export * from './services/defaults';
 export * from './policy';
 
 export * from './services/orderBucketService';
+export * from './services/catalogMatching';

@@ -4,6 +4,7 @@ import {
   removeOrderItem,
   addOrderItem,
   approveOrder,
+  getUnpaidOrderItems,
 } from '../../../shared/services/orderBucketService';
 import {
   DEFAULT_PANTRY_ITEMS,
@@ -144,6 +145,23 @@ const testPantryItem: PantryItem = {
 };
 const addedBucket = addOrderItem(removedBucket, testPantryItem);
 assert(addedBucket.items.some(i => i.pantryItemId === 'item-coffee'), 'Coffee successfully added to upcoming order');
+
+const newHouseholdMilk = { ...DEFAULT_PANTRY_ITEMS.find(i => i.id === 'item-milk')!, id: 'household-milk-1', currentQuantity: 0 };
+const newHouseholdOrder = addOrderItem({ ...initialResult.bucket, items: [] }, newHouseholdMilk);
+assert(newHouseholdOrder.items[0]?.product.id === 'bl-milk-1', 'A new household milk item resolves to a milk catalog product');
+
+const paidBucket = {
+  ...initialResult.bucket,
+  paidAt: new Date().toISOString(),
+  paidQuantities: Object.fromEntries(initialResult.bucket.items.map(item => [item.pantryItemId, item.quantity])),
+};
+assert(getUnpaidOrderItems(paidBucket).length === 0, 'A paid order has no remaining payable quantities');
+const paidMilk = paidBucket.items.find(item => item.pantryItemId === 'item-milk')!;
+const increasedPaidBucket = updateOrderItemQuantity(paidBucket, paidMilk.pantryItemId, 1);
+assert(increasedPaidBucket.items.find(item => item.pantryItemId === paidMilk.pantryItemId)?.quantity === paidMilk.quantity + 1, 'Paid order items can be increased');
+assert(getUnpaidOrderItems(increasedPaidBucket)[0]?.quantity === 1, 'Checkout includes only the added quantity');
+const reducedPaidBucket = updateOrderItemQuantity(paidBucket, paidMilk.pantryItemId, -1);
+assert(reducedPaidBucket.items.find(item => item.pantryItemId === paidMilk.pantryItemId)?.quantity === paidMilk.quantity, 'Paid quantities cannot be reduced below the captured amount');
 
 // 8. User modifications are not silently overwritten by simulation.
 console.log('\nTest 8: User modifications are not silently overwritten by simulation');

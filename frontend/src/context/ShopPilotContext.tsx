@@ -21,6 +21,7 @@ import {
   updateOrderItemQuantity,
   removeOrderItem,
   addOrderItem,
+  getUnpaidOrderItems,
 } from '@shared/services/orderBucketService';
 import { advancePantryState } from '@shared/services/consumptionEngine';
 import { api, PlanRunOverrides } from '../api/client';
@@ -162,6 +163,20 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     excludeItemIds: [],
   });
   const selectedStrategyTypeRef = useRef<BasketStrategyType>('STRATEGY_B_SINGLE_STORE');
+  const upcomingCheckoutRunIdRef = useRef<string | null>(null);
+
+  const markUpcomingOrderPaid = useCallback(async () => {
+    const paid = {
+      ...upcomingOrder,
+      status: 'approved' as const,
+      savedAt: upcomingOrder.savedAt || new Date().toISOString(),
+      paidAt: new Date().toISOString(),
+      paidQuantities: Object.fromEntries(upcomingOrder.items.map(item => [item.pantryItemId, item.quantity])),
+    };
+    setUpcomingOrder(paid);
+    setPendingSwaps([]);
+    await api.saveWorkspace({ upcomingOrder: paid });
+  }, [upcomingOrder]);
 
   const clearError = useCallback(() => {
     setError(null);
@@ -250,7 +265,10 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         simulationState: stateRes.clock,
       });
       setActivityLog(stateRes.recentAuditLog);
-      if (workspaceRes.upcomingOrder) setUpcomingOrder(workspaceRes.upcomingOrder);
+      if (workspaceRes.upcomingOrder) {
+        setUpcomingOrder(workspaceRes.upcomingOrder);
+        if (workspaceRes.upcomingOrder.paidAt) setPendingSwaps([]);
+      }
 
       if (planRes) {
         setActiveRun(planRes.run);
@@ -721,17 +739,16 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, [activeRun]);
 
   const prepareUpcomingOrderCheckout = useCallback(async () => {
-    const items = upcomingOrder.items
-      .filter(item => item.quantity > 0)
-      .map(item => ({ pantryItemId: item.pantryItemId, storeProductId: item.product.id, quantity: item.quantity }));
+    const items = getUnpaidOrderItems(upcomingOrder);
     if (items.length === 0) {
-      setError('There are no items in the saved order to purchase. Add an item before checkout.');
+      setError(upcomingOrder.paidAt ? 'This upcoming order is already paid. Add more items or increase a quantity to make an additional payment.' : 'There are no items in the saved order to purchase. Add an item before checkout.');
       return;
     }
     setIsLoading(true);
     setError(null);
     try {
       const { run } = await api.createOrderRun(items);
+      upcomingCheckoutRunIdRef.current = run.id;
       if (!run.selectedStrategyDetails) throw new Error('The server did not return the saved order details.');
       setActiveRun(run);
       setCheckoutModal({ isOpen: true, runId: run.id, strategy: run.selectedStrategyDetails });
@@ -740,7 +757,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } finally {
       setIsLoading(false);
     }
-  }, [upcomingOrder.items]);
+  }, [upcomingOrder]);
 
   const closeCheckoutModal = useCallback(() => {
     setCheckoutModal({ isOpen: false });
@@ -778,9 +795,13 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         timestamp: new Date().toLocaleTimeString(),
         itemsPurchased: strategy.storeBaskets.flatMap(basket => basket.items),
       }));
+      if (upcomingCheckoutRunIdRef.current === runId) {
+        upcomingCheckoutRunIdRef.current = null;
+        await markUpcomingOrderPaid();
+      }
       await reloadState().catch(err => console.warn('Payment captured; state refresh notice:', err));
     },
-    [reloadState]
+    [markUpcomingOrderPaid, reloadState]
   );
 
   const getCheckoutStatus = useCallback(
@@ -802,11 +823,15 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         } : {}),
       }));
       if (status.paymentState === 'CAPTURED') {
+        if (upcomingCheckoutRunIdRef.current === runId) {
+          upcomingCheckoutRunIdRef.current = null;
+          await markUpcomingOrderPaid();
+        }
         await reloadState().catch(err => console.warn('Payment status confirmed; state refresh notice:', err));
       }
       return status;
     },
-    [reloadState]
+    [markUpcomingOrderPaid, reloadState]
   );
 
   const cancelPayPalOrder = useCallback(async (runId: string, orderId?: string) => {
@@ -927,7 +952,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
    * Saves the editable order draft for Home and future visits.
    */
   const saveUpcomingOrder = useCallback(async () => {
-    const savedOrder = { ...upcomingOrder, status: 'draft' as const, approvedAt: undefined, savedAt: new Date().toISOString() };
+    const savedOrder = { ...upcomingOrder, status: 'approved' as const, approvedAt: undefined, savedAt: new Date().toISOString() };
     setUpcomingOrder(savedOrder);
     await api.saveWorkspace({ upcomingOrder: savedOrder }).catch(err => setError(getFriendlyErrorMessage(err)));
   }, [upcomingOrder]);
@@ -978,7 +1003,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     [pantryItems, schedulerConfig, simulationState]
   );
 
-  const isUpcomingOrderSaved = Boolean(upcomingOrder?.savedAt);
+  const isUpcomingOrderSaved = Boolean(upcomingOrder?.savedAt || upcomingOrder?.paidAt);
 
   return (
     <ShopPilotContext.Provider

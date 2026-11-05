@@ -12,6 +12,7 @@ import { formatPaise } from '@shared/services/currency';
 import { AppError } from '../middleware/errorHandler.js';
 import { BasketItem, BasketStrategyResult, BasketStrategyType, RestockRecommendation, StoreId } from '@shared/types';
 import { MOCK_STORE_CATALOG, STORE_DEFINITIONS } from '@shared/adapters/mockStoreData';
+import { isCatalogProductForPantryItem } from '@shared/services/catalogMatching';
 
 export interface PlanRunOverrides {
   includeItemIds?: string[];
@@ -210,9 +211,9 @@ export class RunService {
       }
       const pantryItem = pantryById.get(requested.pantryItemId);
       const product = MOCK_STORE_CATALOG.find(candidate =>
-        candidate.id === requested.storeProductId && candidate.pantryItemId === requested.pantryItemId && candidate.inStock
+        candidate.id === requested.storeProductId && candidate.inStock
       );
-      if (!pantryItem || !product) {
+      if (!pantryItem || !product || !isCatalogProductForPantryItem(product, pantryItem)) {
         throw new AppError('INVALID_ORDER_ITEM', 'An order item is unavailable or does not belong to this household.', 400);
       }
       runItems.push({

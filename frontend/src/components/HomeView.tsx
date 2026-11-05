@@ -47,8 +47,15 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
   const nextRunDayName = nextRunDate.toLocaleDateString('en-IN', { weekday: 'long' });
 
   // 2. Pending approvals check
-  const hasPendingSwaps = pendingSwaps.length > 0;
+  const hasPendingSwaps = !upcomingOrder.paidAt && pendingSwaps.length > 0;
   const needsApproval = hasPendingSwaps || !isUpcomingOrderSaved;
+  const hasUnpaidAdditions = upcomingOrder.items.some(item =>
+    item.quantity > (upcomingOrder.paidQuantities?.[item.pantryItemId] || 0)
+  );
+  const unpaidSubtotalPaise = upcomingOrder.items.reduce((sum, item) =>
+    sum + Math.max(0, item.quantity - (upcomingOrder.paidQuantities?.[item.pantryItemId] || 0)) * item.unitPricePaise,
+  0);
+  const unpaidTotalPaise = unpaidSubtotalPaise + (upcomingOrder.paidAt && unpaidSubtotalPaise > 0 && unpaidSubtotalPaise < 39900 ? 2000 : 0);
 
   // 3. Recommended & filtered strategies
   const strategies = optimizationResult?.strategies || [];
@@ -117,8 +124,13 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
 
   // 6. Dynamic Household Status Sentence
   const getStatusSentence = () => {
+    if (upcomingOrder.paidAt) {
+      return hasUnpaidAdditions
+        ? `Your upcoming order for ${upcomingOrder.scheduledDate} is paid. Added items are ready for an extra payment.`
+        : `Upcoming order for ${upcomingOrder.scheduledDate} is paid (${formatPaise(upcomingOrder.totalPaise)}). You can add more items if needed.`;
+    }
     if (activeRun?.status === 'paid') {
-      return 'Order placed and paid via PayPal — your pantry is fully restocked!';
+      return 'Your latest restock payment is complete.';
     }
     if (hasPendingSwaps) {
       return `${pendingSwaps.length} product swap${pendingSwaps.length === 1 ? '' : 's'} waiting for your approval in Approvals tab.`;
@@ -342,22 +354,24 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
               <Button
                 variant="primary"
                 size="md"
-                disabled={allFinalItems.length === 0}
+                disabled={allFinalItems.length === 0 || (Boolean(upcomingOrder.paidAt) && !hasUnpaidAdditions)}
                 onClick={() => {
                   if (needsApproval) {
                     onNavigateToTab('approvals');
-                  } else {
+                  } else if (!upcomingOrder.paidAt || hasUnpaidAdditions) {
                     void prepareUpcomingOrderCheckout();
                   }
                 }}
                 icon={needsApproval ? <ArrowRight className="w-4 h-4" /> : <ShoppingBag className="w-4 h-4" />}
               >
-                {hasPendingSwaps ? (
+                {upcomingOrder.paidAt && !hasUnpaidAdditions ? (
+                  `Paid for ${upcomingOrder.scheduledDate}`
+                ) : hasPendingSwaps ? (
                   `Review Swaps in Approvals (${pendingSwaps.length})`
                 ) : !isUpcomingOrderSaved ? (
                   'Review and Approve Order'
                 ) : (
-                  <span>Approve and Pay (<span className="tabular-nums">{formatPaise(upcomingOrder.totalPaise || grandTotalPaise)}</span>)</span>
+                  <span>{upcomingOrder.paidAt ? 'Pay Added Items' : 'Approve and Pay'} (<span className="tabular-nums">{formatPaise(upcomingOrder.paidAt ? unpaidTotalPaise : (upcomingOrder.totalPaise || grandTotalPaise))}</span>)</span>
                 )}
               </Button>
             </div>

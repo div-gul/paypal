@@ -9,6 +9,7 @@ import {
 } from '../types';
 import { MOCK_STORE_CATALOG } from '../adapters/mockStoreData';
 import { getDaysUntilNextShoppingRun } from './restockScheduler';
+import { getCatalogProductsForPantryItem } from './catalogMatching';
 
 /**
  * Parses package size string into numerical unit amount.
@@ -126,17 +127,15 @@ export function computeUpcomingOrderBucket({
     }
 
     // 3. Product & Brand matching
-    const exactMatches = catalog.filter(
-      p => p.pantryItemId === pantryItem.id && p.isExactBrandMatch && p.inStock
-    );
-    const substituteMatches = catalog.filter(
-      p => p.pantryItemId === pantryItem.id && !p.isExactBrandMatch && p.inStock
-    );
+    const matchingProducts = getCatalogProductsForPantryItem(pantryItem, catalog);
+    const exactMatches = matchingProducts.filter(p => p.isExactBrandMatch && p.inStock);
+    const substituteMatches = matchingProducts.filter(p => !p.isExactBrandMatch && p.inStock);
 
-    const exactMatch = exactMatches[0] || catalog.find(p => p.pantryItemId === pantryItem.id);
+    const exactMatch = exactMatches[0] || matchingProducts.find(p => p.inStock);
     const substituteMatch = substituteMatches[0] || null;
 
-    let chosenProduct = exactMatch || catalog[0];
+    let chosenProduct = exactMatch || matchingProducts[0];
+    if (!chosenProduct) continue;
     let originalProduct: StoreProduct | undefined = exactMatch;
     let isSubstitution = false;
     let swapStatus: 'none' | 'pending' | 'approved' | 'rejected' = 'none';
@@ -242,7 +241,8 @@ export function updateOrderItemQuantity(
 ): UpcomingOrderBucket {
   const updatedItems = bucket.items.map(item => {
     if (item.id === itemId || item.pantryItemId === itemId) {
-      const newQty = Math.max(1, item.quantity + delta);
+      const alreadyPaid = bucket.paidQuantities?.[item.pantryItemId] || 0;
+      const newQty = Math.max(Math.max(1, alreadyPaid), item.quantity + delta);
       const newTotal = newQty * item.unitPricePaise;
       return {
         ...item,
@@ -304,7 +304,8 @@ export function addOrderItem(
     return updateOrderItemQuantity(bucket, pantryItem.id, 1);
   }
 
-  const match = catalog.find(p => p.pantryItemId === pantryItem.id && p.inStock) || catalog[0];
+  const match = getCatalogProductsForPantryItem(pantryItem, catalog).find(p => p.inStock);
+  if (!match) return bucket;
   const unitPricePaise = match.pricePaise;
   const quantity = 1;
   const totalPricePaise = quantity * unitPricePaise;
@@ -350,4 +351,19 @@ export function approveOrder(bucket: UpcomingOrderBucket): UpcomingOrderBucket {
     status: 'approved',
     approvedAt: new Date().toISOString(),
   };
+}
+
+/** Return only quantities that are not already covered by a captured payment. */
+export function getUnpaidOrderItems(bucket: UpcomingOrderBucket): Array<{
+  pantryItemId: string;
+  storeProductId: string;
+  quantity: number;
+}> {
+  return bucket.items
+    .map(item => ({
+      pantryItemId: item.pantryItemId,
+      storeProductId: item.product.id,
+      quantity: item.quantity - (bucket.paidQuantities?.[item.pantryItemId] || 0),
+    }))
+    .filter(item => item.quantity > 0);
 }
