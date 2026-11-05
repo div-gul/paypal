@@ -149,6 +149,14 @@ assert(addedBucket.items.some(i => i.pantryItemId === 'item-coffee'), 'Coffee su
 const newHouseholdMilk = { ...DEFAULT_PANTRY_ITEMS.find(i => i.id === 'item-milk')!, id: 'household-milk-1', currentQuantity: 0 };
 const newHouseholdOrder = addOrderItem({ ...initialResult.bucket, items: [] }, newHouseholdMilk);
 assert(newHouseholdOrder.items[0]?.product.id === 'bl-milk-1', 'A new household milk item resolves to a milk catalog product');
+for (const defaultItem of DEFAULT_PANTRY_ITEMS) {
+  const householdItem = { ...defaultItem, id: `household-${defaultItem.id}`, currentQuantity: 0 };
+  const householdBucket = addOrderItem({ ...initialResult.bucket, items: [] }, householdItem);
+  assert(
+    householdBucket.items[0]?.product.pantryItemId === defaultItem.id,
+    `New household ${defaultItem.name} resolves only to its matching catalog products`,
+  );
+}
 
 const paidBucket = {
   ...initialResult.bucket,
