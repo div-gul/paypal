@@ -12,7 +12,7 @@ import { formatPaise } from '@shared/services/currency';
 import { AppError } from '../middleware/errorHandler.js';
 import { BasketItem, BasketStrategyResult, BasketStrategyType, RestockRecommendation, StoreId } from '@shared/types';
 import { MOCK_STORE_CATALOG, STORE_DEFINITIONS } from '@shared/adapters/mockStoreData';
-import { isCatalogProductForPantryItem } from '@shared/services/catalogMatching';
+import { createHouseholdCatalogProduct, isCatalogProductForPantryItem } from '@shared/services/catalogMatching';
 
 export interface PlanRunOverrides {
   includeItemIds?: string[];
@@ -210,9 +210,12 @@ export class RunService {
         throw new AppError('INVALID_ORDER_ITEM', 'Order quantities must be whole numbers from 1 to 99.', 400);
       }
       const pantryItem = pantryById.get(requested.pantryItemId);
-      const product = MOCK_STORE_CATALOG.find(candidate =>
+      const catalogProduct = MOCK_STORE_CATALOG.find(candidate =>
         candidate.id === requested.storeProductId && candidate.inStock
       );
+      const product = catalogProduct || (pantryItem && requested.storeProductId === `household-${pantryItem.id}`
+        ? createHouseholdCatalogProduct(pantryItem)
+        : undefined);
       if (!pantryItem || !product || !isCatalogProductForPantryItem(product, pantryItem)) {
         throw new AppError('INVALID_ORDER_ITEM', 'An order item is unavailable or does not belong to this household.', 400);
       }

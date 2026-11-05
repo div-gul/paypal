@@ -22,6 +22,7 @@ import {
   removeOrderItem,
   addOrderItem,
   getUnpaidOrderItems,
+  getSwapDecisionKey,
 } from '@shared/services/orderBucketService';
 import { advancePantryState } from '@shared/services/consumptionEngine';
 import { api, PlanRunOverrides } from '../api/client';
@@ -98,6 +99,7 @@ export interface ShopPilotContextType {
   updateOrderItemQty: (itemId: string, delta: number) => void;
   removeOrderItemFromBucket: (itemId: string) => void;
   addOrderItemToBucket: (pantryItemId: string) => void;
+  addNewPantryItemToOrder: (item: Omit<PantryItem, 'id' | 'lastRestockedDate' | 'stockoutDaysCount'>) => Promise<void>;
   saveUpcomingOrder: () => Promise<void>;
   approveSwap: (pantryItemId: string) => void;
   rejectSwap: (pantryItemId: string) => void;
@@ -266,8 +268,15 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       });
       setActivityLog(stateRes.recentAuditLog);
       if (workspaceRes.upcomingOrder) {
-        setUpcomingOrder(workspaceRes.upcomingOrder);
-        if (workspaceRes.upcomingOrder.paidAt) setPendingSwaps([]);
+        const refreshedOrder = computeUpcomingOrderBucket({
+          pantryItems: stateRes.pantry,
+          schedulerConfig: stateRes.policy,
+          simulationState: stateRes.clock,
+          existingBucket: workspaceRes.upcomingOrder,
+          swapDecisions: swapDecisionsRef.current,
+        });
+        setUpcomingOrder(refreshedOrder.bucket);
+        setPendingSwaps(workspaceRes.upcomingOrder.paidAt ? [] : refreshedOrder.pendingSwaps);
       }
 
       if (planRes) {
@@ -941,11 +950,64 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (!pantryItem) return;
       setUpcomingOrder(prev => {
         const updated = addOrderItem(prev, pantryItem);
-        return { ...updated, savedAt: undefined };
+        const result = computeUpcomingOrderBucket({
+          pantryItems: [pantryItem],
+          schedulerConfig,
+          simulationState,
+          existingBucket: { ...updated, items: updated.items.filter(item => item.pantryItemId === pantryItem.id) },
+          swapDecisions: swapDecisionsRef.current,
+        });
+        const resolved = result.bucket.items[0];
+        const items = resolved
+          ? updated.items.map(item => item.pantryItemId === pantryItem.id ? resolved : item)
+          : updated.items;
+        const subtotalPaise = items.reduce((sum, item) => sum + item.totalPricePaise, 0);
+        const deliveryFeePaise = subtotalPaise === 0 || subtotalPaise >= 39900 ? 0 : 2000;
+        setPendingSwaps(previous => [
+          ...previous.filter(swap => swap.pantryItemId !== pantryItem.id),
+          ...result.pendingSwaps,
+        ]);
+        return { ...updated, items, subtotalPaise, deliveryFeePaise, totalPaise: subtotalPaise + deliveryFeePaise, status: 'draft', savedAt: undefined };
       });
     },
-    [pantryItems]
+    [pantryItems, schedulerConfig, simulationState]
   );
+
+  const addNewPantryItemToOrder = useCallback(async (
+    itemData: Omit<PantryItem, 'id' | 'lastRestockedDate' | 'stockoutDaysCount'>,
+  ) => {
+    try {
+      const { item } = await api.createPantryItem(itemData);
+      const nextPantryItems = [...domainStateRef.current.pantryItems, item];
+      domainStateRef.current = { ...domainStateRef.current, pantryItems: nextPantryItems };
+      setPantryItems(nextPantryItems);
+      setUpcomingOrder(previous => {
+        const updated = addOrderItem(previous, item);
+        const result = computeUpcomingOrderBucket({
+          pantryItems: [item],
+          schedulerConfig: domainStateRef.current.schedulerConfig,
+          simulationState: domainStateRef.current.simulationState,
+          existingBucket: { ...updated, items: updated.items.filter(orderItem => orderItem.pantryItemId === item.id) },
+          swapDecisions: swapDecisionsRef.current,
+        });
+        const resolved = result.bucket.items[0];
+        const items = resolved
+          ? updated.items.map(orderItem => orderItem.pantryItemId === item.id ? resolved : orderItem)
+          : updated.items;
+        const subtotalPaise = items.reduce((sum, orderItem) => sum + orderItem.totalPricePaise, 0);
+        const deliveryFeePaise = subtotalPaise === 0 || subtotalPaise >= 39900 ? 0 : 2000;
+        setPendingSwaps(previous => [
+          ...previous.filter(swap => swap.pantryItemId !== item.id),
+          ...result.pendingSwaps,
+        ]);
+        return { ...updated, items, subtotalPaise, deliveryFeePaise, totalPaise: subtotalPaise + deliveryFeePaise, status: 'draft', savedAt: undefined };
+      });
+      schedulePlanRefresh();
+    } catch (err: any) {
+      setError(getFriendlyErrorMessage(err));
+      throw err;
+    }
+  }, [schedulePlanRefresh]);
 
   /**
    * Approve the complete upcoming weekly order (One consolidated approval).
@@ -963,7 +1025,11 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
    */
   const approveSwap = useCallback(
     (pantryItemId: string) => {
-      swapDecisionsRef.current = { ...swapDecisionsRef.current, [pantryItemId]: 'approved' };
+      const pantryItem = pantryItems.find(item => item.id === pantryItemId);
+      const swap = pendingSwaps.find(item => item.pantryItemId === pantryItemId);
+      if (!pantryItem || !swap) return;
+      const key = getSwapDecisionKey(pantryItemId, pantryItem.preferredBrand, swap.replacementProduct.brand);
+      swapDecisionsRef.current = { ...swapDecisionsRef.current, [key]: 'approved' };
       void api.saveWorkspace({ swapDecisions: swapDecisionsRef.current }).catch(err => setError(getFriendlyErrorMessage(err)));
       setUpcomingOrder(prev => {
         const res = computeUpcomingOrderBucket({
@@ -977,7 +1043,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return { ...res.bucket, savedAt: undefined };
       });
     },
-    [pantryItems, schedulerConfig, simulationState]
+    [pantryItems, pendingSwaps, schedulerConfig, simulationState]
   );
 
   /**
@@ -986,7 +1052,11 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
    */
   const rejectSwap = useCallback(
     (pantryItemId: string) => {
-      swapDecisionsRef.current = { ...swapDecisionsRef.current, [pantryItemId]: 'rejected' };
+      const pantryItem = pantryItems.find(item => item.id === pantryItemId);
+      const swap = pendingSwaps.find(item => item.pantryItemId === pantryItemId);
+      if (!pantryItem || !swap) return;
+      const key = getSwapDecisionKey(pantryItemId, pantryItem.preferredBrand, swap.replacementProduct.brand);
+      swapDecisionsRef.current = { ...swapDecisionsRef.current, [key]: 'rejected' };
       void api.saveWorkspace({ swapDecisions: swapDecisionsRef.current }).catch(err => setError(getFriendlyErrorMessage(err)));
       setUpcomingOrder(prev => {
         const res = computeUpcomingOrderBucket({
@@ -1000,10 +1070,10 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return { ...res.bucket, savedAt: undefined };
       });
     },
-    [pantryItems, schedulerConfig, simulationState]
+    [pantryItems, pendingSwaps, schedulerConfig, simulationState]
   );
 
-  const isUpcomingOrderSaved = Boolean(upcomingOrder?.savedAt || upcomingOrder?.paidAt);
+  const isUpcomingOrderSaved = Boolean(upcomingOrder?.savedAt);
 
   return (
     <ShopPilotContext.Provider
@@ -1055,6 +1125,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         updateOrderItemQty,
         removeOrderItemFromBucket,
         addOrderItemToBucket,
+        addNewPantryItemToOrder,
         saveUpcomingOrder,
         approveSwap,
         rejectSwap,

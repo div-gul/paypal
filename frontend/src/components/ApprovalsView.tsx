@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useShopPilot } from '../context/ShopPilotContext';
 import { formatPaise } from '../services/currency';
+import { ProductCategory, UnitOfMeasurement } from '@shared/types';
 import { Card, Button, Badge, EmptyState } from './ui';
 import {
   CheckCircle2,
@@ -23,6 +24,7 @@ export const ApprovalsView: React.FC = () => {
     updateOrderItemQty,
     removeOrderItemFromBucket,
     addOrderItemToBucket,
+    addNewPantryItemToOrder,
     saveUpcomingOrder,
     approveSwap,
     rejectSwap,
@@ -30,6 +32,12 @@ export const ApprovalsView: React.FC = () => {
   } = useShopPilot();
 
   const [selectedPantryIdToAdd, setSelectedPantryIdToAdd] = useState<string>('');
+  const [isAddingNewItem, setIsAddingNewItem] = useState(false);
+  const [newItemName, setNewItemName] = useState('');
+  const [newItemCategory, setNewItemCategory] = useState<ProductCategory>('Snacks');
+  const [newItemBrand, setNewItemBrand] = useState('Generic');
+  const [newItemPackage, setNewItemPackage] = useState('1 pack');
+  const [newItemUnit, setNewItemUnit] = useState<UnitOfMeasurement>('packs');
   // Available pantry items that can be added to the upcoming order
   const existingItemIds = new Set(upcomingOrder.items.map(i => i.pantryItemId));
   const addablePantryItems = pantryItems.filter(p => !existingItemIds.has(p.id));
@@ -38,6 +46,28 @@ export const ApprovalsView: React.FC = () => {
     if (!selectedPantryIdToAdd) return;
     addOrderItemToBucket(selectedPantryIdToAdd);
     setSelectedPantryIdToAdd('');
+  };
+
+  const handleAddNewItem = async () => {
+    const name = newItemName.trim();
+    if (!name) return;
+    await addNewPantryItemToOrder({
+      name,
+      category: newItemCategory,
+      preferredBrand: newItemBrand.trim() || 'Generic',
+      preferredPackageSize: newItemPackage.trim() || `1 ${newItemUnit}`,
+      unit: newItemUnit,
+      currentQuantity: 1,
+      averageDailyConsumption: 0,
+      minStockThreshold: 0,
+      targetStock: 1,
+      allowSubstitutions: false,
+      requireApprovalForBrandChange: false,
+      quantityStep: ['pcs', 'packs', 'units', 'eggs'].includes(newItemUnit) ? 1 : 0.5,
+      allowFractions: !['pcs', 'packs', 'units', 'eggs'].includes(newItemUnit),
+    });
+    setNewItemName('');
+    setIsAddingNewItem(false);
   };
 
   return (
@@ -209,7 +239,7 @@ export const ApprovalsView: React.FC = () => {
             </h3>
             <p className="text-xs text-ink-muted mt-0.5">
               One consolidated bucket scheduled for {upcomingOrder.scheduledDate}. You can adjust quantities,
-              add or remove items, save it, and pay from Home.
+              add any pantry item even when stock is available, save it, and pay from Home.
             </p>
           </div>
 
@@ -242,36 +272,53 @@ export const ApprovalsView: React.FC = () => {
         )}
 
         {/* Add Product Toolbar (Active when order is under review) */}
-        {addablePantryItems.length > 0 && (
-          <div className="bg-surface rounded-xl border border-secondary-tint p-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 text-xs shadow-soft">
+        <div className="bg-surface rounded-xl border border-secondary-tint p-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 text-xs shadow-soft">
             <span className="font-semibold text-ink flex items-center gap-1.5">
               <Plus className="w-3.5 h-3.5 text-brand" /> Add Product to Order:
             </span>
             <div className="flex items-center gap-2 flex-1 max-w-md">
-              <select
-                value={selectedPantryIdToAdd}
-                onChange={e => setSelectedPantryIdToAdd(e.target.value)}
-                className="flex-1 px-3 py-2 rounded-xl border border-secondary-tint bg-surface text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand cursor-pointer min-h-[44px]"
-              >
-                <option value="">Select a pantry item to add...</option>
-                {addablePantryItems.map(item => (
-                  <option key={item.id} value={item.id}>
-                    {item.name} ({item.preferredBrand}) - {item.currentQuantity} {item.unit} in pantry
-                  </option>
-                ))}
-              </select>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={!selectedPantryIdToAdd}
-                onClick={handleAddSelected}
-                icon={<Plus className="w-3.5 h-3.5" />}
-              >
-                Add
+              {addablePantryItems.length > 0 ? <>
+                <select
+                  value={selectedPantryIdToAdd}
+                  onChange={e => setSelectedPantryIdToAdd(e.target.value)}
+                  className="flex-1 px-3 py-2 rounded-xl border border-secondary-tint bg-surface text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand cursor-pointer min-h-[44px]"
+                >
+                  <option value="">Select a pantry item to add...</option>
+                  {addablePantryItems.map(item => (
+                    <option key={item.id} value={item.id}>
+                      {item.name} ({item.preferredBrand}) - {item.currentQuantity} {item.unit} in pantry
+                    </option>
+                  ))}
+                </select>
+                <Button variant="secondary" size="sm" disabled={!selectedPantryIdToAdd} onClick={handleAddSelected} icon={<Plus className="w-3.5 h-3.5" />}>
+                  Add
+                </Button>
+              </> : <span className="text-ink-muted">All pantry items are already in this order.</span>}
+              <Button variant="secondary" size="sm" onClick={() => setIsAddingNewItem(value => !value)} icon={<Plus className="w-3.5 h-3.5" />}>
+                New Item
               </Button>
             </div>
-          </div>
-        )}
+            {isAddingNewItem && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 w-full pt-2 border-t border-secondary-tint">
+                <input value={newItemName} onChange={e => setNewItemName(e.target.value)} placeholder="Item name" className="px-3 py-2 rounded-lg border border-secondary-tint bg-surface" />
+                <select value={newItemCategory} onChange={e => setNewItemCategory(e.target.value as ProductCategory)} className="px-3 py-2 rounded-lg border border-secondary-tint bg-surface">
+                  {['Dairy', 'Bakery & Bread', 'Fresh Produce', 'Beverages', 'Pantry Staples', 'Breakfast & Cereals', 'Snacks', 'Personal Care'].map(category => <option key={category}>{category}</option>)}
+                </select>
+                <input value={newItemBrand} onChange={e => setNewItemBrand(e.target.value)} placeholder="Brand" className="px-3 py-2 rounded-lg border border-secondary-tint bg-surface" />
+                <div className="flex gap-2">
+                  <input value={newItemPackage} onChange={e => setNewItemPackage(e.target.value)} placeholder="Pack size" className="min-w-0 flex-1 px-3 py-2 rounded-lg border border-secondary-tint bg-surface" />
+                  <select value={newItemUnit} onChange={e => setNewItemUnit(e.target.value as UnitOfMeasurement)} className="w-24 px-2 py-2 rounded-lg border border-secondary-tint bg-surface">
+                    {['L', 'kg', 'g', 'ml', 'packs', 'pcs', 'units', 'eggs'].map(unit => <option key={unit}>{unit}</option>)}
+                  </select>
+                </div>
+                <div className="sm:col-span-2 lg:col-span-4 flex justify-end">
+                  <Button variant="primary" size="sm" disabled={!newItemName.trim()} onClick={() => void handleAddNewItem()} icon={<Plus className="w-3.5 h-3.5" />}>
+                    Add to Order
+                  </Button>
+                </div>
+              </div>
+            )}
+        </div>
 
         {/* Order Items List */}
         {upcomingOrder.items.length === 0 ? (
@@ -394,7 +441,7 @@ export const ApprovalsView: React.FC = () => {
                 <Button
                   variant="primary"
                   size="md"
-                  disabled={upcomingOrder.items.length === 0}
+                  disabled={upcomingOrder.items.length === 0 || isUpcomingOrderSaved}
                   onClick={saveUpcomingOrder}
                   icon={<Check className="w-4 h-4" />}
                 >
@@ -412,7 +459,7 @@ export const ApprovalsView: React.FC = () => {
           <Button
             variant="primary"
             size="md"
-            disabled={upcomingOrder.items.length === 0}
+            disabled={upcomingOrder.items.length === 0 || isUpcomingOrderSaved}
             onClick={saveUpcomingOrder}
             icon={<Check className="w-4 h-4" />}
             className="w-full"

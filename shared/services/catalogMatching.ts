@@ -33,3 +33,21 @@ export function getCatalogProductsForPantryItem(
 ): StoreProduct[] {
   return catalog.filter(product => isCatalogProductForPantryItem(product, item));
 }
+
+/** Build a deterministic mock listing when the demo catalog has no equivalent product. */
+export function createHouseholdCatalogProduct(item: PantryItem): StoreProduct {
+  return {
+    id: `household-${item.id}`,
+    storeId: 'blinkit',
+    pantryItemId: item.id,
+    name: item.name,
+    brand: item.preferredBrand || 'Household choice',
+    packageSize: item.preferredPackageSize,
+    unit: item.unit,
+    pricePaise: 10000,
+    mrpPaise: 10000,
+    inStock: true,
+    stockQuantity: 99,
+    isExactBrandMatch: true,
+  };
+}

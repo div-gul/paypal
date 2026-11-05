@@ -234,6 +234,28 @@ describe('Phase 4: Policy Enforcement & Checkout Flow', () => {
       expect(run.selectedStrategyDetails.grandTotalPaise).toBe(run.grandTotalPaise);
     });
 
+    it('allows an added custom pantry item to be included in the payable order', async () => {
+      const pantryResponse = await fetch(`${baseUrl}/api/pantry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 'custom-snacks', name: 'Potato Chips', category: 'Snacks', preferredBrand: 'Local Brand',
+          preferredPackageSize: '100 g', unit: 'g', currentQuantity: 0, averageDailyConsumption: 10,
+          minStockThreshold: 20, targetStock: 100,
+        }),
+      });
+      expect(pantryResponse.status).toBe(201);
+
+      const response = await fetch(`${baseUrl}/api/runs/order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: [{ pantryItemId: 'custom-snacks', storeProductId: 'household-custom-snacks', quantity: 1 }] }),
+      });
+      expect(response.status).toBe(201);
+      const { run } = await response.json() as any;
+      expect(run.selectedStrategyDetails.storeBaskets.flatMap((basket: any) => basket.items)[0].product.name).toBe('Potato Chips');
+    });
+
     it('refuses to create a payable run from an empty cart', async () => {
       const response = await fetch(`${baseUrl}/api/runs/order`, {
         method: 'POST',

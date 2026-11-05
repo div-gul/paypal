@@ -5,6 +5,7 @@ import {
   addOrderItem,
   approveOrder,
   getUnpaidOrderItems,
+  getSwapDecisionKey,
 } from '../../../shared/services/orderBucketService';
 import {
   DEFAULT_PANTRY_ITEMS,
@@ -51,7 +52,7 @@ const approvedSwapResult = computeUpcomingOrderBucket({
   schedulerConfig: DEFAULT_SCHEDULER_CONFIG,
   simulationState: DEFAULT_SIMULATION_STATE,
   existingBucket: initialResult.bucket,
-  swapDecisions: { 'item-oats': 'approved' },
+  swapDecisions: { [getSwapDecisionKey('item-oats', 'Quaker', "Kellogg's")]: 'approved' },
 });
 
 const oatsItemApproved = approvedSwapResult.bucket.items.find(i => i.pantryItemId === 'item-oats');
@@ -66,7 +67,7 @@ const rejectedSwapResult = computeUpcomingOrderBucket({
   schedulerConfig: DEFAULT_SCHEDULER_CONFIG,
   simulationState: DEFAULT_SIMULATION_STATE,
   existingBucket: initialResult.bucket,
-  swapDecisions: { 'item-oats': 'rejected' },
+  swapDecisions: { [getSwapDecisionKey('item-oats', 'Quaker', "Kellogg's")]: 'rejected' },
 });
 
 const oatsItemRejected = rejectedSwapResult.bucket.items.find(i => i.pantryItemId === 'item-oats');
@@ -149,6 +150,36 @@ assert(addedBucket.items.some(i => i.pantryItemId === 'item-coffee'), 'Coffee su
 const newHouseholdMilk = { ...DEFAULT_PANTRY_ITEMS.find(i => i.id === 'item-milk')!, id: 'household-milk-1', currentQuantity: 0 };
 const newHouseholdOrder = addOrderItem({ ...initialResult.bucket, items: [] }, newHouseholdMilk);
 assert(newHouseholdOrder.items[0]?.product.id === 'bl-milk-1', 'A new household milk item resolves to a milk catalog product');
+const chitaleMilk = { ...newHouseholdMilk, id: 'chitale-milk', preferredBrand: 'Chitale', currentQuantity: 10 };
+const chitaleDraft = addOrderItem({ ...initialResult.bucket, items: [] }, chitaleMilk);
+assert(chitaleDraft.items[0]?.product.brand === 'Chitale', 'Manual addition keeps the household preferred brand before swap approval');
+const chitaleWithSwap = computeUpcomingOrderBucket({
+  pantryItems: [chitaleMilk],
+  schedulerConfig: DEFAULT_SCHEDULER_CONFIG,
+  simulationState: DEFAULT_SIMULATION_STATE,
+  existingBucket: chitaleDraft,
+  swapDecisions: {},
+});
+const chitaleSwap = chitaleWithSwap.pendingSwaps.find(swap => swap.pantryItemId === chitaleMilk.id);
+assert(chitaleSwap?.originalProduct.brand === 'Chitale', 'Swap approval identifies Chitale as the requested brand');
+assert(chitaleSwap?.replacementProduct.brand === 'Amul', 'Swap approval presents an available brand replacement');
+assert(chitaleWithSwap.bucket.items[0]?.product.brand === 'Chitale', 'Replacement is not applied before approval');
+const chitaleWithOldApproval = computeUpcomingOrderBucket({
+  pantryItems: [chitaleMilk],
+  schedulerConfig: DEFAULT_SCHEDULER_CONFIG,
+  simulationState: DEFAULT_SIMULATION_STATE,
+  existingBucket: chitaleDraft,
+  swapDecisions: { [chitaleMilk.id]: 'approved' },
+});
+assert(chitaleWithOldApproval.pendingSwaps.length === 1, 'An old unscoped approval cannot authorize Chitale-to-Amul replacement');
+const chitaleAfterApproval = computeUpcomingOrderBucket({
+  pantryItems: [chitaleMilk],
+  schedulerConfig: DEFAULT_SCHEDULER_CONFIG,
+  simulationState: DEFAULT_SIMULATION_STATE,
+  existingBucket: chitaleDraft,
+  swapDecisions: { [getSwapDecisionKey(chitaleMilk.id, 'Chitale', 'Amul')]: 'approved' },
+});
+assert(chitaleAfterApproval.bucket.items[0]?.product.brand === 'Amul', 'A current brand-specific approval applies its replacement');
 for (const defaultItem of DEFAULT_PANTRY_ITEMS) {
   const householdItem = { ...defaultItem, id: `household-${defaultItem.id}`, currentQuantity: 0 };
   const householdBucket = addOrderItem({ ...initialResult.bucket, items: [] }, householdItem);
@@ -157,6 +188,41 @@ for (const defaultItem of DEFAULT_PANTRY_ITEMS) {
     `New household ${defaultItem.name} resolves only to its matching catalog products`,
   );
 }
+const customSnack = {
+  ...DEFAULT_PANTRY_ITEMS[0],
+  id: 'household-snack-1',
+  name: 'Potato Chips',
+  category: 'Snacks' as const,
+  preferredBrand: 'Local Brand',
+  preferredPackageSize: '100 g',
+  unit: 'g' as const,
+};
+const customSnackOrder = addOrderItem({ ...initialResult.bucket, items: [] }, customSnack);
+assert(customSnackOrder.items[0]?.pantryItemId === customSnack.id, 'A pantry item without a catalog equivalent can still be added');
+assert(customSnackOrder.items[0]?.product.id === `household-${customSnack.id}`, 'Uncatalogued items use a deterministic household product listing');
+const wellStockedMilk = { ...newHouseholdMilk, id: 'well-stocked-milk', currentQuantity: 10 };
+const wellStockedBucket = addOrderItem({ ...initialResult.bucket, items: [] }, wellStockedMilk);
+const retainedWellStockedBucket = computeUpcomingOrderBucket({
+  pantryItems: [wellStockedMilk],
+  schedulerConfig: DEFAULT_SCHEDULER_CONFIG,
+  simulationState: DEFAULT_SIMULATION_STATE,
+  existingBucket: wellStockedBucket,
+  swapDecisions: {},
+}).bucket;
+assert(retainedWellStockedBucket.items.some(item => item.pantryItemId === wellStockedMilk.id), 'Manually added items remain in the order even when pantry stock is healthy');
+const oneItemSavedOrder = {
+  ...initialResult.bucket,
+  items: [initialResult.bucket.items[0]],
+  savedAt: new Date().toISOString(),
+};
+const reloadedSavedOrder = computeUpcomingOrderBucket({
+  pantryItems: DEFAULT_PANTRY_ITEMS,
+  schedulerConfig: DEFAULT_SCHEDULER_CONFIG,
+  simulationState: DEFAULT_SIMULATION_STATE,
+  existingBucket: oneItemSavedOrder,
+  swapDecisions: {},
+}).bucket;
+assert(reloadedSavedOrder.items.length === 1, 'Reloading a saved order does not append other forecasted pantry items');
 
 const paidBucket = {
   ...initialResult.bucket,

@@ -9,7 +9,7 @@ import {
 } from '../types';
 import { MOCK_STORE_CATALOG } from '../adapters/mockStoreData';
 import { getDaysUntilNextShoppingRun } from './restockScheduler';
-import { getCatalogProductsForPantryItem } from './catalogMatching';
+import { createHouseholdCatalogProduct, getCatalogProductsForPantryItem } from './catalogMatching';
 
 /**
  * Parses package size string into numerical unit amount.
@@ -35,6 +35,10 @@ export interface ComputeOrderBucketParams {
   existingBucket: UpcomingOrderBucket | null;
   swapDecisions: Record<string, 'approved' | 'rejected'>;
   catalog?: StoreProduct[];
+}
+
+export function getSwapDecisionKey(pantryItemId: string, preferredBrand: string, replacementBrand: string): string {
+  return `${pantryItemId}::${encodeURIComponent(preferredBrand.trim().toLowerCase())}::${encodeURIComponent(replacementBrand.trim().toLowerCase())}`;
 }
 
 /**
@@ -85,6 +89,11 @@ export function computeUpcomingOrderBucket({
   for (const pantryItem of pantryItems) {
     const existing = existingItemsMap.get(pantryItem.id);
 
+    // A saved or paid order is an explicit list. Do not append other forecasted pantry items to it.
+    if ((existingBucket?.savedAt || existingBucket?.paidAt) && !existing) {
+      continue;
+    }
+
     // If user explicitly removed this item in their review, respect it unless simulation advances to emergency 0
     if (existing?.quantity === 0 && existing.isUserModified && pantryItem.currentQuantity > 0) {
       continue;
@@ -106,9 +115,11 @@ export function computeUpcomingOrderBucket({
     const needsRestock = isDepletedNow || runsOutBeforeRun || lowAtRun;
 
     // Check if user manually added or kept this item even if not strictly depleted
-    const keepUserModified = existing && existing.isUserModified && existing.quantity > 0;
+    const keepExistingOrderItem = existing && existing.quantity > 0 && (
+      existing.isUserModified || Boolean(existingBucket?.savedAt) || Boolean(existingBucket?.paidAt)
+    );
 
-    if (!needsRestock && !keepUserModified) {
+    if (!needsRestock && !keepExistingOrderItem) {
       continue;
     }
 
@@ -120,30 +131,34 @@ export function computeUpcomingOrderBucket({
     let activeQuantity = suggestedQuantity;
     let isUserModified = false;
 
-    if (existing && existing.isUserModified) {
-      // Preserve user modifications while under review!
+    if (existing && keepExistingOrderItem) {
+      // Preserve manually added or saved quantities while the order is being reviewed.
       activeQuantity = existing.quantity;
-      isUserModified = true;
+      isUserModified = existing.isUserModified;
     }
 
     // 3. Product & Brand matching
     const matchingProducts = getCatalogProductsForPantryItem(pantryItem, catalog);
-    const exactMatches = matchingProducts.filter(p => p.isExactBrandMatch && p.inStock);
-    const substituteMatches = matchingProducts.filter(p => !p.isExactBrandMatch && p.inStock);
+    const alreadyPaid = Boolean(existing && (existingBucket?.paidQuantities?.[pantryItem.id] || 0) > 0);
+    const preferredBrand = pantryItem.preferredBrand.trim().toLowerCase();
+    const exactMatches = matchingProducts.filter(p => p.inStock && p.brand.trim().toLowerCase() === preferredBrand);
+    const substituteMatches = matchingProducts
+      .filter(p => p.inStock && p.brand.trim().toLowerCase() !== preferredBrand)
+      .sort((a, b) => a.pricePaise - b.pricePaise);
 
-    const exactMatch = exactMatches[0] || matchingProducts.find(p => p.inStock);
+    const exactMatch = alreadyPaid && existing ? existing.product : exactMatches[0] || createHouseholdCatalogProduct(pantryItem);
     const substituteMatch = substituteMatches[0] || null;
 
-    let chosenProduct = exactMatch || matchingProducts[0];
-    if (!chosenProduct) continue;
+    let chosenProduct = exactMatch;
     let originalProduct: StoreProduct | undefined = exactMatch;
     let isSubstitution = false;
     let swapStatus: 'none' | 'pending' | 'approved' | 'rejected' = 'none';
     let swapRequestId: string | undefined = undefined;
 
     // Check if a product swap is suggested (e.g. Zepto substitution or preferred brand unavailable)
-    if (substituteMatch && pantryItem.allowSubstitutions) {
-      const userDecision = swapDecisions[pantryItem.id];
+    if (!alreadyPaid && substituteMatch && pantryItem.allowSubstitutions) {
+      const decisionKey = getSwapDecisionKey(pantryItem.id, pantryItem.preferredBrand, substituteMatch.brand);
+      const userDecision = swapDecisions[decisionKey];
 
       if (userDecision === 'approved') {
         chosenProduct = substituteMatch;
@@ -304,8 +319,10 @@ export function addOrderItem(
     return updateOrderItemQuantity(bucket, pantryItem.id, 1);
   }
 
-  const match = getCatalogProductsForPantryItem(pantryItem, catalog).find(p => p.inStock);
-  if (!match) return bucket;
+  const candidates = getCatalogProductsForPantryItem(pantryItem, catalog).filter(p => p.inStock);
+  const preferredBrand = pantryItem.preferredBrand.trim().toLowerCase();
+  const match = candidates.find(p => p.brand.trim().toLowerCase() === preferredBrand)
+    || createHouseholdCatalogProduct(pantryItem);
   const unitPricePaise = match.pricePaise;
   const quantity = 1;
   const totalPricePaise = quantity * unitPricePaise;
