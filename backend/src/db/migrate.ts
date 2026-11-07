@@ -57,6 +57,7 @@ export function runMigrations(db: Database.Database): void {
       stockout_days_count INTEGER NOT NULL DEFAULT 0,
       quantity_step REAL NOT NULL DEFAULT 1,
       allow_fractions INTEGER NOT NULL DEFAULT 1,
+      image_url TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       PRIMARY KEY (id, user_id)
@@ -234,6 +235,7 @@ export function runMigrations(db: Database.Database): void {
   // Pantry items quantity step and fractions
   addColumnIfNotExists('pantry_items', 'quantity_step', 'REAL');
   addColumnIfNotExists('pantry_items', 'allow_fractions', 'INTEGER');
+  addColumnIfNotExists('pantry_items', 'image_url', 'TEXT');
   try {
     db.exec(`
       UPDATE pantry_items SET

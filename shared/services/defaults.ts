@@ -28,6 +28,7 @@ export const DEFAULT_PANTRY_ITEMS: PantryItem[] = [
     stockoutDaysCount: 0,
     quantityStep: 0.5,
     allowFractions: true,
+    imageUrl: '/products/amul-milk.jpg',
   },
   {
     id: 'item-bread',
@@ -46,6 +47,7 @@ export const DEFAULT_PANTRY_ITEMS: PantryItem[] = [
     stockoutDaysCount: 0,
     quantityStep: 1,
     allowFractions: false,
+    imageUrl: '/products/harvest-gold-bread.jpg',
   },
   {
     id: 'item-eggs',
@@ -64,6 +66,7 @@ export const DEFAULT_PANTRY_ITEMS: PantryItem[] = [
     stockoutDaysCount: 0,
     quantityStep: 1,
     allowFractions: false,
+    imageUrl: '/products/eggoz-eggs.jpg',
   },
   {
     id: 'item-oats',
@@ -82,6 +85,7 @@ export const DEFAULT_PANTRY_ITEMS: PantryItem[] = [
     stockoutDaysCount: 0,
     quantityStep: 0.5,
     allowFractions: true,
+    imageUrl: '/products/quaker-oats.jpg',
   },
   {
     id: 'item-coffee',
@@ -100,6 +104,7 @@ export const DEFAULT_PANTRY_ITEMS: PantryItem[] = [
     stockoutDaysCount: 0,
     quantityStep: 1,
     allowFractions: false,
+    imageUrl: '/products/nescafe-coffee.jpg',
   },
   {
     id: 'item-oil',
@@ -118,6 +123,7 @@ export const DEFAULT_PANTRY_ITEMS: PantryItem[] = [
     stockoutDaysCount: 0,
     quantityStep: 0.5,
     allowFractions: true,
+    imageUrl: '/products/fortune-oil.jpg',
   },
   {
     id: 'item-rice',
@@ -136,6 +142,7 @@ export const DEFAULT_PANTRY_ITEMS: PantryItem[] = [
     stockoutDaysCount: 0,
     quantityStep: 0.5,
     allowFractions: true,
+    imageUrl: '/products/india-gate-rice.jpg',
   },
   {
     id: 'item-detergent',
@@ -154,6 +161,7 @@ export const DEFAULT_PANTRY_ITEMS: PantryItem[] = [
     stockoutDaysCount: 0,
     quantityStep: 0.5,
     allowFractions: true,
+    imageUrl: '/products/surf-excel.jpg',
   },
 ];
 

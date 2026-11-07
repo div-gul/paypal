@@ -4,6 +4,7 @@ import { useShopPilot } from '../context/ShopPilotContext';
 import { api } from '../api/client';
 import { formatPaise } from '../services/currency';
 import { Button } from './ui/Button';
+import { ProductImage } from './ui/ProductImage';
 import {
   CheckCircle,
   X,
@@ -243,9 +244,17 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
                 </div>
                 <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
                   {itemsPurchased?.map((item, idx) => (
-                    <div key={idx} className="flex justify-between items-center text-ink text-xs">
-                      <span>• {item.quantity}× {item.product.name}</span>
-                      <span className="font-semibold text-ink tabular-nums">{formatPaise(item.totalPaise)}</span>
+                    <div key={idx} className="flex justify-between items-center text-ink text-xs gap-2">
+                      <div className="flex items-center gap-2 truncate">
+                        <ProductImage
+                          src={item.product.imageUrl}
+                          alt={item.product.name}
+                          size="sm"
+                          className="w-5 h-5 rounded-md"
+                        />
+                        <span className="truncate">{item.quantity}× {item.product.name}</span>
+                      </div>
+                      <span className="font-semibold text-ink tabular-nums shrink-0">{formatPaise(item.totalPaise)}</span>
                     </div>
                   ))}
                 </div>
@@ -368,11 +377,19 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
                       </div>
                       <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
                         {basket.items.map((item, idx) => (
-                          <div key={idx} className="flex justify-between items-center text-xs py-0.5">
-                            <span className="truncate pr-3 text-ink">
-                              <strong>{item.quantity}×</strong> {item.product.name}
+                          <div key={idx} className="flex justify-between items-center text-xs py-0.5 gap-2">
+                            <span className="flex items-center gap-2 truncate pr-2 text-ink">
+                              <ProductImage
+                                src={item.product.imageUrl}
+                                alt={item.product.name}
+                                size="sm"
+                                className="w-5 h-5 rounded-md"
+                              />
+                              <span className="truncate">
+                                <strong>{item.quantity}×</strong> {item.product.name}
+                              </span>
                               {item.isSubstitution && (
-                                <span className="ml-1.5 text-[10px] font-semibold text-secondary bg-secondary-tint border border-secondary/20 px-1 py-0.5 rounded">
+                                <span className="ml-1 text-[10px] font-semibold text-secondary bg-secondary-tint border border-secondary/20 px-1 py-0.5 rounded shrink-0">
                                   Swap
                                 </span>
                               )}

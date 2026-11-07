@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useShopPilot } from '../context/ShopPilotContext';
 import { formatPaise } from '../services/currency';
 import { filterAndRankStrategies } from '../lib/labels';
-import { Card, Button } from './ui';
+import { Card, Button, ProductImage } from './ui';
 import { StoreComparison } from './StoreComparison';
 import {
   Sparkles,
@@ -267,12 +267,18 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
                     <button
                       key={item.product.id}
                       onClick={() => setSelectedItemDetail(isSelected ? null : item.product.id)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition cursor-pointer flex items-center gap-1.5 ${
+                      className={`px-2.5 py-1.5 rounded-xl text-xs font-medium border transition cursor-pointer flex items-center gap-2 ${
                         isSelected
                           ? 'bg-brand-tint border-brand text-brand ring-1 ring-brand'
                           : 'bg-surface hover:bg-paper border-secondary-tint text-ink'
                       }`}
                     >
+                      <ProductImage
+                        src={item.product.imageUrl}
+                        alt={item.product.name}
+                        size="sm"
+                        className="w-5 h-5 rounded-md"
+                      />
                       <span>{item.quantity}x {item.product.name}</span>
                       <span className="text-[10px] text-ink-muted tabular-nums">({formatPaise(item.totalPaise)})</span>
                       {item.isSubstitution && (
@@ -288,15 +294,24 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
                 const item = allFinalItems.find(i => i.product.id === selectedItemDetail);
                 if (!item) return null;
                 return (
-                  <div className="p-3.5 rounded-xl bg-paper border border-secondary-tint text-xs space-y-1 mt-2">
-                    <div className="flex items-center justify-between font-bold text-ink">
-                      <span>{item.product.name}</span>
-                      <span className="tabular-nums">{formatPaise(item.totalPaise)}</span>
-                    </div>
-                    <div className="text-[11px] text-ink-muted flex items-center gap-3">
-                      <span>Brand: <strong className="text-ink">{item.product.brand}</strong></span>
-                      <span>Package: <strong className="text-ink">{item.product.packageSize}</strong></span>
-                      <span>Store: <strong className="capitalize text-ink">{item.storeName}</strong></span>
+                  <div className="p-3.5 rounded-xl bg-paper border border-secondary-tint text-xs space-y-2 mt-2">
+                    <div className="flex items-center gap-3">
+                      <ProductImage
+                        src={item.product.imageUrl}
+                        alt={item.product.name}
+                        size="md"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between font-bold text-ink">
+                          <span className="truncate">{item.product.name}</span>
+                          <span className="tabular-nums ml-2 shrink-0">{formatPaise(item.totalPaise)}</span>
+                        </div>
+                        <div className="text-[11px] text-ink-muted flex items-center gap-3 mt-0.5">
+                          <span>Brand: <strong className="text-ink">{item.product.brand}</strong></span>
+                          <span>Package: <strong className="text-ink">{item.product.packageSize}</strong></span>
+                          <span>Store: <strong className="capitalize text-ink">{item.storeName}</strong></span>
+                        </div>
+                      </div>
                     </div>
                     {item.isSubstitution && (
                       <p className="text-[11px] text-secondary bg-secondary-tint p-2 rounded-lg border border-secondary/20 mt-1">

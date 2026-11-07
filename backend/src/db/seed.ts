@@ -37,10 +37,10 @@ export function seedDatabase(db: Database.Database, userId: string = 'demo-user'
       id, user_id, name, category, preferred_brand, preferred_package_size,
       unit, current_quantity, average_daily_consumption, min_stock_threshold,
       target_stock, allow_substitutions, require_approval_for_brand_change,
-      last_restocked_date, stockout_days_count, quantity_step, allow_fractions, created_at, updated_at
+      last_restocked_date, stockout_days_count, quantity_step, allow_fractions, image_url, created_at, updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id, user_id) DO NOTHING
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id, user_id) DO UPDATE SET image_url = excluded.image_url WHERE pantry_items.image_url IS NULL
   `);
 
   const insertAuditLog = db.prepare(`
@@ -109,6 +109,7 @@ export function seedDatabase(db: Database.Database, userId: string = 'demo-user'
         item.stockoutDaysCount || 0,
         step,
         allowFractions ? 1 : 0,
+        item.imageUrl || null,
         now,
         now
       );

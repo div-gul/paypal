@@ -5,6 +5,7 @@ import { formatPaise } from '../services/currency';
 import { Store, Info, Tag } from 'lucide-react';
 import { StoreProduct } from '../types';
 import { api } from '../api/client';
+import { ProductImage } from './ui/ProductImage';
 
 export const StoreComparison: React.FC = () => {
   const { pantryItems, setShowDemoInfoModal } = useShopPilot();
@@ -164,10 +165,21 @@ export const StoreComparison: React.FC = () => {
                 return (
                   <tr key={item.id} className="hover:bg-paper/50 transition">
                     <td className="p-3 font-semibold text-ink">
-                      {item.name}
-                      <span className="text-[10px] text-ink-muted block font-normal">
-                        {item.preferredPackageSize}
-                      </span>
+                      <div className="flex items-center gap-2.5">
+                        <ProductImage
+                          src={item.imageUrl}
+                          alt={item.name}
+                          category={item.category}
+                          size="sm"
+                          className="w-7 h-7 rounded-lg"
+                        />
+                        <div>
+                          <span>{item.name}</span>
+                          <span className="text-[10px] text-ink-muted block font-normal">
+                            {item.preferredPackageSize}
+                          </span>
+                        </div>
+                      </div>
                     </td>
                     <td className="p-3 text-ink-muted">
                       {item.preferredBrand}

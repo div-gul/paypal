@@ -13,7 +13,7 @@ import {
   Search,
   SlidersHorizontal,
 } from 'lucide-react';
-import { Card, Button } from './ui';
+import { Card, Button, ProductImage } from './ui';
 import { isCountableUnit, getItemStep, formatStockQuantity } from '../lib/pantryHelpers';
 
 const CATEGORIES: ProductCategory[] = [
@@ -270,23 +270,23 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
             return (
               <div
                 key={item.id}
-                className={`bg-surface rounded-xl border p-4 shadow-soft hover:shadow-card transition-all duration-150 flex flex-col justify-between ${
+                className={`bg-surface rounded-2xl border p-4 shadow-soft hover:shadow-card hover:-translate-y-0.5 transition-all duration-200 flex flex-col justify-between ${
                   isStockout
-                    ? 'border-danger/30 bg-danger/5'
+                    ? 'border-danger/40 bg-danger/5 ring-1 ring-danger/20'
                     : isBelowSafety
-                    ? 'border-accent/30 bg-accent-tint/30'
-                    : 'border-secondary-tint'
+                    ? 'border-accent/40 bg-accent-tint/30 ring-1 ring-accent/20'
+                    : 'border-secondary-tint/70 hover:border-brand/30'
                 }`}
               >
                 {/* Top Section */}
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {/* Category and Health Badge with icon and text label */}
                   <div className="flex items-center justify-between gap-1.5">
-                    <span className="text-[10px] font-bold text-ink-muted uppercase tracking-wider">
+                    <span className="text-[10px] font-extrabold text-ink-muted uppercase tracking-widest">
                       {item.category}
                     </span>
                     <span
-                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
                         isStockout
                           ? 'bg-danger/10 text-danger border border-danger/25'
                           : isBelowSafety
@@ -295,100 +295,113 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
                       }`}
                     >
                       {isStockout || isBelowSafety ? (
-                        <AlertTriangle className="w-3 h-3 text-current" />
+                        <AlertTriangle className="w-3.5 h-3.5 text-current shrink-0" />
                       ) : (
-                        <CheckCircle className="w-3 h-3 text-good" />
+                        <CheckCircle className="w-3.5 h-3.5 text-good shrink-0" />
                       )}
                       <span>{health.daysRemainingText}</span>
                     </span>
                   </div>
 
-                  {/* Item Name & Preferred Brand */}
-                  <div>
-                    <h3 className="font-bold text-ink text-sm leading-snug">
-                      {item.name}
-                    </h3>
-                    <div className="text-xs text-ink-muted flex items-center gap-2 mt-0.5">
-                      <span>
-                        Brand: <strong className="text-ink">{item.preferredBrand}</strong>
-                      </span>
-                      <span>•</span>
-                      <span>{item.preferredPackageSize}</span>
+                  {/* Item Name & Preferred Brand with Thumbnail */}
+                  <div className="flex items-start gap-3">
+                    <ProductImage
+                      src={item.imageUrl}
+                      alt={item.name}
+                      category={item.category}
+                      size="md"
+                      className="shrink-0 rounded-xl border border-secondary-tint/60 shadow-xs"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <h3
+                        className="font-bold text-ink text-sm sm:text-base leading-snug line-clamp-2"
+                        title={item.name}
+                      >
+                        {item.name}
+                      </h3>
+                      <div className="text-xs text-ink-muted flex flex-wrap items-center gap-1.5 mt-1">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-secondary-tint/50 text-[11px] font-medium text-ink">
+                          {item.preferredBrand}
+                        </span>
+                        <span className="text-[11px] text-ink-muted">• {item.preferredPackageSize}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Middle Section: Stock Level Box */}
-                <div className="my-3 py-2.5 px-3 rounded-xl bg-paper border border-secondary-tint space-y-2">
+                <div className="my-3.5 py-3 px-3.5 rounded-xl bg-paper/80 border border-secondary-tint/60 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="text-[10px] text-ink-muted block uppercase font-bold tracking-wider">
                         In Pantry
                       </span>
-                      <div className="text-lg font-bold text-ink tabular-nums leading-none mt-0.5">
+                      <div className="text-2xl font-black text-ink tabular-nums leading-none mt-1 tracking-tight">
                         {formatStockQuantity(item.currentQuantity, item.unit)}{' '}
-                        <span className="text-xs font-semibold text-ink-muted">{item.unit}</span>
+                        <span className="text-xs font-bold text-ink-muted">{item.unit}</span>
                       </div>
                     </div>
 
                     {/* Quick Quantity Adjusters with Unit-Aware Step */}
-                    <div className="flex items-center gap-1">
+                    <div className="inline-flex items-center bg-surface border border-secondary-tint rounded-xl p-0.5 shadow-xs">
                       <button
                         onClick={() => quickAdjustQuantity(item.id, -step)}
                         title={`Consume ${step} ${item.unit}`}
-                        className="w-8 h-8 rounded-lg bg-surface hover:bg-secondary-tint active:bg-secondary-tint/80 border border-secondary-tint text-ink font-bold text-sm flex items-center justify-center cursor-pointer transition shadow-soft"
+                        className="w-8 h-8 rounded-lg text-ink font-bold text-sm flex items-center justify-center hover:bg-secondary-tint/70 active:scale-95 cursor-pointer transition"
                       >
-                        -
+                        −
                       </button>
+                      <div className="w-px h-4 bg-secondary-tint mx-0.5" />
                       <button
                         onClick={() => quickAdjustQuantity(item.id, step)}
-                        title={`Add ${step} ${item.unit}`}
-                        className="w-8 h-8 rounded-lg bg-surface hover:bg-secondary-tint active:bg-secondary-tint/80 border border-secondary-tint text-ink font-bold text-sm flex items-center justify-center cursor-pointer transition shadow-soft"
+                        title={`Restock ${step} ${item.unit}`}
+                        className="w-8 h-8 rounded-lg text-brand font-bold text-sm flex items-center justify-center hover:bg-brand-tint active:scale-95 cursor-pointer transition"
                       >
                         +
                       </button>
                     </div>
                   </div>
 
-                  {/* Burn rate and safety threshold */}
-                  <div className="grid grid-cols-2 gap-2 text-[11px] text-ink-muted pt-1.5 border-t border-secondary-tint">
-                    <div>
-                      <span className="text-ink-muted block text-[9px] uppercase font-semibold">Burn Rate</span>
-                      <span className="font-semibold text-ink tabular-nums">
-                        {item.averageDailyConsumption} {item.unit}/day
+                  {/* Burn rate and safety threshold chips */}
+                  <div className="grid grid-cols-2 gap-2 text-[11px] pt-2 border-t border-secondary-tint/50">
+                    <div className="bg-surface/70 rounded-lg p-2 border border-secondary-tint/40">
+                      <span className="text-ink-muted block text-[9px] uppercase font-bold tracking-wider">Burn Rate</span>
+                      <span className="font-bold text-ink tabular-nums text-xs mt-0.5 block">
+                        {item.averageDailyConsumption} <span className="text-[10px] font-normal text-ink-muted">{item.unit}/day</span>
                       </span>
                     </div>
-                    <div>
-                      <span className="text-ink-muted block text-[9px] uppercase font-semibold">Safety Min</span>
-                      <span className="font-semibold text-ink tabular-nums">
-                        {item.minStockThreshold} {item.unit}
+                    <div className="bg-surface/70 rounded-lg p-2 border border-secondary-tint/40">
+                      <span className="text-ink-muted block text-[9px] uppercase font-bold tracking-wider">Safety Min</span>
+                      <span className="font-bold text-ink tabular-nums text-xs mt-0.5 block">
+                        {item.minStockThreshold} <span className="text-[10px] font-normal text-ink-muted">{item.unit}</span>
                       </span>
                     </div>
                   </div>
                 </div>
 
                 {/* Bottom Row: Aligned Uniform Row Height Across All Cards */}
-                <div className="mt-auto pt-2.5 flex items-center justify-between min-h-[38px] border-t border-secondary-tint text-xs">
+                <div className="mt-auto pt-2.5 flex items-center justify-between min-h-[40px] border-t border-secondary-tint/60 text-xs">
                   {/* Left: Brand swap policy pill */}
                   <div>
                     {item.requireApprovalForBrandChange ? (
                       <span
                         title="ShopPilot will ask you before ordering an alternate brand"
-                        className="text-[10px] font-semibold text-secondary bg-secondary-tint border border-secondary/20 px-2 py-0.5 rounded-full flex items-center gap-1"
+                        className="text-[11px] font-semibold text-secondary bg-secondary-tint/80 border border-secondary/20 px-2.5 py-1 rounded-full flex items-center gap-1.5"
                       >
-                        <Shield className="w-3 h-3 text-secondary" /> Ask before swap
+                        <Shield className="w-3.5 h-3.5 text-secondary shrink-0" />
+                        <span>Ask before swap</span>
                       </span>
                     ) : item.allowSubstitutions ? (
                       <span
                         title="Automatic brand substitutions allowed"
-                        className="text-[10px] font-medium text-ink-muted bg-paper border border-secondary-tint px-2 py-0.5 rounded-full"
+                        className="text-[11px] font-medium text-ink-muted bg-paper border border-secondary-tint px-2.5 py-1 rounded-full"
                       >
                         Auto-swap
                       </span>
                     ) : (
                       <span
                         title="Only exact brand permitted"
-                        className="text-[10px] font-semibold text-brand bg-brand-tint border border-brand/20 px-2 py-0.5 rounded-full"
+                        className="text-[11px] font-semibold text-brand bg-brand-tint border border-brand/20 px-2.5 py-1 rounded-full"
                       >
                         Exact brand
                       </span>
@@ -400,14 +413,14 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
                     <button
                       onClick={() => openEditModal(item)}
                       title="Edit item settings"
-                      className="p-2 rounded-lg text-ink-muted hover:text-ink hover:bg-secondary-tint/50 cursor-pointer transition min-w-[36px] min-h-[36px] flex items-center justify-center"
+                      className="w-8 h-8 rounded-lg text-ink-muted hover:text-ink hover:bg-secondary-tint/60 cursor-pointer transition flex items-center justify-center"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => deletePantryItem(item.id)}
                       title="Delete item"
-                      className="p-2 rounded-lg text-ink-muted hover:text-danger hover:bg-danger/10 cursor-pointer transition min-w-[36px] min-h-[36px] flex items-center justify-center"
+                      className="w-8 h-8 rounded-lg text-ink-muted hover:text-danger hover:bg-danger/10 cursor-pointer transition flex items-center justify-center"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -494,6 +507,32 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
                       onChange={e => setFormData({ ...formData, preferredPackageSize: e.target.value })}
                       className="w-full px-3 py-2 border rounded-xl border-secondary-tint bg-surface text-ink min-h-[44px]"
                     />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-ink font-semibold">Product Image URL (Optional)</label>
+                    {formData.imageUrl && (
+                      <span className="text-[10px] text-brand font-medium">Image preview active</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="url"
+                      placeholder="https://images.unsplash.com/... or image link"
+                      value={formData.imageUrl || ''}
+                      onChange={e => setFormData({ ...formData, imageUrl: e.target.value })}
+                      className="flex-1 px-3 py-2 border rounded-xl border-secondary-tint bg-surface text-ink min-h-[44px]"
+                    />
+                    {formData.imageUrl && (
+                      <ProductImage
+                        src={formData.imageUrl}
+                        alt={formData.name || 'Preview'}
+                        category={formData.category}
+                        size="sm"
+                      />
+                    )}
                   </div>
                 </div>
               </div>

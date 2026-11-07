@@ -32,6 +32,7 @@ export interface PantryItem {
   stockoutDaysCount: number; // 0 if stock > 0, otherwise number of days empty
   quantityStep?: number;
   allowFractions?: boolean;
+  imageUrl?: string;
 }
 
 export type RestockDecisionOutcome =
@@ -65,6 +66,7 @@ export interface RestockRecommendation {
   isEmergencyStockout?: boolean;
   quantityStep?: number;
   allowFractions?: boolean;
+  imageUrl?: string;
 }
 
 export interface StoreInfo {
@@ -94,6 +96,7 @@ export interface StoreProduct {
   inStock: boolean;
   stockQuantity: number;
   isExactBrandMatch: boolean;
+  imageUrl?: string;
 }
 
 export type BasketStrategyType =

@@ -49,5 +49,6 @@ export function createHouseholdCatalogProduct(item: PantryItem): StoreProduct {
     inStock: true,
     stockQuantity: 99,
     isExactBrandMatch: true,
+    imageUrl: item.imageUrl,
   };
 }

@@ -60,6 +60,7 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 42,
     isExactBrandMatch: true,
+    imageUrl: '/products/amul-milk.jpg',
   },
   {
     id: 'zp-milk-1',
@@ -74,6 +75,7 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 18,
     isExactBrandMatch: true,
+    imageUrl: '/products/amul-milk.jpg',
   },
   {
     id: 'im-milk-1',
@@ -88,6 +90,7 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 25,
     isExactBrandMatch: false,
+    imageUrl: '/products/mother-dairy-milk.jpg',
   },
 
   // --- Whole Wheat Bread (pantry item: item-bread) ---
@@ -104,6 +107,7 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 15,
     isExactBrandMatch: true,
+    imageUrl: '/products/harvest-gold-bread.jpg',
   },
   {
     id: 'zp-bread-1',
@@ -118,6 +122,7 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 30,
     isExactBrandMatch: false,
+    imageUrl: '/products/english-oven-bread.jpg',
   },
   {
     id: 'im-bread-1',
@@ -132,6 +137,7 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 12,
     isExactBrandMatch: true,
+    imageUrl: '/products/harvest-gold-bread.jpg',
   },
 
   // --- Farm Fresh Eggs (pantry item: item-eggs) ---
@@ -148,6 +154,7 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 20,
     isExactBrandMatch: true,
+    imageUrl: '/products/eggoz-eggs.jpg',
   },
   {
     id: 'zp-eggs-1',
@@ -162,6 +169,7 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 14,
     isExactBrandMatch: true,
+    imageUrl: '/products/eggoz-eggs.jpg',
   },
   {
     id: 'im-eggs-1',
@@ -176,6 +184,7 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 33,
     isExactBrandMatch: true,
+    imageUrl: '/products/eggoz-eggs.jpg',
   },
 
   // --- Rolled Oats (pantry item: item-oats) ---
@@ -192,6 +201,7 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 8,
     isExactBrandMatch: true,
+    imageUrl: '/products/quaker-oats.jpg',
   },
   {
     id: 'zp-oats-1',
@@ -206,6 +216,7 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 12,
     isExactBrandMatch: false,
+    imageUrl: '/products/kelloggs-oats.jpg',
   },
   {
     id: 'im-oats-1',
@@ -220,6 +231,7 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 15,
     isExactBrandMatch: true,
+    imageUrl: '/products/quaker-oats.jpg',
   },
 
   // --- Nescafe Classic Coffee (pantry item: item-coffee) ---
@@ -236,6 +248,7 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 9,
     isExactBrandMatch: true,
+    imageUrl: '/products/nescafe-coffee.jpg',
   },
   {
     id: 'zp-coffee-1',
@@ -250,6 +263,7 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 6,
     isExactBrandMatch: true,
+    imageUrl: '/products/nescafe-coffee.jpg',
   },
   {
     id: 'im-coffee-1',
@@ -264,6 +278,7 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 18,
     isExactBrandMatch: false,
+    imageUrl: '/products/bru-coffee.jpg',
   },
 
   // --- Fortune Sunlite Sunflower Oil (pantry item: item-oil) ---
@@ -280,6 +295,7 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 22,
     isExactBrandMatch: true,
+    imageUrl: '/products/fortune-oil.jpg',
   },
   {
     id: 'zp-oil-1',
@@ -294,6 +310,7 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 10,
     isExactBrandMatch: true,
+    imageUrl: '/products/fortune-oil.jpg',
   },
   {
     id: 'im-oil-1',
@@ -308,6 +325,7 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 14,
     isExactBrandMatch: false,
+    imageUrl: '/products/saffola-oil.jpg',
   },
 
   // --- India Gate Basmati Rice (pantry item: item-rice) ---
@@ -324,6 +342,7 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 11,
     isExactBrandMatch: true,
+    imageUrl: '/products/india-gate-rice.jpg',
   },
   {
     id: 'zp-rice-1',
@@ -338,6 +357,7 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 7,
     isExactBrandMatch: false,
+    imageUrl: '/products/daawat-rice.jpg',
   },
   {
     id: 'im-rice-1',
@@ -352,6 +372,7 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 16,
     isExactBrandMatch: true,
+    imageUrl: '/products/india-gate-rice.jpg',
   },
 
   // --- Surf Excel Matic Liquid Detergent (pantry item: item-detergent) ---
@@ -368,6 +389,7 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 10,
     isExactBrandMatch: true,
+    imageUrl: '/products/surf-excel.jpg',
   },
   {
     id: 'zp-det-1',
@@ -382,6 +404,7 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 5,
     isExactBrandMatch: true,
+    imageUrl: '/products/surf-excel.jpg',
   },
   {
     id: 'im-det-1',
@@ -396,5 +419,6 @@ export const MOCK_STORE_CATALOG: StoreProduct[] = [
     inStock: true,
     stockQuantity: 9,
     isExactBrandMatch: false,
+    imageUrl: '/products/ariel.jpg',
   },
 ];

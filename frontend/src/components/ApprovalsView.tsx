@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useShopPilot } from '../context/ShopPilotContext';
 import { formatPaise } from '../services/currency';
 import { ProductCategory, UnitOfMeasurement } from '@shared/types';
-import { Card, Button, Badge, EmptyState } from './ui';
+import { Card, Button, Badge, EmptyState, ProductImage } from './ui';
 import {
   CheckCircle2,
   RefreshCw,
@@ -150,27 +150,41 @@ export const ApprovalsView: React.FC = () => {
                       {/* Side-by-side comparison box (Secondary / Slate AI styling) */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-paper rounded-xl p-3 border border-secondary-tint text-xs">
                         {/* Original Product */}
-                        <div className="space-y-1">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-ink-muted block">
-                            Original Product
-                          </span>
-                          <div className="font-semibold text-ink">{swap.originalProduct.name}</div>
-                          <div className="text-ink-muted text-[11px] flex items-center justify-between">
-                            <span>Brand: <strong className="text-ink">{swap.originalProduct.brand}</strong></span>
-                            <span className="text-ink tabular-nums font-medium">{formatPaise(swap.originalPricePaise)}</span>
+                        <div className="flex items-center gap-2.5">
+                          <ProductImage
+                            src={swap.originalProduct.imageUrl}
+                            alt={swap.originalProduct.name}
+                            size="sm"
+                          />
+                          <div className="space-y-0.5 min-w-0 flex-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-ink-muted block">
+                              Original Product
+                            </span>
+                            <div className="font-semibold text-ink truncate">{swap.originalProduct.name}</div>
+                            <div className="text-ink-muted text-[11px] flex items-center justify-between">
+                              <span>Brand: <strong className="text-ink">{swap.originalProduct.brand}</strong></span>
+                              <span className="text-ink tabular-nums font-medium">{formatPaise(swap.originalPricePaise)}</span>
+                            </div>
                           </div>
                         </div>
 
                         {/* Suggested Replacement (AI Slate Accent) */}
-                        <div className="space-y-1 sm:border-l sm:border-secondary-tint sm:pl-3">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block flex items-center gap-1">
-                            <Sparkles className="w-3 h-3 text-secondary" />
-                            Suggested Replacement
-                          </span>
-                          <div className="font-semibold text-ink">{swap.replacementProduct.name}</div>
-                          <div className="text-ink-muted text-[11px] flex items-center justify-between">
-                            <span>Brand: <strong className="text-ink">{swap.replacementProduct.brand}</strong></span>
-                            <span className="font-bold text-ink tabular-nums">{formatPaise(swap.replacementPricePaise)}</span>
+                        <div className="flex items-center gap-2.5 sm:border-l sm:border-secondary-tint sm:pl-3">
+                          <ProductImage
+                            src={swap.replacementProduct.imageUrl}
+                            alt={swap.replacementProduct.name}
+                            size="sm"
+                          />
+                          <div className="space-y-0.5 min-w-0 flex-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 text-secondary" />
+                              Suggested Replacement
+                            </span>
+                            <div className="font-semibold text-ink truncate">{swap.replacementProduct.name}</div>
+                            <div className="text-ink-muted text-[11px] flex items-center justify-between">
+                              <span>Brand: <strong className="text-ink">{swap.replacementProduct.brand}</strong></span>
+                              <span className="font-bold text-ink tabular-nums">{formatPaise(swap.replacementPricePaise)}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -337,34 +351,41 @@ export const ApprovalsView: React.FC = () => {
                   key={item.id}
                   className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-paper/40 transition"
                 >
-                  {/* Left: Product & Brand Details */}
-                  <div className="space-y-1 flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h4 className="font-bold text-ink text-sm">{item.product.name}</h4>
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-secondary-tint text-secondary capitalize">
-                        {item.product.storeId}
-                      </span>
-                      {item.isSubstitution && (
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-secondary-tint text-secondary border border-secondary/20">
-                          Replacement Brand
+                  {/* Left: Product & Brand Details with Image */}
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <ProductImage
+                      src={item.product.imageUrl}
+                      alt={item.product.name}
+                      size="md"
+                    />
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="font-bold text-ink text-sm">{item.product.name}</h4>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-secondary-tint text-secondary capitalize">
+                          {item.product.storeId}
                         </span>
-                      )}
-                    </div>
+                        {item.isSubstitution && (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-secondary-tint text-secondary border border-secondary/20">
+                            Replacement Brand
+                          </span>
+                        )}
+                      </div>
 
-                    <div className="text-xs text-ink-muted flex flex-wrap items-center gap-2">
-                      <span>Brand: <strong className="text-ink">{item.product.brand}</strong></span>
-                      <span>•</span>
-                      <span>Pack: <strong className="text-ink">{item.packageSize}</strong></span>
-                      <span>•</span>
-                      <span>Unit Price: <strong className="text-ink tabular-nums">{formatPaise(item.unitPricePaise)}</strong></span>
-                      {(upcomingOrder.paidQuantities?.[item.pantryItemId] || 0) > 0 && (
-                        <span>Paid: <strong className="text-good">{upcomingOrder.paidQuantities?.[item.pantryItemId]} {item.unit}</strong></span>
-                      )}
-                      {isModified && (
-                        <span className="text-[10px] text-brand bg-brand-tint px-2 py-0.5 rounded font-semibold border border-brand/20">
-                          User set: {item.quantity} • AI suggested: {item.suggestedQuantity}
-                        </span>
-                      )}
+                      <div className="text-xs text-ink-muted flex flex-wrap items-center gap-2">
+                        <span>Brand: <strong className="text-ink">{item.product.brand}</strong></span>
+                        <span>•</span>
+                        <span>Pack: <strong className="text-ink">{item.packageSize}</strong></span>
+                        <span>•</span>
+                        <span>Unit Price: <strong className="text-ink tabular-nums">{formatPaise(item.unitPricePaise)}</strong></span>
+                        {(upcomingOrder.paidQuantities?.[item.pantryItemId] || 0) > 0 && (
+                          <span>Paid: <strong className="text-good">{upcomingOrder.paidQuantities?.[item.pantryItemId]} {item.unit}</strong></span>
+                        )}
+                        {isModified && (
+                          <span className="text-[10px] text-brand bg-brand-tint px-2 py-0.5 rounded font-semibold border border-brand/20">
+                            User set: {item.quantity} • AI suggested: {item.suggestedQuantity}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 

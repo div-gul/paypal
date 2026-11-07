@@ -19,6 +19,7 @@ interface PantryItemRow {
   stockout_days_count: number;
   quantity_step: number;
   allow_fractions: number;
+  image_url?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -50,6 +51,7 @@ function rowToItem(row: PantryItemRow): PantryItem {
     stockoutDaysCount: row.stockout_days_count,
     quantityStep: row.quantity_step !== null && row.quantity_step !== undefined ? row.quantity_step : defaults.quantityStep,
     allowFractions: row.allow_fractions !== null && row.allow_fractions !== undefined ? Boolean(row.allow_fractions) : defaults.allowFractions,
+    imageUrl: row.image_url || undefined,
   };
 }
 
@@ -80,9 +82,9 @@ export class PantryRepository {
         unit, current_quantity, average_daily_consumption, min_stock_threshold,
         target_stock, allow_substitutions, require_approval_for_brand_change,
         last_restocked_date, stockout_days_count, quantity_step, allow_fractions,
-        created_at, updated_at
+        image_url, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       RETURNING *
     `);
 
@@ -104,6 +106,7 @@ export class PantryRepository {
       0,
       quantityStep,
       allowFractions ? 1 : 0,
+      item.imageUrl || null,
       now,
       now
     ) as PantryItemRow;
@@ -134,6 +137,7 @@ export class PantryRepository {
           stockout_days_count = ?,
           quantity_step = ?,
           allow_fractions = ?,
+          image_url = ?,
           updated_at = ?
       WHERE user_id = ? AND id = ?
       RETURNING *
@@ -155,6 +159,7 @@ export class PantryRepository {
       item.stockoutDaysCount,
       quantityStep,
       allowFractions ? 1 : 0,
+      item.imageUrl || null,
       now,
       userId,
       item.id

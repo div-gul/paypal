@@ -16,6 +16,8 @@ const ProductCategorySchema = z.enum([
   'Breakfast & Cereals',
   'Snacks',
   'Personal Care',
+  'Household',
+  'Household Essentials',
 ]);
 
 const UnitSchema = z.enum(['L', 'kg', 'g', 'ml', 'packs', 'pcs', 'units', 'eggs']);
@@ -36,6 +38,7 @@ const CreatePantryItemSchema = z.object({
   lastRestockedDate: z.string().optional(),
   quantityStep: z.number().positive().optional(),
   allowFractions: z.boolean().optional(),
+  imageUrl: z.string().optional().nullable(),
 });
 
 const UpdatePantryItemSchema = CreatePantryItemSchema.partial();
@@ -139,6 +142,7 @@ pantryRouter.post('/pantry', (req: Request, res: Response, next: NextFunction) =
       lastRestockedDate: validated.lastRestockedDate || new Date().toISOString(),
       quantityStep,
       allowFractions,
+      imageUrl: validated.imageUrl || undefined,
     });
 
     res.status(201).json({ item: created });
