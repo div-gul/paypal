@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 export interface HomeViewProps {
-  onNavigateToTab: (tab: 'home' | 'approvals' | 'pantry' | 'settings') => void;
+  onNavigateToTab: (tab: 'home' | 'approvals' | 'pantry' | 'activity' | 'settings') => void;
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {

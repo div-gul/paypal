@@ -5,6 +5,7 @@ import { HomeView } from './components/HomeView';
 import { ApprovalsView } from './components/ApprovalsView';
 import { PantryManager } from './components/PantryManager';
 import { HouseholdRules } from './components/HouseholdRules';
+import { ActivityView } from './components/ActivityView';
 import { DemoDrawer } from './components/DemoDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
 import { IntegrationInfoModal } from './components/IntegrationInfoModal';
@@ -17,6 +18,7 @@ import {
   Home,
   CheckSquare,
   Package,
+  Activity,
   Settings,
   Sliders,
   AlertCircle,
@@ -24,7 +26,7 @@ import {
 } from 'lucide-react';
 
 const MainLayout: React.FC<{ user: AuthUser; onLogout: () => void; logoutError?: string }> = ({ user, onLogout, logoutError }) => {
-  const [activeTab, setActiveTab] = useState<'home' | 'approvals' | 'pantry' | 'settings'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'approvals' | 'pantry' | 'activity' | 'settings'>('home');
   const [isDemoDrawerOpen, setIsDemoDrawerOpen] = useState(false);
   const {
     error,
@@ -144,6 +146,21 @@ const MainLayout: React.FC<{ user: AuthUser; onLogout: () => void; logoutError?:
               </div>
             </button>
 
+            {/* Tab: Activity */}
+            <button
+              onClick={() => setActiveTab('activity')}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer min-h-[44px] ${
+                activeTab === 'activity'
+                  ? 'bg-brand text-white shadow-soft'
+                  : 'text-ink-muted hover:text-ink hover:bg-secondary-tint/50'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Activity className="w-4 h-4" />
+                <span>Activity</span>
+              </div>
+            </button>
+
             {/* Tab: Settings behind gear icon */}
             <div className="pt-2">
               <button
@@ -224,6 +241,8 @@ const MainLayout: React.FC<{ user: AuthUser; onLogout: () => void; logoutError?:
             <PantryManager onOpenSettings={() => setActiveTab('settings')} />
           )}
 
+          {activeTab === 'activity' && <ActivityView />}
+
           {activeTab === 'settings' && <HouseholdRules />}
         </main>
       </div>
@@ -268,6 +287,16 @@ const MainLayout: React.FC<{ user: AuthUser; onLogout: () => void; logoutError?:
         >
           <Package className="w-5 h-5" />
           <span className="text-[10px]">Pantry</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('activity')}
+          className={`flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-xl transition cursor-pointer min-w-[56px] min-h-[44px] ${
+            activeTab === 'activity' ? 'text-brand font-bold' : 'text-ink-muted font-medium'
+          }`}
+        >
+          <Activity className="w-5 h-5" />
+          <span className="text-[10px]">Activity</span>
         </button>
 
         <button
