@@ -71,6 +71,10 @@ AI capabilities are powered by Google Gemini (`gemini-3.5-flash-lite`) via REST 
 
 No real money moves and no real grocery orders are placed.
 
+### Seeded product catalog
+
+The backend stores and serves a curated static demo catalog in SQLite for **Katraj, Pune, Maharashtra – 411046, India**: 33 product groups across 88 platform-specific offers from Blinkit, Zepto, and Instamart. Prices and offers are illustrative, not live-scraped or verified. Actual platform delivery coverage and inventory in this PIN code have not been confirmed.
+
 ## Architecture
 
 ```mermaid
@@ -251,6 +255,7 @@ Configured in [`backend/src/config.ts`](backend/src/config.ts):
 | `GET` | `/api/time` | Session (Guest) | Get current simulation clock state. |
 | `POST` | `/api/time/advance` | Session (Guest) | Advance clock by 1, 3, or 7 days and compute burn. |
 | `GET` | `/api/quotes` | Session | Get simulated multi-store pricing. |
+| `GET` | `/api/products` | Session | Browse the seeded Katraj demo catalog; defaults to PIN code `411046` and supports `pinCode`, `q`, `category`, `platform`, and `available` filters. Only PIN code `411046` is supported. |
 | `POST` | `/api/runs/plan` | Session | Plan restock run and evaluate policy. |
 | `PUT` | `/api/runs/:id/strategy` | Session | Change strategy on an unapproved run. |
 | `POST` | `/api/runs/:id/approve` | Session | Approve flagged restock run. |
