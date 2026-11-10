@@ -1,3 +1,8 @@
+@import '@fontsource/bricolage-grotesque/400.css';
+@import '@fontsource/bricolage-grotesque/500.css';
+@import '@fontsource/bricolage-grotesque/700.css';
+@import '@fontsource/instrument-serif/400-italic.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -6,24 +11,58 @@
   html, body {
     overflow-x: hidden;
     max-width: 100vw;
+    scroll-behavior: smooth;
   }
 
   body {
     @apply bg-paper text-ink antialiased;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Bricolage Grotesque', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum" 1;
     font-variant-numeric: tabular-nums;
   }
 
   h1, h2, h3, h4, h5, h6, .font-heading {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Bricolage Grotesque', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     color: inherit;
   }
 
   :focus-visible {
     outline: 2px solid #0F4C5C;
-    outline-offset: 1px;
+    outline-offset: 2px;
   }
+}
+
+.font-serif-italic {
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-style: italic;
+}
+
+.landing-h1 {
+  font-size: clamp(44px, 7.2vw, 96px);
+  line-height: 0.98;
+  letter-spacing: -0.02em;
+}
+
+.landing-h2 {
+  font-size: clamp(32px, 4.6vw, 56px);
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+}
+
+.landing-h3 {
+  font-size: 22px;
+  line-height: 1.25;
+}
+
+.landing-body {
+  font-size: 18px;
+  line-height: 1.55;
+  max-width: 62ch;
+}
+
+.landing-caption {
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 /* Custom scrollbars */
