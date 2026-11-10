@@ -107,7 +107,7 @@ export interface ShopPilotContextType {
 
 const ShopPilotContext = createContext<ShopPilotContextType | null>(null);
 
-export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const ShopPilotProvider: React.FC<{ children: React.ReactNode; userRole: 'user' | 'guest' }> = ({ children, userRole }) => {
   // Domain state initialized with sensible defaults while server state loads
   const [pantryItems, setPantryItems] = useState<PantryItem[]>([]);
   const [schedulerConfig, setSchedulerConfig] = useState<WeeklySchedulerConfig>(DEFAULT_SCHEDULER_CONFIG);
@@ -320,26 +320,28 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const init = async () => {
       setIsLoading(true);
       await reloadState();
-      try {
-        const { runs } = await api.getRuns(50);
-        const activePayment = runs.find((run: any) =>
-          run.orderId && ['PENDING', 'APPROVED'].includes(run.paymentState) &&
-          run.status === 'payment_pending' && run.selectedStrategyDetails
-        );
-        if (isMounted && activePayment) {
-          setCheckoutModal({
-            isOpen: true,
-            runId: activePayment.id,
-            strategy: activePayment.selectedStrategyDetails,
-            orderId: activePayment.orderId,
-            approvalUrl: activePayment.paypalApprovalUrl,
-            paymentState: activePayment.paymentState,
-            currency: activePayment.paymentCurrency,
-            chargedAmount: activePayment.paymentAmount,
-          });
+      if (userRole !== 'guest') {
+        try {
+          const { runs } = await api.getRuns(50);
+          const activePayment = runs.find((run: any) =>
+            run.orderId && ['PENDING', 'APPROVED'].includes(run.paymentState) &&
+            run.status === 'payment_pending' && run.selectedStrategyDetails
+          );
+          if (isMounted && activePayment) {
+            setCheckoutModal({
+              isOpen: true,
+              runId: activePayment.id,
+              strategy: activePayment.selectedStrategyDetails,
+              orderId: activePayment.orderId,
+              approvalUrl: activePayment.paypalApprovalUrl,
+              paymentState: activePayment.paymentState,
+              currency: activePayment.paymentCurrency,
+              chargedAmount: activePayment.paymentAmount,
+            });
+          }
+        } catch (err) {
+          console.warn('Pending PayPal checkout recovery notice:', err);
         }
-      } catch (err) {
-        console.warn('Pending PayPal checkout recovery notice:', err);
       }
       if (isMounted) {
         setIsLoading(false);
@@ -349,7 +351,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return () => {
       isMounted = false;
     };
-  }, [reloadState]);
+  }, [reloadState, userRole]);
 
   // Update pantry item via API
   const updatePantryItem = useCallback(

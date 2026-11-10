@@ -415,7 +415,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <ShopPilotProvider key={user.id}>
+    <ShopPilotProvider key={user.id} userRole={user.role}>
       <MainLayout
         user={user}
         logoutError={logoutError}
