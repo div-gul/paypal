@@ -161,6 +161,14 @@ See [SECURITY.md](SECURITY.md) for security controls, deployment settings, limit
 
 Run the local curl-based verification checks with the setup in [docs/security-checks.md](docs/security-checks.md) and `bash docs/security-checks.sh`.
 
+### Rate limiting
+
+Unauthenticated requests to protected API routes and `/api/auth/me` are limited to 60 requests per 15 minutes per client IP; excess requests receive HTTP 429. The limiter uses in-memory counters, which reset when the backend restarts and are not shared across backend instances. Authenticated requests retain the existing limit of 300 requests per 15 minutes per user. Signup, login, logout, health, and PayPal webhook routes retain their existing rate-limiting behavior.
+
+### PayPal webhook verification
+
+The backend uses PayPal's official webhook signature-verification API, validates required transmission headers, and accepts events only when PayPal returns `verification_status: SUCCESS`. Events must have a valid structure and event ID; duplicate processing is prevented through idempotency. Automated mock tests for webhook verification have passed. Real PayPal Sandbox webhook delivery and signature verification have **not** been independently confirmed: PayPal cannot directly reach the localhost endpoint used for testing. Verification requires a publicly accessible HTTPS endpoint or HTTPS tunnel.
+
 ### AI Endpoints (Server-Side, Validated)
 - `POST /api/ai/parse-policy` — Translates natural language into a proposed policy modification (proposal only; never auto-saved without user confirmation).
 - `POST /api/ai/substitute` — Selects closest in-stock alternative strictly from server-provided candidates; rejects hallucinations.
@@ -184,3 +192,7 @@ npm run build
 
 ## 7. License & Hackathon Submission
 Developed for the **PayPal AI Hackathon 2026**. Licensed under the MIT License.
+
+## License
+
+See the [MIT License](LICENSE).
