@@ -250,7 +250,7 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
                           src={item.product.imageUrl}
                           alt={item.product.name}
                           size="sm"
-                          className="w-5 h-5 rounded-md"
+                          className="w-7 h-7 rounded-lg"
                         />
                         <span className="truncate">{item.quantity}× {item.product.name}</span>
                       </div>
@@ -383,7 +383,7 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
                                 src={item.product.imageUrl}
                                 alt={item.product.name}
                                 size="sm"
-                                className="w-5 h-5 rounded-md"
+                                className="w-7 h-7 rounded-lg"
                               />
                               <span className="truncate">
                                 <strong>{item.quantity}×</strong> {item.product.name}

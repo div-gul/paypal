@@ -13,7 +13,6 @@ import {
   ShoppingBag,
   Clock,
   Calendar,
-  Sparkles,
 } from 'lucide-react';
 
 export const ApprovalsView: React.FC = () => {
@@ -91,10 +90,6 @@ export const ApprovalsView: React.FC = () => {
             </Badge>
           )}
         </h2>
-        <p className="text-xs text-ink-muted mt-1 leading-relaxed">
-          ShopPilot restocks autonomously with only two approval types: review product substitutions below,
-          or modify and approve your consolidated upcoming order bucket.
-        </p>
       </div>
 
       {/* SECTION 1: PENDING PRODUCT SWAP APPROVALS */}
@@ -110,9 +105,6 @@ export const ApprovalsView: React.FC = () => {
                 </span>
               )}
             </h3>
-            <p className="text-xs text-ink-muted mt-0.5">
-              Brand replacements suggested when preferred brands are out of stock or optimized.
-            </p>
           </div>
         </div>
 
@@ -147,66 +139,58 @@ export const ApprovalsView: React.FC = () => {
                         </span>
                       </div>
 
-                      {/* Side-by-side comparison box (Secondary / Slate AI styling) */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-paper rounded-xl p-3 border border-secondary-tint text-xs">
-                        {/* Original Product */}
-                        <div className="flex items-center gap-2.5">
+                      {/* Side-by-side comparison cards (Suggested one highlighted) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        {/* Original Product (Neutral) */}
+                        <div className="flex items-center gap-3 bg-paper border border-secondary-tint rounded-xl p-3">
                           <ProductImage
                             src={swap.originalProduct.imageUrl}
                             alt={swap.originalProduct.name}
-                            size="sm"
+                            size="md"
+                            className="shrink-0 rounded-lg"
                           />
-                          <div className="space-y-0.5 min-w-0 flex-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-ink-muted block">
-                              Original Product
-                            </span>
-                            <div className="font-semibold text-ink truncate">{swap.originalProduct.name}</div>
-                            <div className="text-ink-muted text-[11px] flex items-center justify-between">
-                              <span>Brand: <strong className="text-ink">{swap.originalProduct.brand}</strong></span>
-                              <span className="text-ink tabular-nums font-medium">{formatPaise(swap.originalPricePaise)}</span>
+                          <div className="space-y-1 min-w-0 flex-1">
+                            <div className="font-semibold text-ink truncate text-xs">
+                              {swap.originalProduct.name}
+                            </div>
+                            <div className="text-ink-muted font-bold text-xs tabular-nums">
+                              {formatPaise(swap.originalPricePaise)}
                             </div>
                           </div>
                         </div>
 
-                        {/* Suggested Replacement (AI Slate Accent) */}
-                        <div className="flex items-center gap-2.5 sm:border-l sm:border-secondary-tint sm:pl-3">
+                        {/* Suggested Replacement (Highlighted) */}
+                        <div className="flex items-center gap-3 bg-brand-tint/60 border-2 border-brand rounded-xl p-3 shadow-xs">
                           <ProductImage
                             src={swap.replacementProduct.imageUrl}
                             alt={swap.replacementProduct.name}
-                            size="sm"
+                            size="md"
+                            className="shrink-0 rounded-lg border border-brand/20"
                           />
-                          <div className="space-y-0.5 min-w-0 flex-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-secondary block flex items-center gap-1">
-                              <Sparkles className="w-3 h-3 text-secondary" />
-                              Suggested Replacement
-                            </span>
-                            <div className="font-semibold text-ink truncate">{swap.replacementProduct.name}</div>
-                            <div className="text-ink-muted text-[11px] flex items-center justify-between">
-                              <span>Brand: <strong className="text-ink">{swap.replacementProduct.brand}</strong></span>
-                              <span className="font-bold text-ink tabular-nums">{formatPaise(swap.replacementPricePaise)}</span>
+                          <div className="space-y-1 min-w-0 flex-1">
+                            <div className="font-bold text-brand truncate text-xs">
+                              {swap.replacementProduct.name}
+                            </div>
+                            <div className="text-brand font-black text-xs tabular-nums">
+                              {formatPaise(swap.replacementPricePaise)}
                             </div>
                           </div>
                         </div>
                       </div>
 
-                      {/* Price diff & reason */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-0.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-ink-muted">Price difference:</span>
-                          <span
-                            className={`font-semibold tabular-nums px-2 py-0.5 rounded text-[11px] ${
-                              isSavings
-                                ? 'bg-good/15 text-good border border-good/30'
-                                : 'bg-secondary-tint text-secondary border border-secondary/20'
-                            }`}
-                          >
-                            {isSavings
-                              ? `Saves ${formatPaise(Math.abs(swap.priceDifferencePaise))}`
-                              : `+${formatPaise(swap.priceDifferencePaise)}`}
-                          </span>
-                        </div>
-                        <span className="text-[11px] text-ink-muted italic">
-                          Reason: {swap.reason}
+                      {/* Price diff */}
+                      <div className="flex items-center gap-2 text-xs pt-0.5">
+                        <span className="text-ink-muted">Price difference:</span>
+                        <span
+                          className={`font-semibold tabular-nums px-2 py-0.5 rounded text-[11px] ${
+                            isSavings
+                              ? 'bg-good/15 text-good border border-good/30'
+                              : 'bg-secondary-tint text-secondary border border-secondary/20'
+                          }`}
+                        >
+                          {isSavings
+                            ? `Saves ${formatPaise(Math.abs(swap.priceDifferencePaise))}`
+                            : `+${formatPaise(swap.priceDifferencePaise)}`}
                         </span>
                       </div>
                     </div>
@@ -251,10 +235,6 @@ export const ApprovalsView: React.FC = () => {
                 {upcomingOrder.items.length} product{upcomingOrder.items.length === 1 ? '' : 's'}
               </span>
             </h3>
-            <p className="text-xs text-ink-muted mt-0.5">
-              One consolidated bucket scheduled for {upcomingOrder.scheduledDate}. You can adjust quantities,
-              add any pantry item even when stock is available, save it, and pay from Home.
-            </p>
           </div>
 
           <div className="text-left sm:text-right shrink-0">
@@ -275,11 +255,8 @@ export const ApprovalsView: React.FC = () => {
               </div>
               <div>
                 <h4 className="font-bold text-sm text-good">
-                  Order Saved
+                  Order Saved for {upcomingOrder.scheduledDate}
                 </h4>
-                <p className="text-xs text-ink-muted">
-                  Saved for {upcomingOrder.scheduledDate}. You can continue editing; Home reflects changes immediately.
-                </p>
               </div>
             </div>
           </div>

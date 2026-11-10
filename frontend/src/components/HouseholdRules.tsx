@@ -108,9 +108,6 @@ export const HouseholdRules: React.FC = () => {
             <SlidersHorizontal className="w-5 h-5 text-brand" />
             <span>Autonomous Restock Rules & Policies</span>
           </h2>
-          <p className="text-xs text-ink-muted mt-0.5">
-            Configure how ShopPilot monitors household burn rates, selects order days, and respects spending limits.
-          </p>
         </div>
 
         {savedSuccess && (
@@ -133,9 +130,6 @@ export const HouseholdRules: React.FC = () => {
                 AI Assistant
               </span>
             </h3>
-            <p className="text-xs text-white/80">
-              Type in natural English to automatically adjust your shopping day, budget, and swap rules.
-            </p>
           </div>
         </div>
 
@@ -207,9 +201,6 @@ export const HouseholdRules: React.FC = () => {
                 </option>
               ))}
             </select>
-            <p className="text-[11px] text-ink-muted">
-              ShopPilot consolidates weekly replenishment orders on this day.
-            </p>
           </div>
 
           {/* Cadence */}
@@ -226,7 +217,6 @@ export const HouseholdRules: React.FC = () => {
               <option value="weekly">Weekly (Every 7 days)</option>
               <option value="biweekly">Bi-weekly (Every 14 days)</option>
             </select>
-            <p className="text-[11px] text-ink-muted">How often your primary restock basket is prepared.</p>
           </div>
         </div>
       </Card>
@@ -257,7 +247,6 @@ export const HouseholdRules: React.FC = () => {
                 className="w-full px-3 py-2 rounded-xl border border-secondary-tint bg-surface font-bold font-sans tabular-nums text-ink focus-visible:ring-2 focus-visible:ring-brand min-h-[44px]"
               />
             </div>
-            <p className="text-[11px] text-ink-muted">Maximum expected total per restock cycle.</p>
           </div>
 
           {/* Per-order cap */}
@@ -278,9 +267,6 @@ export const HouseholdRules: React.FC = () => {
                 className="w-full px-3 py-2 rounded-xl border border-secondary-tint bg-surface font-bold font-sans tabular-nums text-ink focus-visible:ring-2 focus-visible:ring-brand min-h-[44px]"
               />
             </div>
-            <p className="text-[11px] text-ink-muted">
-              Orders exceeding this amount require explicit confirmation.
-            </p>
           </div>
         </div>
 
@@ -328,13 +314,10 @@ export const HouseholdRules: React.FC = () => {
               <option value="auto_order">Order immediately if stock hits 0</option>
               <option value="alert_only">Alert only, wait for weekly shopping day</option>
             </select>
-            <p className="text-[11px] text-ink-muted">
-              How ShopPilot should react if an essential item depletes ahead of your scheduled day.
-            </p>
           </div>
 
           {/* Brand Swap Policy */}
-          <label className="flex items-start gap-3 p-3 rounded-xl border border-secondary-tint hover:bg-paper transition cursor-pointer">
+          <label className="flex items-center gap-3 p-3 rounded-xl border border-secondary-tint hover:bg-paper transition cursor-pointer">
             <input
               type="checkbox"
               checked={schedulerConfig.requireApprovalBrandSubstitution ?? true}
@@ -342,17 +325,12 @@ export const HouseholdRules: React.FC = () => {
                 updateSchedulerConfig({ requireApprovalBrandSubstitution: e.target.checked });
                 triggerSuccessNotice();
               }}
-              className="mt-0.5 rounded text-brand focus:ring-brand w-4 h-4 cursor-pointer"
+              className="rounded text-brand focus:ring-brand w-4 h-4 cursor-pointer shrink-0"
             />
-            <div>
-              <span className="font-semibold text-ink text-xs block flex items-center gap-1.5">
-                <Shield className="w-3.5 h-3.5 text-secondary" />
-                Always ask before swapping brands
-              </span>
-              <span className="text-[11px] text-ink-muted block leading-tight mt-0.5">
-                When checked, if your preferred brand is out of stock, ShopPilot will always ask for your review before placing the order.
-              </span>
-            </div>
+            <span className="font-semibold text-ink text-xs flex items-center gap-1.5">
+              <Shield className="w-3.5 h-3.5 text-secondary" />
+              Always ask before swapping brands
+            </span>
           </label>
         </div>
       </Card>

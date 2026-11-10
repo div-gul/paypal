@@ -255,10 +255,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
 
             {/* Restock Item Chips */}
             <div className="space-y-2 pt-2 border-t border-secondary-tint">
-              <div className="flex items-center justify-between text-xs text-ink-muted">
-                <span className="font-semibold text-ink">Included In This Order:</span>
-                <span className="text-[11px] text-ink-muted">Click any item for details</span>
-              </div>
+              <span className="font-semibold text-ink text-xs block">Included In This Order:</span>
 
               <div className="flex flex-wrap gap-2">
                 {allFinalItems.map(item => {
@@ -277,7 +274,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
                         src={item.product.imageUrl}
                         alt={item.product.name}
                         size="sm"
-                        className="w-5 h-5 rounded-md"
+                        className="w-7 h-7 rounded-lg"
                       />
                       <span>{item.quantity}x {item.product.name}</span>
                       <span className="text-[10px] text-ink-muted tabular-nums">({formatPaise(item.totalPaise)})</span>
@@ -342,7 +339,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
                             : 'border-secondary-tint hover:border-secondary bg-surface'
                         }`}
                       >
-                        <div className="flex items-center justify-between text-[10px] font-bold mb-1">
+                        <div className="flex items-center justify-between text-[11px] font-bold">
                           <span className={isSelected ? 'text-brand' : 'text-ink'}>
                             {strat.friendlyName}
                           </span>
@@ -350,9 +347,6 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
                             {formatPaise(strat.grandTotalPaise)}
                           </span>
                         </div>
-                        <p className="text-[10px] text-ink-muted line-clamp-1 leading-tight">
-                          {strat.friendlyDescription}
-                        </p>
                       </button>
                     );
                   })}
@@ -361,11 +355,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
             )}
 
             {/* Order Action Footer — Single Primary Orange Button */}
-            <div className="pt-4 border-t border-secondary-tint flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-              <span className="text-xs text-ink-muted">
-                Autonomous order prepared • 1-Click PayPal simulated checkout
-              </span>
-
+            <div className="pt-4 border-t border-secondary-tint flex justify-end">
               <Button
                 variant="primary"
                 size="md"
@@ -398,13 +388,10 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
           {/* Pantry Health Card */}
           <Card variant="default" className="space-y-4 border-secondary-tint">
             <div className="flex items-center justify-between border-b border-secondary-tint pb-3">
-              <div>
-                <h4 className="font-bold text-ink text-sm flex items-center gap-1.5">
-                  <Layers className="w-4 h-4 text-brand" />
-                  Pantry Health
-                </h4>
-                <span className="text-[11px] text-ink-muted">{pantryItems.length} household essentials tracked</span>
-              </div>
+              <h4 className="font-bold text-ink text-sm flex items-center gap-1.5">
+                <Layers className="w-4 h-4 text-brand" />
+                Pantry Health
+              </h4>
               <button
                 onClick={() => onNavigateToTab('pantry')}
                 className="text-xs font-semibold text-brand hover:underline cursor-pointer"
@@ -465,9 +452,6 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
                 <span className="text-[11px] font-bold text-ink block">
                   Deferred to Next Week:
                 </span>
-                <p className="text-[11px] text-ink-muted">
-                  {deferredRecs.length} item{deferredRecs.length === 1 ? '' : 's'} have enough stock to last past this cycle:
-                </p>
                 <div className="flex flex-wrap gap-1.5">
                   {deferredRecs.map(r => (
                     <span
@@ -540,9 +524,6 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
             </div>
             <div>
               <h4 className="font-bold text-ink text-sm">Why this order?</h4>
-              <p className="text-[11px] text-ink-muted">
-                View the optimizer logic, fee comparison, and store price matrix
-              </p>
             </div>
           </div>
 

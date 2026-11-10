@@ -303,79 +303,67 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
                     </span>
                   </div>
 
-                  {/* Item Name & Preferred Brand with Thumbnail */}
-                  <div className="flex items-start gap-3">
+                  {/* Large Product Packshot Image */}
+                  <div className="w-full h-36 bg-white rounded-xl border border-secondary-tint/60 shadow-xs flex items-center justify-center p-2.5 overflow-hidden">
                     <ProductImage
                       src={item.imageUrl}
                       alt={item.name}
                       category={item.category}
-                      size="md"
-                      className="shrink-0 rounded-xl border border-secondary-tint/60 shadow-xs"
+                      size="full"
+                      className="border-0 shadow-none rounded-none"
                     />
-                    <div className="min-w-0 flex-1">
-                      <h3
-                        className="font-bold text-ink text-sm sm:text-base leading-snug line-clamp-2"
-                        title={item.name}
-                      >
-                        {item.name}
-                      </h3>
-                      <div className="text-xs text-ink-muted flex flex-wrap items-center gap-1.5 mt-1">
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-secondary-tint/50 text-[11px] font-medium text-ink">
-                          {item.preferredBrand}
-                        </span>
-                        <span className="text-[11px] text-ink-muted">• {item.preferredPackageSize}</span>
+                  </div>
+
+                  {/* Below Image: Product Name, Brand in bold, and Weight */}
+                  <div>
+                    <h3
+                      className="font-bold text-ink text-sm sm:text-base leading-snug line-clamp-2"
+                      title={item.name}
+                    >
+                      {item.name}
+                    </h3>
+                    <div className="mt-1 space-y-0.5">
+                      <div className="text-xs font-bold text-ink truncate">
+                        {item.preferredBrand}
                       </div>
+                      {item.preferredPackageSize && (
+                        <div className="text-[11px] text-ink-muted font-medium">
+                          {item.preferredPackageSize}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
 
                 {/* Middle Section: Stock Level Box */}
-                <div className="my-3.5 py-3 px-3.5 rounded-xl bg-paper/80 border border-secondary-tint/60 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] text-ink-muted block uppercase font-bold tracking-wider">
-                        In Pantry
-                      </span>
-                      <div className="text-2xl font-black text-ink tabular-nums leading-none mt-1 tracking-tight">
-                        {formatStockQuantity(item.currentQuantity, item.unit)}{' '}
-                        <span className="text-xs font-bold text-ink-muted">{item.unit}</span>
-                      </div>
-                    </div>
-
-                    {/* Quick Quantity Adjusters with Unit-Aware Step */}
-                    <div className="inline-flex items-center bg-surface border border-secondary-tint rounded-xl p-0.5 shadow-xs">
-                      <button
-                        onClick={() => quickAdjustQuantity(item.id, -step)}
-                        title={`Consume ${step} ${item.unit}`}
-                        className="w-8 h-8 rounded-lg text-ink font-bold text-sm flex items-center justify-center hover:bg-secondary-tint/70 active:scale-95 cursor-pointer transition"
-                      >
-                        −
-                      </button>
-                      <div className="w-px h-4 bg-secondary-tint mx-0.5" />
-                      <button
-                        onClick={() => quickAdjustQuantity(item.id, step)}
-                        title={`Restock ${step} ${item.unit}`}
-                        className="w-8 h-8 rounded-lg text-brand font-bold text-sm flex items-center justify-center hover:bg-brand-tint active:scale-95 cursor-pointer transition"
-                      >
-                        +
-                      </button>
+                <div className="my-3 py-3 px-3.5 rounded-xl bg-paper/80 border border-secondary-tint/60 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-ink-muted block uppercase font-bold tracking-wider">
+                      In Pantry
+                    </span>
+                    <div className="text-2xl font-black text-ink tabular-nums leading-none mt-1 tracking-tight">
+                      {formatStockQuantity(item.currentQuantity, item.unit)}{' '}
+                      <span className="text-xs font-bold text-ink-muted">{item.unit}</span>
                     </div>
                   </div>
 
-                  {/* Burn rate and safety threshold chips */}
-                  <div className="grid grid-cols-2 gap-2 text-[11px] pt-2 border-t border-secondary-tint/50">
-                    <div className="bg-surface/70 rounded-lg p-2 border border-secondary-tint/40">
-                      <span className="text-ink-muted block text-[9px] uppercase font-bold tracking-wider">Burn Rate</span>
-                      <span className="font-bold text-ink tabular-nums text-xs mt-0.5 block">
-                        {item.averageDailyConsumption} <span className="text-[10px] font-normal text-ink-muted">{item.unit}/day</span>
-                      </span>
-                    </div>
-                    <div className="bg-surface/70 rounded-lg p-2 border border-secondary-tint/40">
-                      <span className="text-ink-muted block text-[9px] uppercase font-bold tracking-wider">Safety Min</span>
-                      <span className="font-bold text-ink tabular-nums text-xs mt-0.5 block">
-                        {item.minStockThreshold} <span className="text-[10px] font-normal text-ink-muted">{item.unit}</span>
-                      </span>
-                    </div>
+                  {/* Quick Quantity Adjusters with Unit-Aware Step */}
+                  <div className="inline-flex items-center bg-surface border border-secondary-tint rounded-xl p-0.5 shadow-xs">
+                    <button
+                      onClick={() => quickAdjustQuantity(item.id, -step)}
+                      title={`Consume ${step} ${item.unit}`}
+                      className="w-8 h-8 rounded-lg text-ink font-bold text-sm flex items-center justify-center hover:bg-secondary-tint/70 active:scale-95 cursor-pointer transition"
+                    >
+                      −
+                    </button>
+                    <div className="w-px h-4 bg-secondary-tint mx-0.5" />
+                    <button
+                      onClick={() => quickAdjustQuantity(item.id, step)}
+                      title={`Restock ${step} ${item.unit}`}
+                      className="w-8 h-8 rounded-lg text-brand font-bold text-sm flex items-center justify-center hover:bg-brand-tint active:scale-95 cursor-pointer transition"
+                    >
+                      +
+                    </button>
                   </div>
                 </div>
 

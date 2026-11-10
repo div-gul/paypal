@@ -1,15 +1,16 @@
 import React from 'react';
 import { useShopPilot } from '../context/ShopPilotContext';
-import { Bot, Sliders, Info, CheckCircle2, AlertTriangle, LogOut } from 'lucide-react';
+import { Bot, Sliders, Info, CheckCircle2, AlertTriangle, LogOut, Sparkles } from 'lucide-react';
 import { Button } from './ui/Button';
 
 export interface HeaderProps {
   onOpenDemoDrawer: () => void;
   user: { name: string; role: 'user' | 'guest' };
   onLogout: () => void;
+  onOpenLanding?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onOpenDemoDrawer, user, onLogout }) => {
+export const Header: React.FC<HeaderProps> = ({ onOpenDemoDrawer, user, onLogout, onOpenLanding }) => {
   const { simulationState, activeRun, recommendations, setShowDemoInfoModal, isLoading } = useShopPilot();
 
   // Pending approvals counter
@@ -113,6 +114,17 @@ export const Header: React.FC<HeaderProps> = ({ onOpenDemoDrawer, user, onLogout
             <span className="hidden sm:inline text-ink-muted font-normal mr-1 tabular-nums">{formattedSimDate} •</span>
             <span>Demo Controls</span>
           </Button>}
+
+          {onOpenLanding && (
+            <button
+              onClick={onOpenLanding}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-secondary-tint hover:bg-secondary-tint/50 text-xs font-semibold text-ink cursor-pointer transition min-h-[44px]"
+              title="View ShopPilot Project Story & Architecture"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-brand" />
+              <span className="hidden md:inline">Project Story</span>
+            </button>
+          )}
 
           <span className="hidden sm:inline text-xs text-ink-muted">{user.name}</span>
           <button onClick={onLogout} className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-semibold text-ink-muted hover:bg-secondary-tint/50 min-h-[44px]" title="Log out">

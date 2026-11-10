@@ -6,6 +6,7 @@ import { ApprovalsView } from './components/ApprovalsView';
 import { PantryManager } from './components/PantryManager';
 import { HouseholdRules } from './components/HouseholdRules';
 import { ActivityView } from './components/ActivityView';
+import { LandingPage } from './components/LandingPage';
 import { DemoDrawer } from './components/DemoDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
 import { IntegrationInfoModal } from './components/IntegrationInfoModal';
@@ -25,7 +26,12 @@ import {
   RefreshCw,
 } from 'lucide-react';
 
-const MainLayout: React.FC<{ user: AuthUser; onLogout: () => void; logoutError?: string }> = ({ user, onLogout, logoutError }) => {
+const MainLayout: React.FC<{
+  user: AuthUser;
+  onLogout: () => void;
+  logoutError?: string;
+  onOpenLanding?: () => void;
+}> = ({ user, onLogout, logoutError, onOpenLanding }) => {
   const [activeTab, setActiveTab] = useState<'home' | 'approvals' | 'pantry' | 'activity' | 'settings'>('home');
   const [isDemoDrawerOpen, setIsDemoDrawerOpen] = useState(false);
   const {
@@ -81,7 +87,12 @@ const MainLayout: React.FC<{ user: AuthUser; onLogout: () => void; logoutError?:
       </div>
 
       {/* Top Header */}
-      <Header onOpenDemoDrawer={() => setIsDemoDrawerOpen(true)} user={user} onLogout={onLogout} />
+      <Header
+        onOpenDemoDrawer={() => setIsDemoDrawerOpen(true)}
+        user={user}
+        onLogout={onLogout}
+        onOpenLanding={onOpenLanding}
+      />
       {logoutError && <div role="alert" className="mx-auto mt-3 w-full max-w-7xl px-4 text-sm text-danger">{logoutError}</div>}
 
       {/* Main Shell Container with Desktop Sidebar + Content */}
@@ -327,11 +338,16 @@ const App: React.FC = () => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [checking, setChecking] = useState(true);
   const [logoutError, setLogoutError] = useState('');
+  const [viewMode, setViewMode] = useState<'landing' | 'auth' | 'app'>('landing');
+  const [authInitialMode, setAuthInitialMode] = useState<'login' | 'register'>('login');
 
   useEffect(() => {
     let active = true;
     api.getCurrentUser().then(({ user: currentUser }) => {
-      if (active) setUser(currentUser);
+      if (active && currentUser) {
+        setUser(currentUser);
+        setViewMode('app');
+      }
     }).catch(() => {
       if (active) setUser(null);
     }).finally(() => {
@@ -341,7 +357,10 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const handleExpiredSession = () => setUser(null);
+    const handleExpiredSession = () => {
+      setUser(null);
+      setViewMode('landing');
+    };
     window.addEventListener('shoppilot:session-expired', handleExpiredSession);
     return () => window.removeEventListener('shoppilot:session-expired', handleExpiredSession);
   }, []);
@@ -355,14 +374,56 @@ const App: React.FC = () => {
     try {
       await api.logout();
       setUser(null);
+      setViewMode('landing');
     } catch {
       setLogoutError('Could not log out. Check your connection and try again.');
     }
   };
 
   if (checking) return <div className="min-h-screen bg-paper flex items-center justify-center text-sm text-ink-muted">Checking your session…</div>;
-  if (!user) return <AuthScreen onAuthenticated={setUser} />;
-  return <ShopPilotProvider key={user.id}><MainLayout user={user} logoutError={logoutError} onLogout={() => { void logout(); }} /></ShopPilotProvider>;
+
+  if (viewMode === 'landing') {
+    return (
+      <LandingPage
+        currentUser={user}
+        onEnterDemo={() => {
+          api.getCurrentUser().then(({ user: u }) => {
+            setUser(u);
+            setViewMode('app');
+          }).catch(console.error);
+        }}
+        onOpenAuth={(mode) => {
+          setAuthInitialMode(mode || 'login');
+          setViewMode('auth');
+        }}
+        onGoToApp={() => setViewMode('app')}
+      />
+    );
+  }
+
+  if (viewMode === 'auth' || !user) {
+    return (
+      <AuthScreen
+        initialMode={authInitialMode}
+        onAuthenticated={(authenticatedUser) => {
+          setUser(authenticatedUser);
+          setViewMode('app');
+        }}
+        onBack={() => setViewMode('landing')}
+      />
+    );
+  }
+
+  return (
+    <ShopPilotProvider key={user.id}>
+      <MainLayout
+        user={user}
+        logoutError={logoutError}
+        onLogout={() => { void logout(); }}
+        onOpenLanding={() => setViewMode('landing')}
+      />
+    </ShopPilotProvider>
+  );
 };
 
 export default App;

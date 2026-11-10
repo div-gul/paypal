@@ -171,7 +171,7 @@ export const StoreComparison: React.FC = () => {
                           alt={item.name}
                           category={item.category}
                           size="sm"
-                          className="w-7 h-7 rounded-lg"
+                          className="w-9 h-9 rounded-lg"
                         />
                         <div>
                           <span>{item.name}</span>

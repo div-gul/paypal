@@ -1,11 +1,17 @@
 import React, { useState } from 'react';
-import { Bot } from 'lucide-react';
+import { Bot, ArrowLeft, Zap } from 'lucide-react';
 import { api, AuthUser } from '../api/client';
 
-interface Props { onAuthenticated: (user: AuthUser) => void; }
+interface Props {
+  onAuthenticated: (user: AuthUser) => void;
+  initialMode?: 'login' | 'register';
+  onBack?: () => void;
+}
 
-export const AuthScreen: React.FC<Props> = ({ onAuthenticated }) => {
-  const isRegister = window.location.pathname.replace(/\/$/, '') === '/register';
+export const AuthScreen: React.FC<Props> = ({ onAuthenticated, initialMode, onBack }) => {
+  const [isRegister, setIsRegister] = useState(
+    initialMode ? initialMode === 'register' : window.location.pathname.replace(/\/$/, '') === '/register'
+  );
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -37,9 +43,33 @@ export const AuthScreen: React.FC<Props> = ({ onAuthenticated }) => {
     }
   };
 
+  const handleGuestDemo = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const result = await api.login('guest_paypal@example.com', 'GUEST_paypal@1502');
+      window.history.replaceState({}, '', '/');
+      onAuthenticated(result.user);
+    } catch (err: any) {
+      setError(err?.message || 'Could not log into demo. Please try manual login.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-paper text-ink flex items-center justify-center px-4 py-10">
       <section className="w-full max-w-md rounded-2xl border border-secondary-tint bg-surface p-7 sm:p-9 shadow-card">
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="mb-5 inline-flex items-center gap-1.5 text-xs font-semibold text-ink-muted hover:text-ink transition cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back to Story & Overview</span>
+          </button>
+        )}
+
         <div className="flex items-center gap-3 mb-7">
           <div className="w-11 h-11 rounded-xl bg-brand flex items-center justify-center text-white shadow-soft">
             <Bot className="w-5 h-5" />
@@ -69,16 +99,35 @@ export const AuthScreen: React.FC<Props> = ({ onAuthenticated }) => {
             </label>
           </>}
           {error && <p role="alert" className="rounded-xl border border-danger/25 bg-danger/10 px-3 py-2.5 text-sm text-danger">{error}</p>}
-          <button disabled={busy} className="w-full rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white shadow-soft transition hover:bg-brand-dark disabled:opacity-60">
+          <button disabled={busy} className="w-full rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white shadow-soft transition hover:bg-brand-dark disabled:opacity-60 cursor-pointer">
             {busy ? 'Please wait…' : isRegister ? 'Create Account' : 'Log in'}
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-ink-muted">
+        <div className="mt-5 pt-5 border-t border-secondary-tint/70">
+          <button
+            type="button"
+            onClick={handleGuestDemo}
+            disabled={busy}
+            className="w-full py-2.5 px-4 rounded-xl border border-secondary-tint bg-paper hover:bg-secondary-tint/50 text-ink font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer transition"
+          >
+            <Zap className="w-3.5 h-3.5 text-accent" />
+            <span>Instant Demo (Guest Household)</span>
+          </button>
+        </div>
+
+        <p className="mt-5 text-center text-sm text-ink-muted">
           {isRegister ? 'Already have an account?' : 'New to ShopPilot?'}{' '}
-          <a className="font-semibold text-brand hover:underline" href={isRegister ? '/login' : '/register'}>
+          <button
+            type="button"
+            onClick={() => {
+              setIsRegister(!isRegister);
+              setError('');
+            }}
+            className="font-semibold text-brand hover:underline cursor-pointer"
+          >
             {isRegister ? 'Log in' : 'Create an account'}
-          </a>
+          </button>
         </p>
       </section>
     </main>

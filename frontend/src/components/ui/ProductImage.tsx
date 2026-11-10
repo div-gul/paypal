@@ -6,7 +6,7 @@ interface ProductImageProps {
   alt: string;
   category?: string;
   className?: string;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
 }
 
 function getCategoryIcon(category?: string) {
@@ -42,10 +42,12 @@ export const ProductImage: React.FC<ProductImageProps> = ({
   const [imageFailed, setImageFailed] = useState(false);
 
   const sizeClasses = {
-    sm: 'w-8 h-8 rounded-lg',
-    md: 'w-14 h-14 rounded-xl',
-    lg: 'w-16 h-16 rounded-xl',
-    xl: 'w-20 h-20 rounded-2xl',
+    sm: 'w-10 h-10 rounded-lg',
+    md: 'w-16 h-16 rounded-xl',
+    lg: 'w-20 h-20 rounded-xl',
+    xl: 'w-24 h-24 rounded-2xl',
+    '2xl': 'w-32 h-32 rounded-2xl',
+    full: 'w-full h-full',
   }[size];
 
   if (!src || imageFailed) {
