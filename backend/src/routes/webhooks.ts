@@ -17,12 +17,12 @@ router.post('/webhooks/paypal', async (req: Request, res: Response, next: NextFu
     }
 
     const rawBody = (req as any).rawBody ? (req as any).rawBody.toString('utf8') : JSON.stringify(req.body);
-    const event = typeof req.body === 'object' && req.body ? req.body : JSON.parse(rawBody || '{}');
-    const eventId = event.id || req.headers['paypal-transmission-id'] as string;
-    if (!eventId) {
-      res.status(400).json({ error: { code: 'INVALID_WEBHOOK', message: 'Missing event ID' } });
+    const event = typeof req.body === 'object' && req.body && !Array.isArray(req.body) ? req.body : null;
+    if (!event || typeof event.id !== 'string' || !event.id.trim() || typeof event.event_type !== 'string' || !event.resource || typeof event.resource !== 'object' || Array.isArray(event.resource)) {
+      res.status(400).json({ error: { code: 'INVALID_WEBHOOK', message: 'Malformed PayPal webhook event' } });
       return;
     }
+    const eventId = event.id;
 
     if (config.PAYPAL_MODE !== 'mock' || testVerifier) {
       const transmissionTime = req.headers['paypal-transmission-time'];
@@ -59,7 +59,7 @@ router.post('/webhooks/paypal', async (req: Request, res: Response, next: NextFu
       payloadJson: rawBody,
     });
 
-    if (!recorded) {
+    if (!recorded && storedEvent.processed) {
       res.status(200).json({ received: true, duplicate: true, eventId });
       return;
     }

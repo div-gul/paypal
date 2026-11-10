@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { AppError } from '../../middleware/errorHandler.js';
 import { config } from '../../config.js';
+import type { AppConfig } from '../../config.js';
 import { RunRecord } from '../../repositories/RunRepository.js';
 import { inrPaiseToUsdAmount, usdAmountToInrPaise } from '@shared/services/currency';
 import {
@@ -28,23 +29,30 @@ interface PayPalOrder {
 }
 
 export class PayPalSandboxProvider implements IPaymentProvider {
-  readonly providerId: 'paypal_sandbox' | 'paypal_live' = config.PAYPAL_MODE === 'live' ? 'paypal_live' : 'paypal_sandbox';
+  constructor(
+    private readonly paypalConfig: Pick<AppConfig, 'PAYPAL_MODE' | 'PAYPAL_BASE_URL' | 'PAYPAL_CURRENCY' | 'PAYPAL_INR_PER_USD' | 'PAYPAL_CLIENT_ID' | 'PAYPAL_CLIENT_SECRET' | 'PAYPAL_WEBHOOK_ID'> = config,
+    private readonly fetcher: typeof fetch = fetch,
+  ) {}
+
+  get providerId(): 'paypal_sandbox' | 'paypal_live' {
+    return this.paypalConfig.PAYPAL_MODE === 'live' ? 'paypal_live' : 'paypal_sandbox';
+  }
   private accessToken?: string;
   private tokenExpiresAt = 0;
 
   private get baseUrl(): string {
-    return config.PAYPAL_BASE_URL.replace(/\/$/, '');
+    return this.paypalConfig.PAYPAL_BASE_URL.replace(/\/$/, '');
   }
 
   private get chargeCurrency(): 'INR' | 'USD' {
-    return config.PAYPAL_CURRENCY;
+    return this.paypalConfig.PAYPAL_CURRENCY;
   }
 
   private chargeAmount(run: RunRecord): string {
     if (this.chargeCurrency === 'INR') {
       return (run.grandTotalPaise / 100).toFixed(2);
     }
-    const inrPerUsd = config.PAYPAL_INR_PER_USD;
+    const inrPerUsd = this.paypalConfig.PAYPAL_INR_PER_USD;
     if (!inrPerUsd) {
       throw new AppError(
         'PAYPAL_CURRENCY_CONFIGURATION_REQUIRED',
@@ -57,16 +65,16 @@ export class PayPalSandboxProvider implements IPaymentProvider {
 
   private async getAccessToken(): Promise<string> {
     if (this.accessToken && Date.now() < this.tokenExpiresAt - 15_000) return this.accessToken;
-    if (!config.PAYPAL_CLIENT_ID || !config.PAYPAL_CLIENT_SECRET) {
+    if (!this.paypalConfig.PAYPAL_CLIENT_ID || !this.paypalConfig.PAYPAL_CLIENT_SECRET) {
       throw new AppError('PAYPAL_NOT_CONFIGURED', 'PayPal credentials are not configured.', 503);
     }
 
     let response: Response;
     try {
-      response = await fetch(`${this.baseUrl}/v1/oauth2/token`, {
+      response = await this.fetcher(`${this.baseUrl}/v1/oauth2/token`, {
         method: 'POST',
         headers: {
-          Authorization: `Basic ${Buffer.from(`${config.PAYPAL_CLIENT_ID}:${config.PAYPAL_CLIENT_SECRET}`).toString('base64')}`,
+          Authorization: `Basic ${Buffer.from(`${this.paypalConfig.PAYPAL_CLIENT_ID}:${this.paypalConfig.PAYPAL_CLIENT_SECRET}`).toString('base64')}`,
           'Content-Type': 'application/x-www-form-urlencoded',
           Accept: 'application/json',
         },
@@ -90,7 +98,7 @@ export class PayPalSandboxProvider implements IPaymentProvider {
     const token = await this.getAccessToken();
     let response: Response;
     try {
-      response = await fetch(`${this.baseUrl}${path}`, {
+      response = await this.fetcher(`${this.baseUrl}${path}`, {
         ...init,
         headers: {
           Authorization: `Bearer ${token}`,
@@ -236,7 +244,14 @@ export class PayPalSandboxProvider implements IPaymentProvider {
   }
 
   async verifyWebhookSignature(headers: Record<string, string>, event: Record<string, unknown>): Promise<boolean> {
-    if (!config.PAYPAL_WEBHOOK_ID) return false;
+    const requiredHeaders = [
+      headers['paypal-auth-algo'],
+      headers['paypal-cert-url'],
+      headers['paypal-transmission-id'],
+      headers['paypal-transmission-sig'],
+      headers['paypal-transmission-time'],
+    ];
+    if (!this.paypalConfig.PAYPAL_WEBHOOK_ID || requiredHeaders.some(value => !value?.trim())) return false;
     const { response, data } = await this.request('/v1/notifications/verify-webhook-signature', {
       method: 'POST',
       body: JSON.stringify({
@@ -245,7 +260,7 @@ export class PayPalSandboxProvider implements IPaymentProvider {
         transmission_id: headers['paypal-transmission-id'],
         transmission_sig: headers['paypal-transmission-sig'],
         transmission_time: headers['paypal-transmission-time'],
-        webhook_id: config.PAYPAL_WEBHOOK_ID,
+        webhook_id: this.paypalConfig.PAYPAL_WEBHOOK_ID,
         webhook_event: event,
       }),
     });
