@@ -249,20 +249,133 @@ export class LLMService {
   }
 
   private async callExternalLLMPolicyParser(
-    _prompt: string,
-    _current: WeeklySchedulerConfig
+    prompt: string,
+    current: WeeklySchedulerConfig
   ): Promise<PolicyProposal> {
-    // If configured with a live OpenAI/Gemini endpoint, make request here with timeout
-    throw new Error('External LLM integration not configured');
+    const systemPrompt = `You are an AI assistant configuring an autonomous household grocery restocking policy.
+The user provides natural language preferences. Current policy:
+- preferredShoppingDay: ${current.preferredShoppingDay} (0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday)
+- shoppingFrequency: "${current.shoppingFrequency}" ("weekly" or "biweekly")
+- emergencyRestockPreference: "${current.emergencyRestockPreference}" ("auto_order", "ask_approval", "alert_only")
+- urgentThresholdDays: ${current.urgentThresholdDays}
+- perCycleBudgetPaise: ${current.perCycleBudgetPaise} (in paise, 1 INR = 100 paise)
+- perOrderCapPaise: ${current.perOrderCapPaise} (in paise, 1 INR = 100 paise)
+- requireApprovalBrandSubstitution: ${current.requireApprovalBrandSubstitution} (boolean)
+- blockedCategories: ${JSON.stringify(current.blockedCategories || [])} (valid categories: "Dairy", "Bakery & Bread", "Fresh Produce", "Beverages", "Pantry Staples", "Breakfast & Cereals", "Snacks", "Personal Care", "Household", "Household Essentials")
+
+Respond with JSON only matching this schema:
+{
+  "preferredShoppingDay"?: number (0-6),
+  "shoppingFrequency"?: "weekly" | "biweekly",
+  "emergencyRestockPreference"?: "auto_order" | "ask_approval" | "alert_only",
+  "urgentThresholdDays"?: number (1-14),
+  "perCycleBudgetPaise"?: number (in paise, e.g. ₹3500 is 350000),
+  "perOrderCapPaise"?: number (in paise),
+  "requireApprovalBrandSubstitution"?: boolean,
+  "blockedCategories"?: string[],
+  "explanation": string,
+  "changesSummary": string[]
+}`;
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${encodeURIComponent(this.apiKey!)}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { text: `${systemPrompt}\n\nUser instruction: "${prompt}"` },
+            ],
+          },
+        ],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.1,
+        },
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Gemini API error ${response.status}: ${errText.slice(0, 200)}`);
+    }
+
+    const data = await response.json() as any;
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) {
+      throw new Error('No content returned from Gemini');
+    }
+
+    return JSON.parse(text);
   }
 
   private async callExternalLLMSubstitute(
-    _itemName: string,
-    _preferredBrand: string,
-    _candidates: StoreProduct[],
-    _reason?: string
+    itemName: string,
+    preferredBrand: string,
+    candidates: StoreProduct[],
+    reason?: string
   ): Promise<SubstituteResult> {
-    // If configured with a live OpenAI/Gemini endpoint, make request here with timeout
-    throw new Error('External LLM integration not configured');
+    const candidateSummary = candidates.map(c => ({
+      id: c.id,
+      name: c.name,
+      brand: c.brand,
+      store: c.storeId,
+      pricePaise: c.pricePaise,
+      packageSize: c.packageSize,
+    }));
+
+    const systemPrompt = `You are an AI grocery assistant selecting the best in-stock substitute.
+Item needed: "${itemName}"
+Preferred brand: "${preferredBrand}"
+${reason ? `Reason: "${reason}"` : ''}
+
+In-stock candidates:
+${JSON.stringify(candidateSummary, null, 2)}
+
+You MUST choose one product from the provided candidates list.
+Respond with JSON only matching this schema:
+{
+  "selectedProductId": string (exact candidate id),
+  "productName": string (exact candidate name),
+  "brand": string (exact candidate brand),
+  "pricePaise": number (exact candidate pricePaise),
+  "confidence": number between 0 and 1,
+  "reasoning": string
+}`;
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${encodeURIComponent(this.apiKey!)}`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { text: systemPrompt },
+            ],
+          },
+        ],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.1,
+        },
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Gemini API error ${response.status}: ${errText.slice(0, 200)}`);
+    }
+
+    const data = await response.json() as any;
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) {
+      throw new Error('No content returned from Gemini');
+    }
+
+    return JSON.parse(text);
   }
 }

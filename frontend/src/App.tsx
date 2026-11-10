@@ -11,6 +11,7 @@ import { DemoDrawer } from './components/DemoDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
 import { IntegrationInfoModal } from './components/IntegrationInfoModal';
 import { BackendHealthBadge } from './components/BackendHealthBadge';
+import { ProfileView } from './components/ProfileView';
 import { api } from './api/client';
 import { Badge } from './components/ui/Badge';
 import { AuthScreen } from './components/AuthScreen';
@@ -21,6 +22,7 @@ import {
   Package,
   Activity,
   Settings,
+  User,
   Sliders,
   AlertCircle,
   RefreshCw,
@@ -31,8 +33,10 @@ const MainLayout: React.FC<{
   onLogout: () => void;
   logoutError?: string;
   onOpenLanding?: () => void;
-}> = ({ user, onLogout, logoutError, onOpenLanding }) => {
-  const [activeTab, setActiveTab] = useState<'home' | 'approvals' | 'pantry' | 'activity' | 'settings'>('home');
+  onUserUpdated: (user: AuthUser) => void;
+  onAccountDeleted: () => void;
+}> = ({ user, onLogout, logoutError, onOpenLanding, onUserUpdated, onAccountDeleted }) => {
+  const [activeTab, setActiveTab] = useState<'home' | 'approvals' | 'pantry' | 'activity' | 'settings' | 'profile'>('home');
   const [isDemoDrawerOpen, setIsDemoDrawerOpen] = useState(false);
   const {
     error,
@@ -92,6 +96,7 @@ const MainLayout: React.FC<{
         user={user}
         onLogout={onLogout}
         onOpenLanding={onOpenLanding}
+        onOpenProfile={() => setActiveTab('profile')}
       />
       {logoutError && <div role="alert" className="mx-auto mt-3 w-full max-w-7xl px-4 text-sm text-danger">{logoutError}</div>}
 
@@ -188,6 +193,23 @@ const MainLayout: React.FC<{
                 </div>
               </button>
             </div>
+
+            {/* Tab: Profile */}
+            <div>
+              <button
+                onClick={() => setActiveTab('profile')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer min-h-[44px] ${
+                  activeTab === 'profile'
+                    ? 'bg-brand text-white shadow-soft'
+                    : 'text-ink-muted hover:text-ink hover:bg-secondary-tint/50'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <User className="w-4 h-4" />
+                  <span>Profile</span>
+                </div>
+              </button>
+            </div>
           </div>
 
           {/* Sidebar Footer Card: Demo Trigger & System Health */}
@@ -255,6 +277,14 @@ const MainLayout: React.FC<{
           {activeTab === 'activity' && <ActivityView />}
 
           {activeTab === 'settings' && <HouseholdRules />}
+
+          {activeTab === 'profile' && (
+            <ProfileView
+              user={user}
+              onUserUpdated={onUserUpdated}
+              onAccountDeleted={onAccountDeleted}
+            />
+          )}
         </main>
       </div>
 
@@ -318,6 +348,16 @@ const MainLayout: React.FC<{
         >
           <Settings className="w-5 h-5" />
           <span className="text-[10px]">Settings</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('profile')}
+          className={`flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-xl transition cursor-pointer min-w-[56px] min-h-[44px] ${
+            activeTab === 'profile' ? 'text-brand font-bold' : 'text-ink-muted font-medium'
+          }`}
+        >
+          <User className="w-5 h-5" />
+          <span className="text-[10px]">Profile</span>
         </button>
       </nav>
 
@@ -414,6 +454,11 @@ const App: React.FC = () => {
     );
   }
 
+  const handleAccountDeleted = () => {
+    setUser(null);
+    setViewMode('landing');
+  };
+
   return (
     <ShopPilotProvider key={user.id} userRole={user.role}>
       <MainLayout
@@ -421,6 +466,8 @@ const App: React.FC = () => {
         logoutError={logoutError}
         onLogout={() => { void logout(); }}
         onOpenLanding={() => setViewMode('landing')}
+        onUserUpdated={setUser}
+        onAccountDeleted={handleAccountDeleted}
       />
     </ShopPilotProvider>
   );

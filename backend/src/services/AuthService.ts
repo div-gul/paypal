@@ -12,6 +12,8 @@ export interface PublicUser {
   name: string;
   email: string;
   role: 'user' | 'guest';
+  hasPassword?: boolean;
+  createdAt?: string;
 }
 
 export function hashPassword(password: string): string {
@@ -120,6 +122,77 @@ export class AuthService {
     if (!token) return;
     this.db.prepare('DELETE FROM auth_sessions WHERE token_hash = ?')
       .run(createHash('sha256').update(token).digest('hex'));
+  }
+
+  updateProfile(userId: string, input: { name?: string; currentPassword?: string; newPassword?: string }): PublicUser {
+    const userRow = this.db.prepare('SELECT id, name, email, password_hash, role, created_at FROM users WHERE id = ?')
+      .get(userId) as { id: string; name: string; email: string; password_hash: string | null; role: 'user' | 'guest'; created_at: string } | undefined;
+
+    if (!userRow) {
+      throw new AppError('NOT_FOUND', 'User not found.', 404);
+    }
+
+    let newPasswordHash: string | null = null;
+    if (input.newPassword) {
+      if (userRow.password_hash) {
+        if (!input.currentPassword || !verifyPassword(input.currentPassword, userRow.password_hash)) {
+          throw new AppError('INVALID_PASSWORD', 'Current password is incorrect.', 400);
+        }
+      }
+      newPasswordHash = hashPassword(input.newPassword);
+    }
+
+    const updatedName = input.name?.trim() ? input.name.trim() : userRow.name;
+    const now = new Date().toISOString();
+
+    if (newPasswordHash) {
+      this.db.prepare('UPDATE users SET name = ?, password_hash = ?, updated_at = ? WHERE id = ?')
+        .run(updatedName, newPasswordHash, now, userId);
+    } else {
+      this.db.prepare('UPDATE users SET name = ?, updated_at = ? WHERE id = ?')
+        .run(updatedName, now, userId);
+    }
+
+    const updatedRow = this.db.prepare('SELECT id, name, email, role, (password_hash IS NOT NULL) AS hasPassword, created_at AS createdAt FROM users WHERE id = ?')
+      .get(userId) as any;
+
+    return {
+      id: updatedRow.id,
+      name: updatedRow.name,
+      email: updatedRow.email,
+      role: updatedRow.role,
+      hasPassword: Boolean(updatedRow.hasPassword),
+      createdAt: updatedRow.createdAt,
+    };
+  }
+
+  deleteAccount(userId: string): void {
+    const userRow = this.db.prepare('SELECT id, email, role FROM users WHERE id = ?')
+      .get(userId) as { id: string; email: string; role: 'user' | 'guest' } | undefined;
+
+    if (!userRow) {
+      throw new AppError('NOT_FOUND', 'User not found.', 404);
+    }
+
+    if (userRow.role === 'guest' || userRow.email.toLowerCase() === GUEST_EMAIL.toLowerCase()) {
+      throw new AppError('FORBIDDEN', 'The demo guest account cannot be deleted.', 403);
+    }
+
+    const tx = this.db.transaction(() => {
+      this.db.prepare('DELETE FROM auth_sessions WHERE user_id = ?').run(userId);
+      this.db.prepare('DELETE FROM user_workspace WHERE user_id = ?').run(userId);
+      this.db.prepare('DELETE FROM sim_clock WHERE user_id = ?').run(userId);
+      this.db.prepare('DELETE FROM pantry_items WHERE user_id = ?').run(userId);
+      this.db.prepare('DELETE FROM policies WHERE user_id = ?').run(userId);
+      this.db.prepare('DELETE FROM run_items WHERE user_id = ?').run(userId);
+      this.db.prepare('DELETE FROM receipts WHERE user_id = ?').run(userId);
+      this.db.prepare('DELETE FROM approvals WHERE user_id = ?').run(userId);
+      this.db.prepare('DELETE FROM runs WHERE user_id = ?').run(userId);
+      this.db.prepare('DELETE FROM audit_log WHERE user_id = ?').run(userId);
+      this.db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+    });
+
+    tx();
   }
 
   seedGuest(): void {

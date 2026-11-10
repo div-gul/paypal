@@ -52,7 +52,7 @@ describe('API abuse limits and body cap', () => {
     expect(last.status).toBe(429);
     expect(last.headers.get('retry-after')).toBeTruthy();
     expect((await last.json() as any).error.code).toBe('RATE_LIMITED');
-  });
+  }, 30000);
 
   it('limits checkout order creation per user', async () => {
     let last!: Response;

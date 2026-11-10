@@ -8,9 +8,10 @@ export interface HeaderProps {
   user: { name: string; role: 'user' | 'guest' };
   onLogout: () => void;
   onOpenLanding?: () => void;
+  onOpenProfile?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onOpenDemoDrawer, user, onLogout, onOpenLanding }) => {
+export const Header: React.FC<HeaderProps> = ({ onOpenDemoDrawer, user, onLogout, onOpenLanding, onOpenProfile }) => {
   const { simulationState, activeRun, recommendations, setShowDemoInfoModal, isLoading } = useShopPilot();
 
   // Pending approvals counter
@@ -126,7 +127,20 @@ export const Header: React.FC<HeaderProps> = ({ onOpenDemoDrawer, user, onLogout
             </button>
           )}
 
-          <span className="hidden sm:inline text-xs text-ink-muted">{user.name}</span>
+          {onOpenProfile ? (
+            <button
+              onClick={onOpenProfile}
+              className="hidden sm:inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-secondary-tint hover:bg-secondary-tint/50 text-xs font-semibold text-ink cursor-pointer transition min-h-[44px]"
+              title="View and edit profile"
+            >
+              <div className="w-5 h-5 rounded-full bg-brand text-white flex items-center justify-center text-[10px] font-bold">
+                {(user.name || 'U').charAt(0).toUpperCase()}
+              </div>
+              <span className="max-w-[120px] truncate">{user.name}</span>
+            </button>
+          ) : (
+            <span className="hidden sm:inline text-xs text-ink-muted">{user.name}</span>
+          )}
           <button onClick={onLogout} className="inline-flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-semibold text-ink-muted hover:bg-secondary-tint/50 min-h-[44px]" title="Log out">
             <LogOut className="w-4 h-4" /><span className="hidden sm:inline">Log out</span>
           </button>

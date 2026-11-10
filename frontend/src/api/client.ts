@@ -84,6 +84,8 @@ export interface AuthUser {
   name: string;
   email: string;
   role: 'user' | 'guest';
+  hasPassword?: boolean;
+  createdAt?: string;
 }
 
 const BASE_URL = '/api';
@@ -140,6 +142,15 @@ export const api = {
     method: 'POST', body: JSON.stringify({ credential }),
   }),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
+  updateProfile: (data: { name?: string; currentPassword?: string; newPassword?: string }) =>
+    request<{ user: AuthUser }>('/auth/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteAccount: () =>
+    request<{ success: boolean; message: string }>('/auth/account', {
+      method: 'DELETE',
+    }),
   getWorkspace: () => request<{ upcomingOrder: any | null; swapDecisions: Record<string, 'approved' | 'rejected'> }>('/workspace'),
   saveWorkspace: (workspace: { upcomingOrder?: any | null; swapDecisions?: Record<string, 'approved' | 'rejected'> }) => request<{ success: boolean }>('/workspace', {
     method: 'PUT', body: JSON.stringify(workspace),

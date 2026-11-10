@@ -183,4 +183,67 @@ describe('cookie authentication, isolation, and guest simulation permissions', (
     expect(typeof body.enabled).toBe('boolean');
     expect('clientId' in body).toBe(true);
   });
+
+  it('allows user to update profile and change password', async () => {
+    new AuthService(getDatabase()).register({ name: 'Initial Name', email: 'profile_test@example.com', password: PASSWORD });
+    const user = await login('profile_test@example.com', PASSWORD);
+    expect(user.cookie).toBeTruthy();
+
+    // Update name
+    const updateNameRes = await fetch(`${baseUrl}/api/auth/profile`, {
+      method: 'PATCH',
+      headers: { Cookie: user.cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Updated Name' }),
+    });
+    expect(updateNameRes.status).toBe(200);
+    const updatedUser = await updateNameRes.json() as any;
+    expect(updatedUser.user.name).toBe('Updated Name');
+
+    // Reject wrong current password
+    const wrongPassRes = await fetch(`${baseUrl}/api/auth/profile`, {
+      method: 'PATCH',
+      headers: { Cookie: user.cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: 'WrongPassword@123', newPassword: 'NewPassword@12345' }),
+    });
+    expect(wrongPassRes.status).toBe(400);
+
+    // Accept correct current password
+    const changePassRes = await fetch(`${baseUrl}/api/auth/profile`, {
+      method: 'PATCH',
+      headers: { Cookie: user.cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: PASSWORD, newPassword: 'NewPassword@12345' }),
+    });
+    expect(changePassRes.status).toBe(200);
+
+    // Login with new password works
+    const loginWithNew = await login('profile_test@example.com', 'NewPassword@12345');
+    expect(loginWithNew.response.status).toBe(200);
+  });
+
+  it('allows user to delete their account and blocks deleting the demo guest', async () => {
+    // Guest deletion blocked
+    const guest = await login('guest_paypal@example.com', 'GUEST_paypal@1502');
+    const guestDeleteRes = await fetch(`${baseUrl}/api/auth/account`, {
+      method: 'DELETE',
+      headers: { Cookie: guest.cookie },
+    });
+    expect(guestDeleteRes.status).toBe(403);
+
+    // User deletion allowed
+    new AuthService(getDatabase()).register({ name: 'To Be Deleted', email: 'delete_me@example.com', password: PASSWORD });
+    const user = await login('delete_me@example.com', PASSWORD);
+    expect(user.cookie).toBeTruthy();
+
+    const deleteRes = await fetch(`${baseUrl}/api/auth/account`, {
+      method: 'DELETE',
+      headers: { Cookie: user.cookie },
+    });
+    expect(deleteRes.status).toBe(200);
+
+    // Session is no longer valid
+    const meRes = await fetch(`${baseUrl}/api/auth/me`, {
+      headers: { Cookie: user.cookie },
+    });
+    expect(meRes.status).toBe(401);
+  });
 });

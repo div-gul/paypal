@@ -62,6 +62,37 @@ authRouter.get('/me', resolveSessionIfPresent, unauthenticatedApiRateLimit, requ
   res.json({ user: req.user });
 });
 
+const UpdateProfileSchema = z.object({
+  name: z.string().trim().min(1).max(80).optional(),
+  currentPassword: z.string().min(1).max(128).optional(),
+  newPassword: z.string().min(12).max(128)
+    .regex(/[a-z]/, 'Password must contain a lowercase letter.')
+    .regex(/[A-Z]/, 'Password must contain an uppercase letter.')
+    .regex(/[0-9]/, 'Password must contain a number.')
+    .regex(/[^A-Za-z0-9]/, 'Password must contain a symbol.')
+    .optional(),
+});
+
+authRouter.patch('/profile', resolveSessionIfPresent, requireAuthentication, (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const payload = UpdateProfileSchema.parse(req.body);
+    const updated = new AuthService(getDatabase()).updateProfile(req.user!.id, payload);
+    res.json({ user: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.delete('/account', resolveSessionIfPresent, requireAuthentication, (req: Request, res: Response, next: NextFunction) => {
+  try {
+    new AuthService(getDatabase()).deleteAccount(req.user!.id);
+    clearSessionCookie(res);
+    res.json({ success: true, message: 'Account deleted successfully.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 authRouter.get('/google/config', (_req: Request, res: Response) => {
   res.json({
     enabled: Boolean(config.GOOGLE_CLIENT_ID),

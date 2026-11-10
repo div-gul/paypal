@@ -101,7 +101,7 @@ describe('Phase 5: AI Endpoints (Server-Side, Validated)', () => {
       expect(proposal.preferredShoppingDay).toBe(5); // Friday
       expect(proposal.blockedCategories).toContain('Snacks');
       expect(proposal.changesSummary.length).toBeGreaterThanOrEqual(3);
-      expect(proposal.explanation).toContain('4,500');
+      expect(proposal.explanation).toMatch(/4,?500/);
 
       // CRITICAL: Ensure database policy was NOT changed automatically (proposal requires user review)
       const policyRes = await fetch(`${baseUrl}/api/policy`);

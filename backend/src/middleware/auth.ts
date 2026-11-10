@@ -3,11 +3,13 @@ import { createHash } from 'node:crypto';
 import { getDatabase } from '../db/connection.js';
 import { AppError } from './errorHandler.js';
 
-interface AuthenticatedUser {
+export interface AuthenticatedUser {
   id: string;
   name: string;
   email: string;
   role: 'user' | 'guest';
+  hasPassword?: boolean;
+  createdAt?: string;
 }
 
 declare global {
@@ -32,12 +34,19 @@ function resolveSessionUser(req: Request): AuthenticatedUser | undefined {
   if (!token) return undefined;
   const tokenHash = createHash('sha256').update(token).digest('hex');
   const row = getDatabase().prepare(`
-    SELECT u.id, u.name, u.email, u.role
+    SELECT u.id, u.name, u.email, u.role, (u.password_hash IS NOT NULL) AS hasPassword, u.created_at AS createdAt
     FROM auth_sessions s JOIN users u ON u.id = s.user_id
     WHERE s.token_hash = ? AND s.expires_at > ?
-  `).get(tokenHash, new Date().toISOString()) as AuthenticatedUser | undefined;
+  `).get(tokenHash, new Date().toISOString()) as any;
   if (!row || (row.role === 'guest' && process.env.NODE_ENV === 'production')) return undefined;
-  return row;
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    role: row.role,
+    hasPassword: Boolean(row.hasPassword),
+    createdAt: row.createdAt,
+  };
 }
 
 /** Resolve a valid session when present without rejecting anonymous requests. */
