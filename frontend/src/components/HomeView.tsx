@@ -52,10 +52,6 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
   const hasUnpaidAdditions = upcomingOrder.items.some(item =>
     item.quantity > (upcomingOrder.paidQuantities?.[item.pantryItemId] || 0)
   );
-  const unpaidSubtotalPaise = upcomingOrder.items.reduce((sum, item) =>
-    sum + Math.max(0, item.quantity - (upcomingOrder.paidQuantities?.[item.pantryItemId] || 0)) * item.unitPricePaise,
-  0);
-  const unpaidTotalPaise = unpaidSubtotalPaise + (upcomingOrder.paidAt && unpaidSubtotalPaise > 0 && unpaidSubtotalPaise < 39900 ? 2000 : 0);
 
   // 3. Recommended & filtered strategies
   const strategies = optimizationResult?.strategies || [];
@@ -359,24 +355,24 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigateToTab }) => {
               <Button
                 variant="primary"
                 size="md"
-                disabled={allFinalItems.length === 0 || (Boolean(upcomingOrder.paidAt) && !hasUnpaidAdditions)}
+                disabled={allFinalItems.length === 0 || Boolean(upcomingOrder.paidAt)}
                 onClick={() => {
                   if (needsApproval) {
                     onNavigateToTab('approvals');
-                  } else if (!upcomingOrder.paidAt || hasUnpaidAdditions) {
+                  } else if (!upcomingOrder.paidAt) {
                     void prepareUpcomingOrderCheckout();
                   }
                 }}
                 icon={needsApproval ? <ArrowRight className="w-4 h-4" /> : <ShoppingBag className="w-4 h-4" />}
               >
-                {upcomingOrder.paidAt && !hasUnpaidAdditions ? (
+                {upcomingOrder.paidAt ? (
                   `Paid for ${upcomingOrder.scheduledDate}`
                 ) : hasPendingSwaps ? (
                   `Review Swaps in Approvals (${pendingSwaps.length})`
                 ) : !isUpcomingOrderSaved ? (
                   'Review and Approve Order'
                 ) : (
-                  <span>{upcomingOrder.paidAt ? 'Pay Added Items' : 'Approve and Pay'} (<span className="tabular-nums">{formatPaise(upcomingOrder.paidAt ? unpaidTotalPaise : (upcomingOrder.totalPaise || grandTotalPaise))}</span>)</span>
+                  <span>Approve and Pay (<span className="tabular-nums">{formatPaise(upcomingOrder.totalPaise || grandTotalPaise)}</span>)</span>
                 )}
               </Button>
             </div>

@@ -804,10 +804,8 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         timestamp: new Date().toLocaleTimeString(),
         itemsPurchased: strategy.storeBaskets.flatMap(basket => basket.items),
       }));
-      if (upcomingCheckoutRunIdRef.current === runId) {
-        upcomingCheckoutRunIdRef.current = null;
-        await markUpcomingOrderPaid();
-      }
+      upcomingCheckoutRunIdRef.current = null;
+      await markUpcomingOrderPaid();
       await reloadState().catch(err => console.warn('Payment captured; state refresh notice:', err));
     },
     [markUpcomingOrderPaid, reloadState]
@@ -832,10 +830,8 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         } : {}),
       }));
       if (status.paymentState === 'CAPTURED') {
-        if (upcomingCheckoutRunIdRef.current === runId) {
-          upcomingCheckoutRunIdRef.current = null;
-          await markUpcomingOrderPaid();
-        }
+        upcomingCheckoutRunIdRef.current = null;
+        await markUpcomingOrderPaid();
         await reloadState().catch(err => console.warn('Payment status confirmed; state refresh notice:', err));
       }
       return status;
@@ -865,6 +861,8 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const orderRes = await api.createCheckoutOrder(runId);
         await api.captureCheckoutOrder(orderRes.orderId, runId);
 
+        upcomingCheckoutRunIdRef.current = null;
+        await markUpcomingOrderPaid();
         await reloadState();
 
         const allPurchasedItems = strategy.storeBaskets.flatMap(b => b.items);

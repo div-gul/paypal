@@ -91,9 +91,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       {/* Sticky Compact Bar: slides in after hero leaves viewport */}
       <div
-        className={`fixed top-0 left-0 right-0 z-40 h-14 bg-paper/95 backdrop-blur border-b border-mist transition-transform duration-300 ease-out flex items-center justify-between px-4 sm:px-8 ${
-          showStickyBar ? 'translate-y-0' : '-translate-y-full pointer-events-none'
-        }`}
+        className={`fixed top-0 left-0 right-0 z-40 h-14 bg-paper/95 backdrop-blur border-b border-mist transition-transform duration-300 ease-out flex items-center justify-between px-4 sm:px-8 ${showStickyBar ? 'translate-y-0' : '-translate-y-full pointer-events-none'
+          }`}
         aria-hidden={!showStickyBar}
       >
         <a
@@ -129,7 +128,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* ============================================================== */}
       <header
         ref={heroRef}
-        className="relative overflow-hidden min-h-[600px] h-[88vh] max-h-[850px] bg-night-teal bg-[#0A3540] shadow-landing-soft flex flex-col justify-between"
+        className="relative overflow-hidden min-h-[600px] h-[88vh] max-h-[850px] bg-night-teal bg-[#0A3540] flex flex-col justify-between"
         style={{ backgroundColor: '#0A3540' }}
       >
         {/* Single Hero Image */}
@@ -152,7 +151,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <div
           className="absolute inset-x-0 bottom-0 h-[45%] pointer-events-none"
           style={{
-            background: 'linear-gradient(to top, rgba(10,53,64,0.85) 0%, rgba(10,53,64,0.3) 60%, transparent 100%)',
+            background: 'linear-gradient(to top, #0A3540 0%, rgba(10,53,64,0.85) 35%, rgba(10,53,64,0.3) 70%, transparent 100%)',
           }}
         />
 
@@ -161,165 +160,159 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           aria-label="Primary Navigation"
           className="relative z-20 px-4 sm:px-8 py-5 flex items-center justify-between w-full max-w-[1440px] mx-auto"
         >
-            {/* Desktop Left Links */}
-            <div className="hidden lg:flex items-center gap-6 text-sm text-white/90 font-medium">
-              <a href="#how-it-works" className="hover:text-white transition">
-                How it works
-              </a>
-              <a href="#savings" className="hover:text-white transition">
-                Savings
-              </a>
-              <a href="#control" className="hover:text-white transition">
-                Your control
-              </a>
-              <a href="#under-the-hood" className="hover:text-white transition">
-                Under the hood
-              </a>
-            </div>
-
-            {/* Wordmark Center (Left on Mobile) */}
-            <a
-              href="#"
-              className="font-serif-italic text-[30px] leading-none text-white hover:opacity-90 transition"
-              aria-label="ShopPilot AI Homepage"
-            >
-              ShopPilot
+          {/* Desktop Left Links */}
+          <div className="hidden lg:flex items-center gap-6 text-sm text-white/90 font-medium">
+            <a href="#how-it-works" className="hover:text-white transition">
+              How it works
             </a>
+            <a href="#savings" className="hover:text-white transition">
+              Savings
+            </a>
+            <a href="#control" className="hover:text-white transition">
+              Your control
+            </a>
+            <a href="#under-the-hood" className="hover:text-white transition">
+              Under the hood
+            </a>
+          </div>
 
-            {/* Desktop Right Actions with Glass Capsule */}
-            <div className="hidden lg:flex items-center gap-3 p-1.5 pl-4 rounded-full border border-white/25 bg-white/12 backdrop-blur-[14px] shadow-landing-soft">
-              {currentUser ? (
-                <button
-                  onClick={onGoToApp}
-                  className="text-sm font-medium text-white hover:text-sand transition cursor-pointer px-2 py-1"
-                >
-                  Dashboard
-                </button>
-              ) : (
-                <button
-                  onClick={() => onOpenAuth('login')}
-                  className="text-sm font-medium text-white/90 hover:text-white transition cursor-pointer px-2 py-1"
-                >
-                  Sign in
-                </button>
-              )}
+          {/* Wordmark Center (Left on Mobile) */}
+          <a
+            href="#"
+            className="font-serif-italic text-[30px] leading-none text-white hover:opacity-90 transition"
+            aria-label="ShopPilot AI Homepage"
+          >
+            ShopPilot
+          </a>
+
+          {/* Desktop Right Actions with Glass Capsule */}
+          <div className="hidden lg:flex items-center gap-3 p-1.5 pl-4 rounded-full border border-white/25 bg-white/12 backdrop-blur-[14px] shadow-landing-soft">
+            {currentUser ? (
+              <button
+                onClick={onGoToApp}
+                className="text-sm font-medium text-white hover:text-sand transition cursor-pointer px-2 py-1"
+              >
+                Dashboard
+              </button>
+            ) : (
+              <button
+                onClick={() => onOpenAuth('login')}
+                className="text-sm font-medium text-white/90 hover:text-white transition cursor-pointer px-2 py-1"
+              >
+                Sign in
+              </button>
+            )}
+            <button
+              onClick={handleInstantDemo}
+              disabled={isDemoLaunching}
+              className="bg-orange bg-[#C2561A] hover:bg-orange-hover hover:bg-[#A8450F] text-white text-sm font-medium px-5 py-2.5 rounded-full transition shadow-landing-soft cursor-pointer inline-flex items-center gap-1.5"
+              style={{ backgroundColor: '#C2561A', color: '#ffffff' }}
+            >
+              <span>{isDemoLaunching ? 'Launching…' : 'Try the demo'}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Mobile Nav Right: Orange button + Hamburger with Glass Capsule */}
+          <div className="flex lg:hidden items-center gap-1.5 p-1 pl-1 rounded-full border border-white/25 bg-white/12 backdrop-blur-[14px] shadow-landing-soft">
+            <button
+              onClick={handleInstantDemo}
+              disabled={isDemoLaunching}
+              className="bg-orange bg-[#C2561A] hover:bg-orange-hover hover:bg-[#A8450F] text-white text-xs font-semibold px-3.5 py-2 rounded-full transition shadow-landing-soft cursor-pointer inline-flex items-center gap-1"
+              style={{ backgroundColor: '#C2561A', color: '#ffffff' }}
+            >
+              <span>{isDemoLaunching ? '…' : 'Try the demo'}</span>
+              <ArrowRight className="w-3 h-3" />
+            </button>
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="text-white p-1.5 rounded-full hover:bg-white/10 transition cursor-pointer"
+              aria-label="Open navigation menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+          </div>
+        </nav>
+
+        {/* Hero Content Bottom-Left + Glass Card Bottom-Right */}
+        <div className="relative z-10 px-4 sm:px-8 pb-8 sm:pb-12 pt-16 flex flex-col lg:flex-row lg:items-end justify-between gap-8 max-w-[1280px] w-full mx-auto">
+          {/* Content Left */}
+          <div className="max-w-[640px] space-y-5 text-white">
+            <h1 className="landing-h1 font-bold text-white tracking-tight">
+              <span
+                className={`block transition-all duration-700 ease-out ${heroAnimated ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+                  }`}
+              >
+                Your kitchen
+              </span>
+              <span
+                className={`block font-serif-italic text-[#FFF4D6] transition-all duration-700 delay-100 ease-out ${heroAnimated ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+                  }`}
+              >
+                restocks itself.
+              </span>
+            </h1>
+
+            <p
+              className={`landing-body text-white/90 transition-all duration-700 delay-200 ease-out ${heroAnimated ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+                }`}
+            >
+              ShopPilot tracks what you use, finds the cheapest way to restock across Zepto, Blinkit and Instamart,
+              and pays with PayPal. You only step in when something needs your OK.
+            </p>
+
+            <div
+              className={`pt-1 flex flex-wrap items-center gap-4 transition-all duration-700 delay-300 ease-out ${heroAnimated ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+                }`}
+            >
               <button
                 onClick={handleInstantDemo}
                 disabled={isDemoLaunching}
-                className="bg-orange bg-[#C2561A] hover:bg-orange-hover hover:bg-[#A8450F] text-white text-sm font-medium px-5 py-2.5 rounded-full transition shadow-landing-soft cursor-pointer inline-flex items-center gap-1.5"
+                className="bg-orange bg-[#C2561A] hover:bg-orange-hover hover:bg-[#A8450F] text-white text-base font-semibold px-6 py-3.5 rounded-full transition shadow-landing-soft cursor-pointer inline-flex items-center gap-2"
                 style={{ backgroundColor: '#C2561A', color: '#ffffff' }}
               >
-                <span>{isDemoLaunching ? 'Launching…' : 'Try the demo'}</span>
+                <span>{isDemoLaunching ? 'Launching Demo…' : 'Try the demo'}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
+              <a
+                href="#how-it-works"
+                className="text-white hover:text-white/80 font-medium text-sm transition underline underline-offset-4 cursor-pointer"
+              >
+                See how it works
+              </a>
             </div>
 
-            {/* Mobile Nav Right: Orange button + Hamburger with Glass Capsule */}
-            <div className="flex lg:hidden items-center gap-1.5 p-1 pl-1 rounded-full border border-white/25 bg-white/12 backdrop-blur-[14px] shadow-landing-soft">
-              <button
-                onClick={handleInstantDemo}
-                disabled={isDemoLaunching}
-                className="bg-orange bg-[#C2561A] hover:bg-orange-hover hover:bg-[#A8450F] text-white text-xs font-semibold px-3.5 py-2 rounded-full transition shadow-landing-soft cursor-pointer inline-flex items-center gap-1"
-                style={{ backgroundColor: '#C2561A', color: '#ffffff' }}
-              >
-                <span>{isDemoLaunching ? '…' : 'Try the demo'}</span>
-                <ArrowRight className="w-3 h-3" />
-              </button>
-              <button
-                onClick={() => setMobileMenuOpen(true)}
-                className="text-white p-1.5 rounded-full hover:bg-white/10 transition cursor-pointer"
-                aria-label="Open navigation menu"
-              >
-                <Menu className="w-5 h-5" />
-              </button>
-            </div>
-          </nav>
-
-          {/* Hero Content Bottom-Left + Glass Card Bottom-Right */}
-          <div className="relative z-10 px-4 sm:px-8 pb-8 sm:pb-12 pt-16 flex flex-col lg:flex-row lg:items-end justify-between gap-8 max-w-[1280px] w-full mx-auto">
-            {/* Content Left */}
-            <div className="max-w-[640px] space-y-5 text-white">
-              <h1 className="landing-h1 font-bold text-white tracking-tight">
-                <span
-                  className={`block transition-all duration-700 ease-out ${
-                    heroAnimated ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-                  }`}
-                >
-                  Your kitchen
-                </span>
-                <span
-                  className={`block font-serif-italic text-[#FFF4D6] transition-all duration-700 delay-100 ease-out ${
-                    heroAnimated ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-                  }`}
-                >
-                  restocks itself.
-                </span>
-              </h1>
-
-              <p
-                className={`landing-body text-white/90 transition-all duration-700 delay-200 ease-out ${
-                  heroAnimated ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-                }`}
-              >
-                ShopPilot tracks what you use, finds the cheapest way to restock across Zepto, Blinkit and Instamart,
-                and pays with PayPal. You only step in when something needs your OK.
-              </p>
-
-              <div
-                className={`pt-1 flex flex-wrap items-center gap-4 transition-all duration-700 delay-300 ease-out ${
-                  heroAnimated ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-                }`}
-              >
-                <button
-                  onClick={handleInstantDemo}
-                  disabled={isDemoLaunching}
-                  className="bg-orange bg-[#C2561A] hover:bg-orange-hover hover:bg-[#A8450F] text-white text-base font-semibold px-6 py-3.5 rounded-full transition shadow-landing-soft cursor-pointer inline-flex items-center gap-2"
-                  style={{ backgroundColor: '#C2561A', color: '#ffffff' }}
-                >
-                  <span>{isDemoLaunching ? 'Launching Demo…' : 'Try the demo'}</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-                <a
-                  href="#how-it-works"
-                  className="text-white hover:text-white/80 font-medium text-sm transition underline underline-offset-4 cursor-pointer"
-                >
-                  See how it works
-                </a>
+            {demoError && (
+              <div role="alert" className="text-sand text-xs font-medium bg-night-teal/80 p-2.5 rounded-lg border border-sand/30">
+                {demoError}
               </div>
+            )}
 
-              {demoError && (
-                <div role="alert" className="text-sand text-xs font-medium bg-night-teal/80 p-2.5 rounded-lg border border-sand/30">
-                  {demoError}
-                </div>
-              )}
-
-              <p
-                className={`landing-caption text-white/70 transition-all duration-700 delay-300 ease-out ${
-                  heroAnimated ? 'opacity-100' : 'opacity-0'
+            <p
+              className={`landing-caption text-white/70 transition-all duration-700 delay-300 ease-out ${heroAnimated ? 'opacity-100' : 'opacity-0'
                 }`}
-              >
-                The demo uses PayPal's sandbox and simulated store prices. No real money moves.
-              </p>
-            </div>
-
-            {/* Glass Card Bottom-Right */}
-            <aside
-              aria-label="Order summary highlight"
-              className={`w-full lg:w-[260px] p-5 rounded-card-sm border border-white/25 bg-white/12 backdrop-blur-[14px] text-white shadow-landing-soft transition-all duration-700 delay-400 ease-out shrink-0 ${
-                heroAnimated ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-              }`}
             >
-              <span className="landing-caption text-white/80 uppercase tracking-wider block font-medium">
-                This week's demo order
-              </span>
-              <div className="font-serif-italic text-[56px] leading-tight text-white my-1">
-                ₹103 saved
-              </div>
-              <p className="landing-caption text-white/85">
-                One store and one delivery fee instead of two.
-              </p>
-            </aside>
+              The demo uses PayPal's sandbox and simulated store prices. No real money moves.
+            </p>
           </div>
+
+          {/* Glass Card Bottom-Right */}
+          <aside
+            aria-label="Order summary highlight"
+            className={`w-full lg:w-[260px] p-5 rounded-card-sm border border-white/25 bg-white/12 backdrop-blur-[14px] text-white shadow-landing-soft transition-all duration-700 delay-400 ease-out shrink-0 ${heroAnimated ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+              }`}
+          >
+            <span className="landing-caption text-white/80 uppercase tracking-wider block font-medium">
+              This week's demo order
+            </span>
+            <div className="font-serif-italic text-[56px] leading-tight text-white my-1">
+              ₹103 saved
+            </div>
+            <p className="landing-caption text-white/85">
+              One store and one delivery fee instead of two.
+            </p>
+          </aside>
+        </div>
 
         {/* Mobile Nav Full-Screen Drawer */}
         {mobileMenuOpen && (
@@ -401,32 +394,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* Main Content Landmark */}
       <main id="main-content">
         {/* ============================================================== */}
-        {/* SECTION 2: STATEMENT (paper) */}
+        {/* SECTION 2: STATEMENT (seamless fade from hero into white) */}
         {/* ============================================================== */}
-        <section className="bg-paper py-20 sm:py-28 px-4 sm:px-6 lg:px-8 border-b border-mist">
-          <div className="max-w-[980px] mx-auto text-center">
+        <section className="relative bg-white pt-24 sm:pt-32 pb-20 sm:pb-28 px-4 sm:px-6 lg:px-8 border-b border-mist overflow-hidden">
+          {/* Eased Night-Teal Scrim Gradient extending from the hero */}
+          <div
+            className="absolute inset-x-0 top-0 h-44 sm:h-56 pointer-events-none"
+          />
+
+          <div className="max-w-[980px] mx-auto text-center space-y-6 sm:space-y-8 relative z-10">
             <p className="text-[28px] sm:text-[40px] leading-[1.25] text-ink font-normal">
               India made groceries arrive in ten minutes. It also gave us the 11:30 pm{' '}
-              <span className="font-serif-italic text-teal">milk run</span>
-              <img
-                src="/images/milk.png"
-                alt=""
-                className="inline-block align-middle mx-2 w-[100px] sm:w-[120px] h-[48px] sm:h-[56px] rounded-full object-cover border border-mist shadow-xs"
-              />
-              , the third tub of curd
-              <img
-                src="/images/curd.png"
-                alt=""
-                className="inline-block align-middle mx-2 w-[100px] sm:w-[120px] h-[48px] sm:h-[56px] rounded-full object-cover border border-mist shadow-xs"
-              />{' '}
+              <span className="font-serif-italic text-teal">milk run</span>, the third tub of curd{' '}
               <span className="text-ink-muted">nobody needed, and</span>{' '}
-              <span className="font-serif-italic text-teal">two delivery fees</span>
-              <img
-                src="/images/bag.png"
-                alt=""
-                className="inline-block align-middle mx-2 w-[100px] sm:w-[120px] h-[48px] sm:h-[56px] rounded-full object-cover border border-mist shadow-xs"
-              />{' '}
-              <span className="text-ink-muted">for one dinner. ShopPilot handles the boring part, so your kitchen just keeps working.</span>
+              <span className="font-serif-italic text-teal">two delivery fees</span>{' '}
+              <span className="text-ink-muted">for one dinner.</span>
+            </p>
+            <p className="text-base sm:text-xl text-ink-muted font-normal max-w-[640px] mx-auto leading-relaxed">
+              ShopPilot handles the boring part, so your kitchen just keeps working.
             </p>
           </div>
         </section>
@@ -652,11 +637,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     role="radio"
                     aria-checked={savingsMode === 'split'}
                     onClick={() => setSavingsMode('split')}
-                    className={`flex-1 py-2.5 px-4 rounded-full text-xs sm:text-sm font-semibold transition cursor-pointer ${
-                      savingsMode === 'split'
-                        ? 'bg-white text-ink shadow-xs'
-                        : 'text-ink-muted hover:text-ink'
-                    }`}
+                    className={`flex-1 py-2.5 px-4 rounded-full text-xs sm:text-sm font-semibold transition cursor-pointer ${savingsMode === 'split'
+                      ? 'bg-white text-ink shadow-xs'
+                      : 'text-ink-muted hover:text-ink'
+                      }`}
                   >
                     Split across stores
                   </button>
@@ -664,11 +648,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     role="radio"
                     aria-checked={savingsMode === 'single'}
                     onClick={() => setSavingsMode('single')}
-                    className={`flex-1 py-2.5 px-4 rounded-full text-xs sm:text-sm font-semibold transition cursor-pointer flex items-center justify-center gap-2 ${
-                      savingsMode === 'single'
-                        ? 'bg-white text-ink shadow-xs'
-                        : 'text-ink-muted hover:text-ink'
-                    }`}
+                    className={`flex-1 py-2.5 px-4 rounded-full text-xs sm:text-sm font-semibold transition cursor-pointer flex items-center justify-center gap-2 ${savingsMode === 'single'
+                      ? 'bg-white text-ink shadow-xs'
+                      : 'text-ink-muted hover:text-ink'
+                      }`}
                   >
                     <span>One store</span>
                     {savingsMode === 'single' && (

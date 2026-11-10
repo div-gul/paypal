@@ -280,13 +280,16 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
               >
                 {/* Top Section */}
                 <div className="space-y-3">
-                  {/* Category and Health Badge with icon and text label */}
-                  <div className="flex items-center justify-between gap-1.5">
-                    <span className="text-[10px] font-extrabold text-ink-muted uppercase tracking-widest">
+                  {/* Category and Health Badge with fixed height row */}
+                  <div className="flex items-center justify-between gap-1.5 h-7">
+                    <span
+                      className="text-[10px] font-extrabold text-ink-muted uppercase tracking-wider truncate"
+                      title={item.category}
+                    >
                       {item.category}
                     </span>
                     <span
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold shrink-0 ${
                         isStockout
                           ? 'bg-danger/10 text-danger border border-danger/25'
                           : isBelowSafety
@@ -299,7 +302,7 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
                       ) : (
                         <CheckCircle className="w-3.5 h-3.5 text-good shrink-0" />
                       )}
-                      <span>{health.daysRemainingText}</span>
+                      <span className="whitespace-nowrap">{health.daysRemainingText}</span>
                     </span>
                   </div>
 
@@ -314,41 +317,39 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
                     />
                   </div>
 
-                  {/* Below Image: Product Name, Brand in bold, and Weight */}
+                  {/* Below Image: Fixed-height Product Name, Brand in bold, and Weight */}
                   <div>
                     <h3
-                      className="font-bold text-ink text-sm sm:text-base leading-snug line-clamp-2"
+                      className="font-bold text-ink text-sm sm:text-base leading-snug line-clamp-2 h-11 flex items-start"
                       title={item.name}
                     >
                       {item.name}
                     </h3>
-                    <div className="mt-1 space-y-0.5">
-                      <div className="text-xs font-bold text-ink truncate">
+                    <div className="mt-1 h-9 flex flex-col justify-center">
+                      <div className="text-xs font-bold text-ink truncate" title={item.preferredBrand}>
                         {item.preferredBrand}
                       </div>
-                      {item.preferredPackageSize && (
-                        <div className="text-[11px] text-ink-muted font-medium">
-                          {item.preferredPackageSize}
-                        </div>
-                      )}
+                      <div className="text-[11px] text-ink-muted font-medium truncate">
+                        {item.preferredPackageSize || '\u00A0'}
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Middle Section: Stock Level Box */}
-                <div className="my-3 py-3 px-3.5 rounded-xl bg-paper/80 border border-secondary-tint/60 flex items-center justify-between">
+                {/* Middle Section: Stock Level Box with Fixed Height */}
+                <div className="my-3 h-[68px] py-2.5 px-3.5 rounded-xl bg-paper/80 border border-secondary-tint/60 flex items-center justify-between">
                   <div>
-                    <span className="text-[10px] text-ink-muted block uppercase font-bold tracking-wider">
+                    <span className="text-[10px] text-ink-muted block uppercase font-bold tracking-wider leading-none">
                       In Pantry
                     </span>
-                    <div className="text-2xl font-black text-ink tabular-nums leading-none mt-1 tracking-tight">
+                    <div className="text-2xl font-black text-ink tabular-nums leading-none mt-1.5 tracking-tight">
                       {formatStockQuantity(item.currentQuantity, item.unit)}{' '}
                       <span className="text-xs font-bold text-ink-muted">{item.unit}</span>
                     </div>
                   </div>
 
                   {/* Quick Quantity Adjusters with Unit-Aware Step */}
-                  <div className="inline-flex items-center bg-surface border border-secondary-tint rounded-xl p-0.5 shadow-xs">
+                  <div className="inline-flex items-center bg-surface border border-secondary-tint rounded-xl p-0.5 shadow-xs shrink-0">
                     <button
                       onClick={() => quickAdjustQuantity(item.id, -step)}
                       title={`Consume ${step} ${item.unit}`}
@@ -368,13 +369,13 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
                 </div>
 
                 {/* Bottom Row: Aligned Uniform Row Height Across All Cards */}
-                <div className="mt-auto pt-2.5 flex items-center justify-between min-h-[40px] border-t border-secondary-tint/60 text-xs">
+                <div className="mt-auto pt-2.5 flex items-center justify-between h-10 border-t border-secondary-tint/60 text-xs">
                   {/* Left: Brand swap policy pill */}
-                  <div>
+                  <div className="shrink-0">
                     {item.requireApprovalForBrandChange ? (
                       <span
                         title="ShopPilot will ask you before ordering an alternate brand"
-                        className="text-[11px] font-semibold text-secondary bg-secondary-tint/80 border border-secondary/20 px-2.5 py-1 rounded-full flex items-center gap-1.5"
+                        className="text-[10px] sm:text-[11px] font-semibold text-secondary bg-secondary-tint/80 border border-secondary/20 px-2 sm:px-2.5 py-1 rounded-full inline-flex items-center gap-1.5 whitespace-nowrap"
                       >
                         <Shield className="w-3.5 h-3.5 text-secondary shrink-0" />
                         <span>Ask before swap</span>
@@ -382,14 +383,14 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
                     ) : item.allowSubstitutions ? (
                       <span
                         title="Automatic brand substitutions allowed"
-                        className="text-[11px] font-medium text-ink-muted bg-paper border border-secondary-tint px-2.5 py-1 rounded-full"
+                        className="text-[10px] sm:text-[11px] font-medium text-ink-muted bg-paper border border-secondary-tint px-2 sm:px-2.5 py-1 rounded-full inline-flex items-center whitespace-nowrap"
                       >
                         Auto-swap
                       </span>
                     ) : (
                       <span
                         title="Only exact brand permitted"
-                        className="text-[11px] font-semibold text-brand bg-brand-tint border border-brand/20 px-2.5 py-1 rounded-full"
+                        className="text-[10px] sm:text-[11px] font-semibold text-brand bg-brand-tint border border-brand/20 px-2 sm:px-2.5 py-1 rounded-full inline-flex items-center whitespace-nowrap"
                       >
                         Exact brand
                       </span>
@@ -397,7 +398,7 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
                   </div>
 
                   {/* Right: Actions */}
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-0.5 shrink-0">
                     <button
                       onClick={() => openEditModal(item)}
                       title="Edit item settings"
