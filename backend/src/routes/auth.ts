@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { getDatabase } from '../db/connection.js';
 import { AuthService } from '../services/AuthService.js';
+import { EmailService } from '../services/EmailService.js';
 import { readSessionToken, requireAuthentication, resolveSessionIfPresent, SESSION_COOKIE } from '../middleware/auth.js';
 import { rateLimit, loginFailureLimit, unauthenticatedApiRateLimit } from '../middleware/rateLimit.js';
 import { config } from '../config.js';
@@ -9,14 +10,18 @@ import { config } from '../config.js';
 export const authRouter = Router();
 
 const Email = z.string().trim().email().max(254);
+const PasswordRule = z.string()
+  .min(8, 'Password must be at least 8 characters long.')
+  .max(128, 'Password cannot exceed 128 characters.')
+  .regex(/[a-z]/, 'Password must contain at least one lowercase letter.')
+  .regex(/[A-Z]/, 'Password must contain at least one uppercase letter.')
+  .regex(/[0-9]/, 'Password must contain at least one number.')
+  .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special symbol (e.g. @, #, $, !).');
+
 const RegisterSchema = z.object({
-  name: z.string().trim().min(1).max(80),
+  name: z.string().trim().min(1, 'Name is required').max(80, 'Name cannot exceed 80 characters'),
   email: Email,
-  password: z.string().min(12).max(128)
-    .regex(/[a-z]/, 'Password must contain a lowercase letter.')
-    .regex(/[A-Z]/, 'Password must contain an uppercase letter.')
-    .regex(/[0-9]/, 'Password must contain a number.')
-    .regex(/[^A-Za-z0-9]/, 'Password must contain a symbol.'),
+  password: PasswordRule,
 });
 const LoginSchema = z.object({ email: Email, password: z.string().min(1).max(128) });
 
@@ -58,25 +63,63 @@ authRouter.post('/logout', (req: Request, res: Response) => {
   res.status(204).end();
 });
 
+const ForgotPasswordSchema = z.object({
+  email: Email,
+});
+
+const ResetPasswordSchema = z.object({
+  token: z.string().min(10, 'Reset token is missing or invalid'),
+  newPassword: PasswordRule,
+});
+
+authRouter.post('/forgot-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 10, key: req => `ip:${req.ip}` }, 'forgot-password'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { email } = ForgotPasswordSchema.parse(req.body);
+    const authService = new AuthService(getDatabase());
+    const result = authService.createPasswordReset(email);
+
+    if (result) {
+      const resetLink = `${config.APP_BASE_URL}/reset-password?token=${encodeURIComponent(result.resetToken)}`;
+      const emailService = new EmailService();
+      await emailService.sendPasswordResetEmail(result.user.email, resetLink, result.user.name);
+    }
+
+    res.json({ message: 'If an account exists with this email, a password reset link has been sent.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.post('/reset-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 15, key: req => `ip:${req.ip}` }, 'reset-password'), (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { token, newPassword } = ResetPasswordSchema.parse(req.body);
+    const authService = new AuthService(getDatabase());
+    authService.resetPassword(token, newPassword);
+    clearSessionCookie(res);
+    res.json({ success: true, message: 'Password has been reset successfully. Please log in with your new password.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 authRouter.get('/me', resolveSessionIfPresent, unauthenticatedApiRateLimit, requireAuthentication, (req: Request, res: Response) => {
   res.json({ user: req.user });
 });
 
 const UpdateProfileSchema = z.object({
-  name: z.string().trim().min(1).max(80).optional(),
-  currentPassword: z.string().min(1).max(128).optional(),
-  newPassword: z.string().min(12).max(128)
-    .regex(/[a-z]/, 'Password must contain a lowercase letter.')
-    .regex(/[A-Z]/, 'Password must contain an uppercase letter.')
-    .regex(/[0-9]/, 'Password must contain a number.')
-    .regex(/[^A-Za-z0-9]/, 'Password must contain a symbol.')
-    .optional(),
+  name: z.string().trim().min(1, 'Name cannot be empty').max(80, 'Name cannot exceed 80 characters').optional(),
+  currentPassword: z.string().max(128).optional(),
+  newPassword: PasswordRule.optional(),
 });
 
 authRouter.patch('/profile', resolveSessionIfPresent, requireAuthentication, (req: Request, res: Response, next: NextFunction) => {
   try {
     const payload = UpdateProfileSchema.parse(req.body);
-    const updated = new AuthService(getDatabase()).updateProfile(req.user!.id, payload);
+    const cleanCurrentPassword = payload.currentPassword?.trim() ? payload.currentPassword.trim() : undefined;
+    const updated = new AuthService(getDatabase()).updateProfile(req.user!.id, {
+      ...payload,
+      currentPassword: cleanCurrentPassword,
+    });
     res.json({ user: updated });
   } catch (err) {
     next(err);

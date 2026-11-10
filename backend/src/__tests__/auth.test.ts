@@ -218,6 +218,27 @@ describe('cookie authentication, isolation, and guest simulation permissions', (
     // Login with new password works
     const loginWithNew = await login('profile_test@example.com', 'NewPassword@12345');
     expect(loginWithNew.response.status).toBe(200);
+
+    // Google user (no initial password) can set password without currentPassword
+    const googleResult = new AuthService(getDatabase()).loginWithGoogle({
+      name: 'Google User',
+      email: 'google_user@example.com',
+    });
+    expect(googleResult.user.hasPassword).toBe(false);
+
+    // Setting password without currentPassword succeeds
+    const setPassRes = await fetch(`${baseUrl}/api/auth/profile`, {
+      method: 'PATCH',
+      headers: { Cookie: `shoppilot_session=${googleResult.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newPassword: 'InitialGooglePass@2026' }),
+    });
+    expect(setPassRes.status).toBe(200);
+    const setPassData = await setPassRes.json() as any;
+    expect(setPassData.user.hasPassword).toBe(true);
+
+    // Can now log in with password
+    const googlePassLogin = await login('google_user@example.com', 'InitialGooglePass@2026');
+    expect(googlePassLogin.response.status).toBe(200);
   });
 
   it('allows user to delete their account and blocks deleting the demo guest', async () => {
@@ -245,5 +266,73 @@ describe('cookie authentication, isolation, and guest simulation permissions', (
       headers: { Cookie: user.cookie },
     });
     expect(meRes.status).toBe(401);
+  });
+
+  it('handles forgot password and reset password flow with tokens', async () => {
+    const authService = new AuthService(getDatabase());
+    authService.register({ name: 'Forgot User', email: 'forgot_test@example.com', password: PASSWORD });
+
+    // Request reset for non-existent user returns generic 200 message
+    const anonForgot = await fetch(`${baseUrl}/api/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'nonexistent@example.com' }),
+    });
+    expect(anonForgot.status).toBe(200);
+    const anonBody = await anonForgot.json() as any;
+    expect(anonBody.message).toContain('If an account exists');
+
+    // Request reset for registered user returns 200 message and creates DB record
+    const userForgot = await fetch(`${baseUrl}/api/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'forgot_test@example.com' }),
+    });
+    expect(userForgot.status).toBe(200);
+
+    // Generate token directly through AuthService to test reset-password endpoint
+    const resetResult = authService.createPasswordReset('forgot_test@example.com');
+    expect(resetResult).not.toBeNull();
+    const token = resetResult!.resetToken;
+
+    // Reject reset with invalid or short token
+    const badTokenRes = await fetch(`${baseUrl}/api/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'wrong-token-1234567890', newPassword: 'BrandNewPass@2026' }),
+    });
+    expect(badTokenRes.status).toBe(400);
+
+    // Reject reset with weak password
+    const weakPassRes = await fetch(`${baseUrl}/api/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, newPassword: 'short' }),
+    });
+    expect(weakPassRes.status).toBe(400);
+
+    // Successful reset with valid token and strong password
+    const validResetRes = await fetch(`${baseUrl}/api/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, newPassword: 'BrandNewPass@2026' }),
+    });
+    expect(validResetRes.status).toBe(200);
+
+    // Using the same token again fails
+    const reUseTokenRes = await fetch(`${baseUrl}/api/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, newPassword: 'AnotherNewPass@2026' }),
+    });
+    expect(reUseTokenRes.status).toBe(400);
+
+    // Old password no longer works
+    const oldLogin = await login('forgot_test@example.com', PASSWORD);
+    expect(oldLogin.response.status).toBe(401);
+
+    // New password works
+    const newLogin = await login('forgot_test@example.com', 'BrandNewPass@2026');
+    expect(newLogin.response.status).toBe(200);
   });
 });

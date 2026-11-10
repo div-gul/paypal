@@ -42,7 +42,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [deleteError, setDeleteError] = useState('');
 
   const isGuest = user.role === 'guest';
-  const hasPasswordAuth = user.hasPassword !== false;
+  const hasPasswordAuth = Boolean(user.hasPassword);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,12 +55,16 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     }
 
     if (showPasswordChange && newPassword) {
-      if (newPassword !== confirmPassword) {
-        setSaveError('New passwords do not match.');
+      if (hasPasswordAuth && !currentPassword) {
+        setSaveError('Please enter your current password.');
         return;
       }
-      if (newPassword.length < 12) {
-        setSaveError('Password must be at least 12 characters.');
+      if (newPassword.length < 8) {
+        setSaveError('Password must be at least 8 characters.');
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        setSaveError('New passwords do not match.');
         return;
       }
     }
@@ -71,20 +75,25 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         name: name.trim(),
       };
       if (showPasswordChange && newPassword) {
-        payload.currentPassword = currentPassword;
+        if (hasPasswordAuth && currentPassword.trim()) {
+          payload.currentPassword = currentPassword.trim();
+        }
         payload.newPassword = newPassword;
       }
 
       const res = await api.updateProfile(payload);
       onUserUpdated(res.user);
-      setSaveSuccess('Profile updated successfully!');
+      setSaveSuccess(hasPasswordAuth ? 'Profile updated successfully!' : 'Password set successfully! You can now log in with email or Google.');
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       setShowPasswordChange(false);
       setTimeout(() => setSaveSuccess(''), 4000);
     } catch (err: any) {
-      setSaveError(err?.message || 'Could not update profile.');
+      const issues = Array.isArray(err?.details)
+        ? err.details.map((issue: { message?: string }) => issue.message).filter(Boolean).join('. ')
+        : '';
+      setSaveError(issues || err?.message || 'Could not update profile.');
     } finally {
       setIsSaving(false);
     }
@@ -248,6 +257,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     </button>
                   </div>
 
+                  {!hasPasswordAuth && (
+                    <div className="p-2.5 rounded-xl bg-brand/5 border border-brand/15 text-xs text-brand font-medium">
+                      You signed in with Google and do not have a password yet. Set a password below so you can log in with both Google and your email/password.
+                    </div>
+                  )}
+
                   {hasPasswordAuth && (
                     <div>
                       <label className="block text-xs font-semibold text-ink mb-1">
@@ -274,7 +289,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                         autoComplete="new-password"
                         value={newPassword}
                         onChange={e => setNewPassword(e.target.value)}
-                        placeholder="Min 12 chars (letters, numbers, symbols)"
+                        placeholder="Min 8 chars (letters, numbers, symbols)"
                         className="w-full px-3.5 py-2 text-xs border rounded-xl border-secondary-tint bg-white text-ink min-h-[40px]"
                       />
                     </div>
@@ -293,7 +308,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     </div>
                   </div>
                   <p className="text-[11px] text-ink-muted">
-                    Must include at least 12 characters, uppercase & lowercase letters, a number, and a special character.
+                    Must include at least 8 characters, uppercase & lowercase letters, a number, and a special character.
                   </p>
                 </div>
               )}

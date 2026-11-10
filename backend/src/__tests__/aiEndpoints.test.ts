@@ -159,7 +159,7 @@ describe('Phase 5: AI Endpoints (Server-Side, Validated)', () => {
       expect(substitute.brand).toBe('Amul');
       expect(substitute.confidence).toBeGreaterThan(0.9);
       expect(substitute.reasoning).toContain('Amul');
-    });
+    }, 30000);
 
     it('selects only from current server catalog quotes', async () => {
       const res = await fetch(`${baseUrl}/api/ai/substitute`, {

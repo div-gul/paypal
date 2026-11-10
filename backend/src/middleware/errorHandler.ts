@@ -24,10 +24,11 @@ export function errorHandler(
   }
 
   if (err instanceof ZodError) {
+    const detailMsg = err.issues.map(i => i.message).filter(Boolean).join('. ');
     res.status(400).json({
       error: {
         code: 'VALIDATION_ERROR',
-        message: 'Request payload validation failed',
+        message: detailMsg || 'Request payload validation failed',
         details: err.issues.map(i => ({ path: i.path.join('.'), message: i.message })),
       },
     });

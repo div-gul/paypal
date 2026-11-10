@@ -38,6 +38,14 @@ const ConfigSchema = z.object({
   // LLM Configuration
   LLM_API_KEY: z.string().optional(),
 
+  // Email / SMTP Configuration
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_SECURE: z.preprocess(value => value === 'true' || value === true, z.boolean()).default(false),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  EMAIL_FROM: z.string().default('ShopPilot AI <no-reply@shoppilot.local>'),
+
 }).superRefine((data, ctx) => {
   const paypalHost = new URL(data.PAYPAL_BASE_URL).hostname.toLowerCase();
   const sandboxHost = paypalHost === 'api-m.sandbox.paypal.com' || paypalHost === 'api.sandbox.paypal.com';

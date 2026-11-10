@@ -77,18 +77,26 @@ export class AuthService {
     if (row.role === 'guest' && process.env.NODE_ENV === 'production') {
       throw new AppError('INVALID_CREDENTIALS', 'Email or password is incorrect.', 401);
     }
-    const user: PublicUser = { id: row.id, name: row.name, email: row.email, role: row.role };
+    const user: PublicUser = { id: row.id, name: row.name, email: row.email, role: row.role, hasPassword: true };
     this.db.prepare('DELETE FROM auth_sessions WHERE user_id = ?').run(user.id);
     return { user, ...createSession(this.db, user) };
   }
 
   loginWithGoogle(input: { email: string; name: string }) {
     const email = input.email.trim().toLowerCase();
-    const existing = this.db.prepare('SELECT id, name, email, role FROM users WHERE LOWER(email) = ?')
-      .get(email) as PublicUser | undefined;
+    const existing = this.db.prepare('SELECT id, name, email, role, (password_hash IS NOT NULL) AS hasPassword, created_at AS createdAt FROM users WHERE LOWER(email) = ?')
+      .get(email) as any;
 
     if (existing) {
-      return { user: existing, ...createSession(this.db, existing) };
+      const publicUser: PublicUser = {
+        id: existing.id,
+        name: existing.name,
+        email: existing.email,
+        role: existing.role,
+        hasPassword: Boolean(existing.hasPassword),
+        createdAt: existing.createdAt,
+      };
+      return { user: publicUser, ...createSession(this.db, publicUser) };
     }
 
     const user: PublicUser = {
@@ -96,6 +104,7 @@ export class AuthService {
       name: input.name?.trim() || email.split('@')[0],
       email,
       role: 'user',
+      hasPassword: false,
     };
     const now = new Date().toISOString();
     const tx = this.db.transaction(() => {
@@ -110,9 +119,17 @@ export class AuthService {
       return { user, ...tx() };
     } catch (error) {
       if ((error as { code?: string })?.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-        const fallback = this.db.prepare('SELECT id, name, email, role FROM users WHERE LOWER(email) = ?')
-          .get(email) as PublicUser;
-        return { user: fallback, ...createSession(this.db, fallback) };
+        const fallback = this.db.prepare('SELECT id, name, email, role, (password_hash IS NOT NULL) AS hasPassword, created_at AS createdAt FROM users WHERE LOWER(email) = ?')
+          .get(email) as any;
+        const publicFallback: PublicUser = {
+          id: fallback.id,
+          name: fallback.name,
+          email: fallback.email,
+          role: fallback.role,
+          hasPassword: Boolean(fallback.hasPassword),
+          createdAt: fallback.createdAt,
+        };
+        return { user: publicFallback, ...createSession(this.db, publicFallback) };
       }
       throw error;
     }
@@ -190,6 +207,55 @@ export class AuthService {
       this.db.prepare('DELETE FROM runs WHERE user_id = ?').run(userId);
       this.db.prepare('DELETE FROM audit_log WHERE user_id = ?').run(userId);
       this.db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+    });
+
+    tx();
+  }
+
+  createPasswordReset(email: string): { resetToken: string; user: { name: string; email: string } } | null {
+    const normalized = email.trim().toLowerCase();
+    if (normalized === GUEST_EMAIL.toLowerCase()) return null;
+
+    const user = this.db.prepare('SELECT id, name, email, role FROM users WHERE LOWER(email) = ?')
+      .get(normalized) as { id: string; name: string; email: string; role: 'user' | 'guest' } | undefined;
+
+    if (!user || user.role === 'guest') return null;
+
+    const rawToken = randomBytes(32).toString('hex');
+    const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const id = randomUUID();
+    const now = new Date().toISOString();
+
+    this.db.prepare('INSERT INTO password_resets(id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)')
+      .run(id, user.id, tokenHash, expiresAt, now);
+
+    return { resetToken: rawToken, user: { name: user.name, email: user.email } };
+  }
+
+  resetPassword(token: string, newPassword: string): void {
+    const tokenHash = createHash('sha256').update(token.trim()).digest('hex');
+    const now = new Date().toISOString();
+
+    const record = this.db.prepare(`
+      SELECT pr.id, pr.user_id, pr.expires_at, pr.used_at
+      FROM password_resets pr
+      WHERE pr.token_hash = ? AND pr.used_at IS NULL AND pr.expires_at > ?
+    `).get(tokenHash, now) as { id: string; user_id: string } | undefined;
+
+    if (!record) {
+      throw new AppError('INVALID_TOKEN', 'This password reset link is invalid or has expired.', 400);
+    }
+
+    const passwordHash = hashPassword(newPassword);
+
+    const tx = this.db.transaction(() => {
+      this.db.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?')
+        .run(passwordHash, now, record.user_id);
+      this.db.prepare('UPDATE password_resets SET used_at = ? WHERE id = ?')
+        .run(now, record.id);
+      this.db.prepare('DELETE FROM auth_sessions WHERE user_id = ?')
+        .run(record.user_id);
     });
 
     tx();

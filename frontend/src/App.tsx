@@ -10,7 +10,6 @@ import { LandingPage } from './components/LandingPage';
 import { DemoDrawer } from './components/DemoDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
 import { IntegrationInfoModal } from './components/IntegrationInfoModal';
-import { BackendHealthBadge } from './components/BackendHealthBadge';
 import { ProfileView } from './components/ProfileView';
 import { api } from './api/client';
 import { Badge } from './components/ui/Badge';
@@ -212,21 +211,18 @@ const MainLayout: React.FC<{
             </div>
           </div>
 
-          {/* Sidebar Footer Card: Demo Trigger & System Health */}
-          <div className="rounded-xl border border-secondary-tint bg-surface p-3.5 space-y-3 shadow-soft">
-            <div className="flex items-center justify-between text-[11px] text-ink-muted">
-              <span className="font-semibold text-ink">System Mode</span>
-              <BackendHealthBadge />
+          {/* Sidebar Footer Card: Demo Trigger for Guest */}
+          {user.role === 'guest' && (
+            <div className="rounded-xl border border-secondary-tint bg-surface p-3.5 shadow-soft">
+              <button
+                onClick={() => setIsDemoDrawerOpen(true)}
+                className="w-full py-2.5 px-3 rounded-xl border border-secondary-tint hover:bg-secondary-tint/40 text-ink font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer transition min-h-[44px]"
+              >
+                <Sliders className="w-3.5 h-3.5 text-secondary" />
+                <span>Simulation Controls</span>
+              </button>
             </div>
-
-            {user.role === 'guest' && <button
-              onClick={() => setIsDemoDrawerOpen(true)}
-              className="w-full py-2.5 px-3 rounded-xl border border-secondary-tint hover:bg-secondary-tint/40 text-ink font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer transition min-h-[44px]"
-            >
-              <Sliders className="w-3.5 h-3.5 text-secondary" />
-              <span>Simulation Controls</span>
-            </button>}
-          </div>
+          )}
         </aside>
 
         {/* Content Area */}
@@ -379,14 +375,33 @@ const App: React.FC = () => {
   const [checking, setChecking] = useState(true);
   const [logoutError, setLogoutError] = useState('');
   const [viewMode, setViewMode] = useState<'landing' | 'auth' | 'app'>('landing');
-  const [authInitialMode, setAuthInitialMode] = useState<'login' | 'register'>('login');
+  const [authInitialMode, setAuthInitialMode] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const path = window.location.pathname.replace(/\/$/, '');
+      if (params.has('token') || path === '/reset-password') {
+        setAuthInitialMode('reset');
+        setViewMode('auth');
+      } else if (path === '/forgot-password' || path === '/forgot') {
+        setAuthInitialMode('forgot');
+        setViewMode('auth');
+      }
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
     api.getCurrentUser().then(({ user: currentUser }) => {
       if (active && currentUser) {
         setUser(currentUser);
-        setViewMode('app');
+        // Only override to app if not explicitly visiting password reset
+        const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        const path = typeof window !== 'undefined' ? window.location.pathname.replace(/\/$/, '') : '';
+        if (!params?.has('token') && path !== '/reset-password') {
+          setViewMode('app');
+        }
       }
     }).catch(() => {
       if (active) setUser(null);
