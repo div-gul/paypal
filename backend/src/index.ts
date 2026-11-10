@@ -4,11 +4,13 @@ import { getDatabase, closeDatabase } from './db/connection.js';
 import { runMigrations } from './db/migrate.js';
 import { seedDatabase } from './db/seed.js';
 import { AuthService } from './services/AuthService.js';
+import { seedProductCatalog } from './db/productCatalog.js';
 
 // Initialize and migrate database
 const db = getDatabase();
 console.log('📦 Initializing SQLite database');
 runMigrations(db);
+seedProductCatalog(db);
 if (config.NODE_ENV !== 'production') {
   const guestAlreadySeeded = db.prepare('SELECT 1 FROM users WHERE LOWER(email) = ?').get('guest_paypal@example.com');
   if (!guestAlreadySeeded) seedDatabase(db);

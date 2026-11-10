@@ -189,6 +189,23 @@ export function runMigrations(db: Database.Database): void {
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_webhook_events_user_id ON webhook_events(user_id);
+
+    -- 11. Controlled seeded product catalog for product browsing
+    CREATE TABLE IF NOT EXISTS product_catalog (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      brand TEXT NOT NULL,
+      category TEXT NOT NULL,
+      package_size TEXT NOT NULL,
+      price_paise INTEGER NOT NULL CHECK (price_paise >= 0),
+      platform TEXT NOT NULL CHECK (platform IN ('blinkit', 'zepto', 'instamart')),
+      image_url TEXT,
+      available INTEGER NOT NULL DEFAULT 1 CHECK (available IN (0, 1)),
+      description TEXT,
+      pin_code TEXT NOT NULL DEFAULT '411046'
+    );
+    CREATE INDEX IF NOT EXISTS idx_product_catalog_platform ON product_catalog(platform);
+    CREATE INDEX IF NOT EXISTS idx_product_catalog_category ON product_catalog(category);
   `);
 
   function addColumnIfNotExists(table: string, column: string, definition: string): void {
@@ -201,6 +218,8 @@ export function runMigrations(db: Database.Database): void {
   addColumnIfNotExists('users', 'password_hash', 'TEXT');
   addColumnIfNotExists('users', 'role', "TEXT NOT NULL DEFAULT 'user'");
   addColumnIfNotExists('user_workspace', 'swap_decisions_json', "TEXT NOT NULL DEFAULT '{}'");
+  addColumnIfNotExists('product_catalog', 'pin_code', "TEXT NOT NULL DEFAULT '411046'");
+  db.exec('CREATE INDEX IF NOT EXISTS idx_product_catalog_pin_code ON product_catalog(pin_code);');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_ci ON users(LOWER(email));');
 
   // Idempotent column additions for runs

@@ -114,6 +114,12 @@ To maintain complete integrity for hackathon judges, here is the transparent bre
 
 All endpoints are scoped to `demo-user` via auth middleware and return errors in standard `{ error: { code, message, details? } }` format.
 
+### Seeded Product Catalog
+
+The backend stores and serves 33 curated product groups as 88 platform-specific offers from Blinkit, Zepto, and Instamart in SQLite for the current demo service area: **Katraj, Pune, Maharashtra – 411046, India**. Categories include fresh produce, dairy, bakery, pantry staples, breakfast and cereals, snacks, beverages, personal care, and household essentials. This is a static curated demo dataset with illustrative prices and simulated offers; it is not live-scraped. Actual platform delivery coverage and inventory in this PIN code have not been verified, and the data does not represent real-time prices or availability.
+
+- `GET /api/products` — Authenticated catalog listing; defaults to PIN code `411046` and supports `pinCode`, `q`, `category`, `platform` (`blinkit`, `zepto`, or `instamart`), and `available` (`true` or `false`) filters. Only the Katraj demo area is currently supported.
+
 ### Health & State
 - `GET /api/health` — Backend health, service mode, active user ID.
 - `GET /api/state` — Complete hydrated state snapshot (clock, pantry, policy, latest run, stats).
