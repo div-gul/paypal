@@ -4,6 +4,7 @@ import { Header } from './components/Header';
 import { HomeView } from './components/HomeView';
 import { ApprovalsView } from './components/ApprovalsView';
 import { PantryManager } from './components/PantryManager';
+import { BrowseProducts } from './components/BrowseProducts';
 import { HouseholdRules } from './components/HouseholdRules';
 import { ActivityView } from './components/ActivityView';
 import { LandingPage } from './components/LandingPage';
@@ -19,6 +20,7 @@ import {
   Home,
   CheckSquare,
   Package,
+  ShoppingBag,
   Activity,
   Settings,
   User,
@@ -35,7 +37,7 @@ const MainLayout: React.FC<{
   onUserUpdated: (user: AuthUser) => void;
   onAccountDeleted: () => void;
 }> = ({ user, onLogout, logoutError, onOpenLanding, onUserUpdated, onAccountDeleted }) => {
-  const [activeTab, setActiveTab] = useState<'home' | 'approvals' | 'pantry' | 'activity' | 'settings' | 'profile'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'approvals' | 'pantry' | 'browse' | 'activity' | 'settings' | 'profile'>('home');
   const [isDemoDrawerOpen, setIsDemoDrawerOpen] = useState(false);
   const {
     error,
@@ -161,6 +163,15 @@ const MainLayout: React.FC<{
               </div>
             </button>
 
+            <button
+              onClick={() => setActiveTab('browse')}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer min-h-[44px] ${
+                activeTab === 'browse' ? 'bg-brand text-white shadow-soft' : 'text-ink-muted hover:text-ink hover:bg-secondary-tint/50'
+              }`}
+            >
+              <div className="flex items-center gap-2.5"><ShoppingBag className="w-4 h-4" /><span>Browse Products</span></div>
+            </button>
+
             {/* Tab: Activity */}
             <button
               onClick={() => setActiveTab('activity')}
@@ -270,6 +281,8 @@ const MainLayout: React.FC<{
             <PantryManager onOpenSettings={() => setActiveTab('settings')} />
           )}
 
+          {activeTab === 'browse' && <BrowseProducts />}
+
           {activeTab === 'activity' && <ActivityView />}
 
           {activeTab === 'settings' && <HouseholdRules />}
@@ -287,11 +300,11 @@ const MainLayout: React.FC<{
       {/* Mobile Bottom Navigation Bar (390px mobile viewport tested) */}
       <nav
         aria-label="Mobile Navigation"
-        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface/95 backdrop-blur-md border-t border-secondary-tint px-3 py-1.5 shadow-card flex items-center justify-around"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface/95 backdrop-blur-md border-t border-secondary-tint px-1 py-1.5 shadow-card grid grid-cols-7"
       >
         <button
           onClick={() => setActiveTab('home')}
-          className={`flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-xl transition cursor-pointer min-w-[56px] min-h-[44px] ${
+          className={`flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition cursor-pointer min-w-0 min-h-[44px] ${
             activeTab === 'home' ? 'text-brand font-bold' : 'text-ink-muted font-medium'
           }`}
         >
@@ -301,7 +314,7 @@ const MainLayout: React.FC<{
 
         <button
           onClick={() => setActiveTab('approvals')}
-          className={`relative flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-xl transition cursor-pointer min-w-[56px] min-h-[44px] ${
+          className={`relative flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition cursor-pointer min-w-0 min-h-[44px] ${
             activeTab === 'approvals' ? 'text-brand font-bold' : 'text-ink-muted font-medium'
           }`}
         >
@@ -318,7 +331,7 @@ const MainLayout: React.FC<{
 
         <button
           onClick={() => setActiveTab('pantry')}
-          className={`flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-xl transition cursor-pointer min-w-[56px] min-h-[44px] ${
+          className={`flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition cursor-pointer min-w-0 min-h-[44px] ${
             activeTab === 'pantry' ? 'text-brand font-bold' : 'text-ink-muted font-medium'
           }`}
         >
@@ -327,8 +340,16 @@ const MainLayout: React.FC<{
         </button>
 
         <button
+          onClick={() => setActiveTab('browse')}
+          className={`flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition cursor-pointer min-w-0 min-h-[44px] ${activeTab === 'browse' ? 'text-brand font-bold' : 'text-ink-muted font-medium'}`}
+        >
+          <ShoppingBag className="w-5 h-5" />
+          <span className="text-[9px]">Browse</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('activity')}
-          className={`flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-xl transition cursor-pointer min-w-[56px] min-h-[44px] ${
+          className={`flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition cursor-pointer min-w-0 min-h-[44px] ${
             activeTab === 'activity' ? 'text-brand font-bold' : 'text-ink-muted font-medium'
           }`}
         >
@@ -338,7 +359,7 @@ const MainLayout: React.FC<{
 
         <button
           onClick={() => setActiveTab('settings')}
-          className={`flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-xl transition cursor-pointer min-w-[56px] min-h-[44px] ${
+          className={`flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition cursor-pointer min-w-0 min-h-[44px] ${
             activeTab === 'settings' ? 'text-brand font-bold' : 'text-ink-muted font-medium'
           }`}
         >
@@ -348,7 +369,7 @@ const MainLayout: React.FC<{
 
         <button
           onClick={() => setActiveTab('profile')}
-          className={`flex flex-col items-center justify-center gap-1 py-1 px-2 rounded-xl transition cursor-pointer min-w-[56px] min-h-[44px] ${
+          className={`flex flex-col items-center justify-center gap-1 py-1 px-1 rounded-xl transition cursor-pointer min-w-0 min-h-[44px] ${
             activeTab === 'profile' ? 'text-brand font-bold' : 'text-ink-muted font-medium'
           }`}
         >

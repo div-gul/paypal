@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useShopPilot } from '../context/ShopPilotContext';
-import { PantryItem, ProductCategory, UnitOfMeasurement } from '../types';
+import { PantryItem } from '../types';
 import { evaluateItemStockHealth } from '@shared/services/consumptionEngine';
 import {
   Plus,
@@ -14,21 +14,13 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { Card, Button, ProductImage } from './ui';
-import { isCountableUnit, getItemStep, formatStockQuantity } from '../lib/pantryHelpers';
+import { getItemStep, formatStockQuantity } from '../lib/pantryHelpers';
+import { PantryItemDialog, PantryItemFormValues } from './PantryItemDialog';
 
-const CATEGORIES: ProductCategory[] = [
-  'Dairy',
-  'Bakery & Bread',
-  'Fresh Produce',
-  'Beverages',
-  'Pantry Staples',
-  'Breakfast & Cereals',
-  'Snacks',
-  'Personal Care',
-  'Household',
+const CATEGORIES = [
+  'Dairy', 'Bakery & Bread', 'Fresh Produce', 'Beverages', 'Pantry Staples',
+  'Breakfast & Cereals', 'Snacks', 'Personal Care', 'Household', 'Household Essentials',
 ];
-
-const UNITS: UnitOfMeasurement[] = ['L', 'kg', 'g', 'ml', 'packs', 'pcs', 'units', 'eggs'];
 
 interface PantryManagerProps {
   onOpenSettings?: () => void;
@@ -49,111 +41,22 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
   const [editingItem, setEditingItem] = useState<PantryItem | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
 
-  // Form state for add/edit modal
-  const [formData, setFormData] = useState<Partial<PantryItem>>({
-    name: '',
-    category: 'Dairy',
-    preferredBrand: '',
-    preferredPackageSize: '1 L',
-    unit: 'L',
-    currentQuantity: 1,
-    averageDailyConsumption: 0.2,
-    minStockThreshold: 1,
-    targetStock: 2,
-    allowSubstitutions: true,
-    requireApprovalForBrandChange: true,
-    quantityStep: 0.5,
-    allowFractions: true,
-  });
-
   const openEditModal = (item: PantryItem) => {
     setEditingItem(item);
-    const isCountable = isCountableUnit(item.unit);
-    const step = getItemStep(item.unit, item.quantityStep);
-    setFormData({
-      ...item,
-      quantityStep: step,
-      allowFractions: item.allowFractions !== undefined ? item.allowFractions : !isCountable,
-    });
     setIsAddingNew(false);
   };
 
   const openAddModal = () => {
     setEditingItem(null);
-    setFormData({
-      name: '',
-      category: 'Dairy',
-      preferredBrand: '',
-      preferredPackageSize: '1 L',
-      unit: 'L',
-      currentQuantity: 1,
-      averageDailyConsumption: 0.2,
-      minStockThreshold: 1,
-      targetStock: 3,
-      allowSubstitutions: true,
-      requireApprovalForBrandChange: true,
-      quantityStep: 0.5,
-      allowFractions: true,
-    });
     setIsAddingNew(true);
   };
 
-  const handleUnitChange = (newUnit: UnitOfMeasurement) => {
-    const isCountable = isCountableUnit(newUnit);
-    const step = getItemStep(newUnit);
-    setFormData(prev => ({
-      ...prev,
-      unit: newUnit,
-      quantityStep: step,
-      allowFractions: !isCountable,
-    }));
-  };
-
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.name?.trim()) return;
-
-    const unit = (formData.unit as UnitOfMeasurement) || 'units';
-    const isCountable = isCountableUnit(unit);
-    const quantityStep = getItemStep(unit, formData.quantityStep);
-    const allowFractions = formData.allowFractions !== undefined ? formData.allowFractions : !isCountable;
-
-    if (isAddingNew) {
-      addPantryItem({
-        name: formData.name.trim(),
-        category: (formData.category as ProductCategory) || 'Pantry Staples',
-        preferredBrand: formData.preferredBrand?.trim() || 'Generic / Local',
-        preferredPackageSize: formData.preferredPackageSize?.trim() || '1 Unit',
-        unit,
-        currentQuantity: Math.max(0, Number(formData.currentQuantity) || 0),
-        averageDailyConsumption: Math.max(0, Number(formData.averageDailyConsumption) || 0),
-        minStockThreshold: Math.max(0, Number(formData.minStockThreshold) || 0),
-        targetStock: Math.max(1, Number(formData.targetStock) || 1),
-        allowSubstitutions: !!formData.allowSubstitutions,
-        requireApprovalForBrandChange: !!formData.requireApprovalForBrandChange,
-        quantityStep,
-        allowFractions,
-      });
-      setIsAddingNew(false);
-    } else if (editingItem) {
-      updatePantryItem({
-        ...editingItem,
-        name: formData.name.trim(),
-        category: (formData.category as ProductCategory) || editingItem.category,
-        preferredBrand: formData.preferredBrand?.trim() || editingItem.preferredBrand,
-        preferredPackageSize: formData.preferredPackageSize?.trim() || editingItem.preferredPackageSize,
-        unit,
-        currentQuantity: Math.max(0, Number(formData.currentQuantity) || 0),
-        averageDailyConsumption: Math.max(0, Number(formData.averageDailyConsumption) || 0),
-        minStockThreshold: Math.max(0, Number(formData.minStockThreshold) || 0),
-        targetStock: Math.max(1, Number(formData.targetStock) || 1),
-        allowSubstitutions: !!formData.allowSubstitutions,
-        requireApprovalForBrandChange: !!formData.requireApprovalForBrandChange,
-        quantityStep,
-        allowFractions,
-      });
-      setEditingItem(null);
+  const handleSave = async (values: PantryItemFormValues) => {
+    if (editingItem) {
+      await updatePantryItem({ ...editingItem, ...values });
+      return;
     }
+    return addPantryItem(values);
   };
 
   const filteredItems = pantryItems.filter(item => {
@@ -421,187 +324,14 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
         </div>
       )}
 
-      {/* Edit / Add Item Modal */}
       {(isAddingNew || editingItem) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-surface rounded-xl max-w-lg w-full p-6 shadow-card border border-secondary-tint max-h-[90vh] overflow-y-auto space-y-4">
-            <h3 className="text-base font-bold text-ink">
-              {isAddingNew ? 'Add Household Pantry Essential' : `Edit ${editingItem?.name}`}
-            </h3>
-
-            <form onSubmit={handleSave} className="space-y-4 text-xs">
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-ink font-semibold mb-1">Product Name</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g., Toned Fresh Milk"
-                    value={formData.name || ''}
-                    onChange={e => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-xl border-secondary-tint bg-surface text-ink focus-visible:ring-brand min-h-[44px]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-ink font-semibold mb-1">Category</label>
-                    <select
-                      value={formData.category || 'Dairy'}
-                      onChange={e => setFormData({ ...formData, category: e.target.value as ProductCategory })}
-                      className="w-full px-3 py-2 border rounded-xl border-secondary-tint bg-surface text-ink min-h-[44px]"
-                    >
-                      {CATEGORIES.map(cat => (
-                        <option key={cat} value={cat}>
-                          {cat}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-ink font-semibold mb-1">Unit of Measurement</label>
-                    <select
-                      value={formData.unit || 'L'}
-                      onChange={e => handleUnitChange(e.target.value as UnitOfMeasurement)}
-                      className="w-full px-3 py-2 border rounded-xl border-secondary-tint bg-surface text-ink min-h-[44px]"
-                    >
-                      {UNITS.map(u => (
-                        <option key={u} value={u}>
-                          {u}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-ink font-semibold mb-1">Preferred Brand</label>
-                    <input
-                      type="text"
-                      placeholder="e.g., Amul"
-                      value={formData.preferredBrand || ''}
-                      onChange={e => setFormData({ ...formData, preferredBrand: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-xl border-secondary-tint bg-surface text-ink min-h-[44px]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-ink font-semibold mb-1">Preferred Package Size</label>
-                    <input
-                      type="text"
-                      placeholder="e.g., 500 ml pouch"
-                      value={formData.preferredPackageSize || ''}
-                      onChange={e => setFormData({ ...formData, preferredPackageSize: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-xl border-secondary-tint bg-surface text-ink min-h-[44px]"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Consumption and Thresholds */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-secondary-tint">
-                <div>
-                  <label className="block text-ink font-semibold mb-1">Current Stock</label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    required
-                    value={formData.currentQuantity ?? 0}
-                    onChange={e => setFormData({ ...formData, currentQuantity: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border rounded-xl border-secondary-tint bg-surface text-ink tabular-nums min-h-[44px]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-ink font-semibold mb-1">Daily Burn Rate</label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    required
-                    value={formData.averageDailyConsumption ?? 0.1}
-                    onChange={e => setFormData({ ...formData, averageDailyConsumption: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border rounded-xl border-secondary-tint bg-surface text-ink tabular-nums min-h-[44px]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-ink font-semibold mb-1">Min Safe Stock</label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    required
-                    value={formData.minStockThreshold ?? 1}
-                    onChange={e => setFormData({ ...formData, minStockThreshold: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border rounded-xl border-secondary-tint bg-surface text-ink tabular-nums min-h-[44px]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-ink font-semibold mb-1">Target Restock</label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="1"
-                    required
-                    value={formData.targetStock ?? 2}
-                    onChange={e => setFormData({ ...formData, targetStock: parseFloat(e.target.value) || 1 })}
-                    className="w-full px-3 py-2 border rounded-xl border-secondary-tint bg-surface text-ink tabular-nums min-h-[44px]"
-                  />
-                </div>
-              </div>
-
-              {/* Single Brand Swap Approval Toggle */}
-              <div className="pt-2 border-t border-secondary-tint">
-                <label className="flex items-start gap-2.5 p-3 rounded-xl border border-secondary-tint hover:bg-paper transition cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={!!formData.requireApprovalForBrandChange}
-                    onChange={e => {
-                      const checked = e.target.checked;
-                      setFormData({
-                        ...formData,
-                        requireApprovalForBrandChange: checked,
-                        allowSubstitutions: true,
-                      });
-                    }}
-                    className="mt-0.5 rounded text-brand focus:ring-brand w-4 h-4 cursor-pointer"
-                  />
-                  <div>
-                    <span className="font-semibold text-ink text-xs block">
-                      Ask before swapping brands
-                    </span>
-                    <span className="text-[11px] text-ink-muted block leading-tight mt-0.5">
-                      When checked, ShopPilot will always ask for your confirmation if substituting an alternate brand.
-                    </span>
-                  </div>
-                </label>
-              </div>
-
-              {/* Modal Actions */}
-              <div className="pt-3 border-t border-secondary-tint flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  type="button"
-                  onClick={() => {
-                    setIsAddingNew(false);
-                    setEditingItem(null);
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button variant="primary" size="sm" type="submit">
-                  Save Item
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <PantryItemDialog
+          key={editingItem?.id || 'new'}
+          title={isAddingNew ? 'Add Household Pantry Essential' : `Edit ${editingItem?.name}`}
+          initialValues={editingItem || {}}
+          onSave={handleSave}
+          onClose={() => { setIsAddingNew(false); setEditingItem(null); }}
+        />
       )}
     </div>
   );

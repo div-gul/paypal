@@ -5,6 +5,7 @@ import { PantryService } from '../services/PantryService.js';
 import { ProductCategory, UnitOfMeasurement } from '@shared/types';
 import { AppError } from '../middleware/errorHandler.js';
 import { rateLimit } from '../middleware/rateLimit.js';
+import { ProductCatalogRepository } from '../repositories/ProductCatalogRepository.js';
 
 const pantryWriteLimit = rateLimit({ windowMs: 60_000, max: 60 }, 'pantry-write');
 
@@ -42,6 +43,18 @@ const CreatePantryItemSchema = z.object({
   quantityStep: z.number().positive().optional(),
   allowFractions: z.boolean().optional(),
   imageUrl: z.string().optional().nullable(),
+});
+
+const AddCatalogProductSchema = z.object({
+  unit: UnitSchema,
+  currentQuantity: z.number().min(0),
+  averageDailyConsumption: z.number().min(0),
+  minStockThreshold: z.number().min(0),
+  targetStock: z.number().positive(),
+  allowSubstitutions: z.boolean().default(true),
+  requireApprovalForBrandChange: z.boolean().default(true),
+  quantityStep: z.number().positive().optional(),
+  allowFractions: z.boolean().optional(),
 });
 
 const UpdatePantryItemSchema = CreatePantryItemSchema.partial();
@@ -149,6 +162,65 @@ pantryRouter.post('/pantry', pantryWriteLimit, (req: Request, res: Response, nex
       quantityStep,
       allowFractions,
       imageUrl: validated.imageUrl || undefined,
+    });
+
+    res.status(201).json({ item: created });
+  } catch (err) {
+    next(err);
+  }
+});
+
+pantryRouter.post('/pantry/from-catalog/:productId', pantryWriteLimit, (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const validated = AddCatalogProductSchema.parse(req.body);
+    validateStockRules(
+      validated.currentQuantity,
+      validated.targetStock,
+      validated.minStockThreshold,
+      validated.unit,
+      validated.quantityStep,
+      validated.allowFractions,
+    );
+
+    const db = getDatabase();
+    const catalog = new ProductCatalogRepository(db);
+    const product = catalog.findById(req.params.productId as string);
+    if (!product) throw new AppError('PRODUCT_NOT_FOUND', 'The selected product is not in the Katraj demo catalog.', 404);
+
+    const pantryService = new PantryService(db);
+    const pantry = pantryService.getPantry(req.user!.id);
+    const groupOffers = catalog.list({ pinCode: product.pinCode }).filter(offer => offer.productGroupId === product.productGroupId);
+    const normalize = (value: string) => value.trim().toLocaleLowerCase('en-IN');
+    const existing = pantry.find(item =>
+      item.id === `catalog-${product.productGroupId}` ||
+      item.id === `item-${product.productGroupId}` ||
+      groupOffers.some(offer =>
+        normalize(item.name) === normalize(offer.name) &&
+        normalize(item.preferredBrand) === normalize(offer.brand) &&
+        normalize(item.preferredPackageSize) === normalize(offer.packageSize)
+      )
+    );
+    if (existing) throw new AppError('PRODUCT_ALREADY_IN_PANTRY', 'This product is already in your pantry.', 409);
+    if (pantry.length >= 100) throw new AppError('PANTRY_LIMIT', 'This account has reached the pantry item limit.', 409);
+
+    const isCountable = ['pcs', 'packs', 'units', 'eggs'].includes(validated.unit.toLowerCase());
+    const created = pantryService.createItem(req.user!.id, {
+      id: `catalog-${product.productGroupId}`,
+      name: product.name,
+      category: product.category,
+      preferredBrand: product.brand,
+      preferredPackageSize: product.packageSize,
+      unit: validated.unit as UnitOfMeasurement,
+      currentQuantity: validated.currentQuantity,
+      averageDailyConsumption: validated.averageDailyConsumption,
+      minStockThreshold: validated.minStockThreshold,
+      targetStock: validated.targetStock,
+      allowSubstitutions: validated.allowSubstitutions,
+      requireApprovalForBrandChange: validated.requireApprovalForBrandChange,
+      lastRestockedDate: new Date().toISOString(),
+      quantityStep: validated.quantityStep ?? (isCountable ? 1 : validated.unit === 'g' ? 50 : validated.unit === 'ml' ? 100 : 0.5),
+      allowFractions: validated.allowFractions ?? !isCountable,
+      imageUrl: product.imageUrl || undefined,
     });
 
     res.status(201).json({ item: created });

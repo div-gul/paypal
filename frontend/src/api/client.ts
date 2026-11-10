@@ -3,9 +3,11 @@ import {
   BasketStrategyResult,
   BasketStrategyType,
   PantryItem,
+  ProductCategory,
   RestockRecommendation,
   SimulationState,
   StoreProduct,
+  StoreId,
   WeeklySchedulerConfig,
 } from '@shared/types';
 
@@ -55,6 +57,41 @@ export interface PlanRunResponse {
 export interface QuotesResponse {
   totalQuotes: number;
   quotes: StoreProduct[];
+}
+
+export interface ProductCatalogOffer {
+  id: string;
+  productGroupId: string;
+  name: string;
+  brand: string;
+  category: ProductCategory;
+  packageSize: string;
+  pricePaise: number;
+  platform: StoreId;
+  imageUrl: string | null;
+  available: boolean;
+  description: string | null;
+  pinCode: string;
+}
+
+export interface ProductCatalogResponse {
+  totalProducts: number;
+  products: ProductCatalogOffer[];
+  serviceArea: { name: string; pinCode: string; state: string; country: string };
+  source: 'seeded_demo';
+  notice: string;
+}
+
+export interface CatalogPantryQuantities {
+  unit: PantryItem['unit'];
+  currentQuantity: number;
+  averageDailyConsumption: number;
+  minStockThreshold: number;
+  targetStock: number;
+  allowSubstitutions: boolean;
+  requireApprovalForBrandChange: boolean;
+  quantityStep?: number;
+  allowFractions?: boolean;
 }
 
 export interface AiPolicyProposal {
@@ -188,6 +225,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(item),
     }),
+  createPantryItemFromCatalog: (productId: string, quantities: CatalogPantryQuantities) =>
+    request<{ item: PantryItem }>(`/pantry/from-catalog/${encodeURIComponent(productId)}`, {
+      method: 'POST',
+      body: JSON.stringify(quantities),
+    }),
   updatePantryItem: (id: string, item: Partial<PantryItem>) =>
     request<{ item: PantryItem }>(`/pantry/${encodeURIComponent(id)}`, {
       method: 'PUT',
@@ -294,6 +336,7 @@ export const api = {
 
   // Store Quotes & Sources
   getQuotes: () => request<QuotesResponse>('/quotes'),
+  getProductCatalog: (pinCode = '411046') => request<ProductCatalogResponse>(`/products?pinCode=${encodeURIComponent(pinCode)}`),
 
   // Audit Log
   getAuditLog: (limit: number = 50) => request<{ logs: ActivityLogItem[] }>(`/audit-log?limit=${limit}`),

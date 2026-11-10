@@ -25,7 +25,7 @@ import {
   getSwapDecisionKey,
 } from '@shared/services/orderBucketService';
 import { advancePantryState } from '@shared/services/consumptionEngine';
-import { api, PlanRunOverrides } from '../api/client';
+import { api, CatalogPantryQuantities, PlanRunOverrides } from '../api/client';
 import { getFriendlyErrorMessage } from '../lib/errorHelper';
 
 interface CheckoutModalDetails {
@@ -68,6 +68,7 @@ export interface ShopPilotContextType {
   // Actions
   updatePantryItem: (item: PantryItem) => Promise<void>;
   addPantryItem: (item: Omit<PantryItem, 'id' | 'lastRestockedDate' | 'stockoutDaysCount'>) => Promise<void>;
+  addCatalogProduct: (productId: string, quantities: CatalogPantryQuantities) => Promise<PantryItem | null>;
   deletePantryItem: (id: string) => Promise<void>;
   quickAdjustQuantity: (id: string, delta: number) => Promise<void>;
   updateSchedulerConfig: (config: Partial<WeeklySchedulerConfig>) => Promise<void>;
@@ -377,6 +378,21 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode; userRole?:
           pantryItems: domainStateRef.current.pantryItems.filter(row => row.id !== temporaryId),
         });
         setError(getFriendlyErrorMessage(err));
+      }
+    },
+    [applyDomainSnapshot, schedulePlanRefresh]
+  );
+
+  const addCatalogProduct = useCallback(
+    async (productId: string, quantities: CatalogPantryQuantities): Promise<PantryItem | null> => {
+      try {
+        const { item } = await api.createPantryItemFromCatalog(productId, quantities);
+        applyDomainSnapshot({ pantryItems: [...domainStateRef.current.pantryItems, item] });
+        schedulePlanRefresh();
+        return item;
+      } catch (err: any) {
+        setError(getFriendlyErrorMessage(err));
+        return null;
       }
     },
     [applyDomainSnapshot, schedulePlanRefresh]
@@ -1073,6 +1089,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode; userRole?:
         isUpcomingOrderSaved,
         updatePantryItem,
         addPantryItem,
+        addCatalogProduct,
         deletePantryItem,
         quickAdjustQuantity,
         updateSchedulerConfig,

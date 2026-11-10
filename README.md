@@ -75,12 +75,14 @@ No real money moves and no real grocery orders are placed.
 
 The backend stores and serves a curated static demo catalog in SQLite for **Katraj, Pune, Maharashtra – 411046, India**: 33 product groups across 88 platform-specific offers from Blinkit, Zepto, and Instamart. Prices and offers are illustrative, not live-scraped or verified. Actual platform delivery coverage and inventory in this PIN code have not been confirmed.
 
+The **Browse Products** view lets users search the catalog and filter by category or platform. Offers are grouped into unique product cards; adding one opens the pantry quantity dialog and saves it to that user's pantry. New accounts still start with an empty pantry. Prices do not represent verified current offers or stock.
+
 ## Architecture
 
 ```mermaid
 flowchart TD
     subgraph Browser ["Browser Client"]
-        UI["React SPA (Home, Approvals, Pantry)"]
+        UI["React SPA (Home, Approvals, Pantry, Browse Products)"]
         Context["ShopPilot Context & Polling"]
         SDK["PayPal JS SDK & QR Display"]
     end
@@ -248,6 +250,7 @@ Configured in [`backend/src/config.ts`](backend/src/config.ts):
 | `POST` | `/api/state/reset` | Session (Guest) | Reset demo data to seed defaults. |
 | `GET` | `/api/pantry` | Session | List household pantry items. |
 | `POST` | `/api/pantry` | Session | Add new pantry staple with burn rate. |
+| `POST` | `/api/pantry/from-catalog/:productId` | Session | Add a catalog product to the current user's pantry using submitted quantity settings. |
 | `PUT` | `/api/pantry/:id` | Session | Update stock quantity or consumption rate. |
 | `DELETE` | `/api/pantry/:id` | Session | Remove staple from pantry. |
 | `GET` | `/api/policy` | Session | Get restocking rules and spending caps. |
@@ -316,7 +319,7 @@ paypal/
 │   └── src/__tests__/        # Backend Vitest automated test suites
 ├── frontend/                 # React 19 single-page application
 │   ├── src/api/              # HTTP client and error handlers
-│   ├── src/components/       # UI views (Home, Approvals, Pantry, CheckoutModal)
+│   ├── src/components/       # UI views (Home, Approvals, Pantry, Browse Products, CheckoutModal)
 │   ├── src/context/          # Application state provider and recovery polling
 │   └── src/tests/            # Autonomous verification test suite
 ├── shared/                   # Pure business logic shared across client and server

@@ -40,6 +40,7 @@ describe('seeded product catalog', () => {
     expect(SEEDED_PRODUCT_CATALOG).toHaveLength(88);
     expect(repository.count()).toBe(88);
     expect(new Set(products.map(product => product.id)).size).toBe(88);
+    expect(new Set(products.map(product => product.productGroupId)).size).toBe(33);
     expect(new Set(repository.list().map(product => product.platform))).toEqual(new Set(['blinkit', 'zepto', 'instamart']));
     expect(new Set(products.map(product => product.pinCode))).toEqual(new Set([DEMO_SERVICE_AREA.pinCode]));
     expect(products.filter(product => product.platform === 'blinkit')).toHaveLength(29);
@@ -96,6 +97,31 @@ describe('seeded product catalog', () => {
     expect(pinResponse.status).toBe(400);
     const invalidPinResponse = await fetch(`${baseUrl}/api/products?pinCode=abc`);
     expect(invalidPinResponse.status).toBe(400);
+  });
+
+  it('adds a catalog product to the authenticated user pantry and rejects duplicates', async () => {
+    getDatabase().prepare(`
+      INSERT INTO users (id, name, email, role, created_at, updated_at)
+      VALUES ('demo-user', 'Demo Household', 'demo@shoppilot.local', 'guest', ?, ?)
+    `).run(new Date().toISOString(), new Date().toISOString());
+    const payload = {
+      unit: 'g', currentQuantity: 100, averageDailyConsumption: 0,
+      minStockThreshold: 0, targetStock: 100, allowSubstitutions: true,
+      requireApprovalForBrandChange: true, quantityStep: 50, allowFractions: true,
+    };
+    const createdResponse = await fetch(`${baseUrl}/api/pantry/from-catalog/bl-butter`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    expect(createdResponse.status).toBe(201);
+    const { item } = await createdResponse.json() as any;
+    expect(item.id).toBe('catalog-butter');
+    expect(item.name).toBe('Amul Pasteurised Butter');
+    expect(item.preferredBrand).toBe('Amul');
+
+    const duplicateResponse = await fetch(`${baseUrl}/api/pantry/from-catalog/zp-butter`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    expect(duplicateResponse.status).toBe(409);
   });
 
   it('preserves an existing catalog record and assigns it the default PIN during migration', () => {

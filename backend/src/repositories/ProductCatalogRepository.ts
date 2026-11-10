@@ -4,6 +4,7 @@ import { DEMO_SERVICE_AREA } from '../db/productCatalog.js';
 
 export interface CatalogProduct {
   id: string;
+  productGroupId: string;
   name: string;
   brand: string;
   category: ProductCategory;
@@ -41,6 +42,7 @@ export interface CatalogFilters {
 function mapRow(row: CatalogProductRow): CatalogProduct {
   return {
     id: row.id,
+    productGroupId: row.id.replace(/^(bl|zp|im)-/, '').replace(/-\d+$/, ''),
     name: row.name,
     brand: row.brand,
     category: row.category,
@@ -80,6 +82,11 @@ export class ProductCatalogRepository {
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
     const rows = this.db.prepare(`SELECT * FROM product_catalog ${where} ORDER BY name COLLATE NOCASE, platform`).all(...values) as CatalogProductRow[];
     return rows.map(mapRow);
+  }
+
+  findById(id: string, pinCode = DEMO_SERVICE_AREA.pinCode): CatalogProduct | null {
+    const row = this.db.prepare('SELECT * FROM product_catalog WHERE id = ? AND pin_code = ?').get(id, pinCode) as CatalogProductRow | undefined;
+    return row ? mapRow(row) : null;
   }
 
   count(): number {
