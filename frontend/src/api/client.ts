@@ -85,6 +85,7 @@ export interface AuthUser {
   email: string;
   role: 'user' | 'guest';
   hasPassword?: boolean;
+  emailVerified?: boolean;
   createdAt?: string;
 }
 
@@ -116,13 +117,19 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   }
 
   if (!response.ok) {
-    if (response.status === 401 && !['/auth/me', '/auth/login', '/auth/register', '/auth/logout', '/auth/google', '/auth/google/config'].includes(endpoint)) {
+    if (response.status === 401 && !['/auth/me', '/auth/login', '/auth/register', '/auth/logout', '/auth/google', '/auth/google/config', '/auth/forgot-password', '/auth/reset-password', '/auth/verify-email'].includes(endpoint)) {
       window.dispatchEvent(new Event('shoppilot:session-expired'));
     }
     const errorPayload = data as ApiResponseError | undefined;
     const code = errorPayload?.error?.code || `HTTP_${response.status}`;
-    const message = errorPayload?.error?.message || `Request failed with status ${response.status}`;
     const details = errorPayload?.error?.details;
+    let message = errorPayload?.error?.message || `Request failed with status ${response.status}`;
+    if (Array.isArray(details) && details.length > 0) {
+      const detailMessages = details.map((d: any) => d.message).filter(Boolean);
+      if (detailMessages.length > 0) {
+        message = detailMessages.join('. ');
+      }
+    }
     throw new ApiError(message, code, response.status, details);
   }
 
@@ -137,6 +144,19 @@ export const api = {
   register: (name: string, email: string, password: string) => request<{ message: string }>('/auth/register', {
     method: 'POST', body: JSON.stringify({ name, email, password }),
   }),
+  forgotPassword: (email: string) => request<{ message: string }>('/auth/forgot-password', {
+    method: 'POST', body: JSON.stringify({ email }),
+  }),
+  resetPassword: (token: string, newPassword: string) => request<{ success: boolean; message: string }>('/auth/reset-password', {
+    method: 'POST', body: JSON.stringify({ token, newPassword }),
+  }),
+  verifyEmail: (token: string) => request<{ success: boolean; message: string; user?: AuthUser }>('/auth/verify-email', {
+    method: 'POST', body: JSON.stringify({ token }),
+  }),
+  resendVerification: () => request<{ success: boolean; message: string }>('/auth/resend-verification', {
+    method: 'POST',
+  }),
+  exportUserData: () => request<any>('/auth/export'),
   getGoogleAuthConfig: () => request<{ enabled: boolean; clientId: string | null }>('/auth/google/config'),
   loginWithGoogle: (credential: string) => request<{ user: AuthUser }>('/auth/google', {
     method: 'POST', body: JSON.stringify({ credential }),

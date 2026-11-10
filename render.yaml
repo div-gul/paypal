@@ -1,0 +1,69 @@
+services:
+  - type: web
+    name: shoppilot-ai
+    runtime: node
+    plan: starter # Persistent disks require Render Starter plan or above
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: npm --prefix backend start
+    disk:
+      name: shoppilot-data
+      mountPath: /var/data
+      sizeGB: 1
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: DATABASE_PATH
+        value: /var/data/shoppilot.db
+
+      # PayPal Sandbox Configuration (Live payments strictly prohibited)
+      - key: PAYPAL_MODE
+        value: sandbox
+      - key: ALLOW_LIVE_PAYMENTS
+        value: "false"
+      - key: PAYPAL_BASE_URL
+        value: https://api-m.sandbox.paypal.com
+      - key: PAYPAL_CURRENCY
+        value: INR
+
+      # PayPal Sandbox Credentials (Must be set in Render Dashboard)
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+
+      # Application URLs (Update with your Render app URL or custom domain)
+      - key: APP_BASE_URL
+        value: https://shoppilot-ai.onrender.com
+      - key: PUBLIC_APP_URL
+        value: https://shoppilot-ai.onrender.com
+
+      # Google OAuth 2.0 Credentials (Must be set in Render Dashboard)
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+      # Gemini / LLM API Key (Must be set in Render Dashboard)
+      - key: LLM_API_KEY
+        sync: false
+
+      # SMTP Email Configuration (Must be set in Render Dashboard)
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_SECURE
+        value: "false"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: EMAIL_FROM
+        value: "ShopPilot AI <no-reply@yourdomain.com>"
+

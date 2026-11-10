@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { getDatabase } from '../db/connection.js';
 import { AuthService } from '../services/AuthService.js';
+import { EmailService } from '../services/EmailService.js';
 import { readSessionToken, requireAuthentication, resolveSessionIfPresent, SESSION_COOKIE } from '../middleware/auth.js';
 import { rateLimit, loginFailureLimit, unauthenticatedApiRateLimit } from '../middleware/rateLimit.js';
 import { config } from '../config.js';
@@ -9,14 +10,18 @@ import { config } from '../config.js';
 export const authRouter = Router();
 
 const Email = z.string().trim().email().max(254);
+const PasswordRule = z.string()
+  .min(8, 'Password must be at least 8 characters long.')
+  .max(128, 'Password cannot exceed 128 characters.')
+  .regex(/[a-z]/, 'Password must contain at least one lowercase letter.')
+  .regex(/[A-Z]/, 'Password must contain at least one uppercase letter.')
+  .regex(/[0-9]/, 'Password must contain at least one number.')
+  .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special symbol (e.g. @, #, $, !).');
+
 const RegisterSchema = z.object({
-  name: z.string().trim().min(1).max(80),
+  name: z.string().trim().min(1, 'Name is required').max(80, 'Name cannot exceed 80 characters'),
   email: Email,
-  password: z.string().min(12).max(128)
-    .regex(/[a-z]/, 'Password must contain a lowercase letter.')
-    .regex(/[A-Z]/, 'Password must contain an uppercase letter.')
-    .regex(/[0-9]/, 'Password must contain a number.')
-    .regex(/[^A-Za-z0-9]/, 'Password must contain a symbol.'),
+  password: PasswordRule,
 });
 const LoginSchema = z.object({ email: Email, password: z.string().min(1).max(128) });
 
@@ -30,13 +35,73 @@ function clearSessionCookie(res: Response): void {
   res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/api; HttpOnly; SameSite=Lax; Max-Age=0${secure}`);
 }
 
-authRouter.post('/register', rateLimit({ windowMs: 60 * 60 * 1000, max: 5, key: req => `ip:${req.ip}` }, 'signup'), (req: Request, res: Response, next: NextFunction) => {
+authRouter.post('/register', rateLimit({ windowMs: 60 * 60 * 1000, max: 5, key: req => `ip:${req.ip}` }, 'signup'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parsed = RegisterSchema.parse(req.body);
     const payload = { name: parsed.name!, email: parsed.email!, password: parsed.password! };
-    new AuthService(getDatabase()).register(payload);
-    res.status(202).json({ message: 'If registration can be completed, sign in to continue.' });
+    const authService = new AuthService(getDatabase());
+    const regResult = authService.register(payload);
+    if (regResult) {
+      const verificationLink = `${config.APP_BASE_URL}/verify-email?token=${encodeURIComponent(regResult.verificationToken)}`;
+      const emailService = new EmailService();
+      await emailService.sendVerificationEmail(regResult.user.email, verificationLink, regResult.user.name);
+    }
+    res.status(202).json({ message: 'If registration can be completed, check your email to verify your account and sign in.' });
   } catch (err) { next(err); }
+});
+
+const VerifyEmailSchema = z.object({
+  token: z.string().min(10, 'Verification token is missing or invalid'),
+});
+
+authRouter.post('/verify-email', rateLimit({ windowMs: 15 * 60 * 1000, max: 15, key: req => `ip:${req.ip}` }, 'verify-email'), (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { token } = VerifyEmailSchema.parse(req.body);
+    const authService = new AuthService(getDatabase());
+    const result = authService.verifyEmail(token);
+    res.json({ success: true, message: 'Email verified successfully.', user: result.user });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const ResendVerificationSchema = z.object({
+  email: z.string().email().optional(),
+});
+
+authRouter.post('/resend-verification', resolveSessionIfPresent, rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  key: req => (req.user ? `user:${req.user.id}` : `ip:${req.ip}`),
+}, 'resend-verification'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { email } = ResendVerificationSchema.parse(req.body || {});
+    const authService = new AuthService(getDatabase());
+
+    let targetUserId = req.user?.id;
+    if (!targetUserId && email) {
+      const userRow = getDatabase().prepare('SELECT id, email_verified FROM users WHERE LOWER(email) = ?')
+        .get(email.trim().toLowerCase()) as { id: string; email_verified: number } | undefined;
+      if (userRow && !userRow.email_verified) {
+        targetUserId = userRow.id;
+      }
+    }
+
+    if (targetUserId) {
+      const userRow = getDatabase().prepare('SELECT email_verified FROM users WHERE id = ?').get(targetUserId) as { email_verified: number } | undefined;
+      if (!userRow?.email_verified) {
+        const result = authService.createEmailVerification(targetUserId);
+        const verificationLink = `${config.APP_BASE_URL}/verify-email?token=${encodeURIComponent(result.verificationToken)}`;
+        const emailService = new EmailService();
+        await emailService.sendVerificationEmail(result.user.email, verificationLink, result.user.name);
+      }
+    }
+
+    // Always return safe generic success message to prevent account enumeration
+    res.json({ success: true, message: 'If an unverified account exists, a verification link has been sent.' });
+  } catch (err) {
+    next(err);
+  }
 });
 
 authRouter.post('/login',
@@ -58,26 +123,75 @@ authRouter.post('/logout', (req: Request, res: Response) => {
   res.status(204).end();
 });
 
+const ForgotPasswordSchema = z.object({
+  email: Email,
+});
+
+const ResetPasswordSchema = z.object({
+  token: z.string().min(10, 'Reset token is missing or invalid'),
+  newPassword: PasswordRule,
+});
+
+authRouter.post('/forgot-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 10, key: req => `ip:${req.ip}` }, 'forgot-password'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { email } = ForgotPasswordSchema.parse(req.body);
+    const authService = new AuthService(getDatabase());
+    const result = authService.createPasswordReset(email);
+
+    if (result) {
+      const resetLink = `${config.APP_BASE_URL}/reset-password?token=${encodeURIComponent(result.resetToken)}`;
+      const emailService = new EmailService();
+      await emailService.sendPasswordResetEmail(result.user.email, resetLink, result.user.name);
+    }
+
+    res.json({ message: 'If an account exists with this email, a password reset link has been sent.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.post('/reset-password', rateLimit({ windowMs: 15 * 60 * 1000, max: 15, key: req => `ip:${req.ip}` }, 'reset-password'), (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { token, newPassword } = ResetPasswordSchema.parse(req.body);
+    const authService = new AuthService(getDatabase());
+    authService.resetPassword(token, newPassword);
+    clearSessionCookie(res);
+    res.json({ success: true, message: 'Password has been reset successfully. Please log in with your new password.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 authRouter.get('/me', resolveSessionIfPresent, unauthenticatedApiRateLimit, requireAuthentication, (req: Request, res: Response) => {
   res.json({ user: req.user });
 });
 
 const UpdateProfileSchema = z.object({
-  name: z.string().trim().min(1).max(80).optional(),
-  currentPassword: z.string().min(1).max(128).optional(),
-  newPassword: z.string().min(12).max(128)
-    .regex(/[a-z]/, 'Password must contain a lowercase letter.')
-    .regex(/[A-Z]/, 'Password must contain an uppercase letter.')
-    .regex(/[0-9]/, 'Password must contain a number.')
-    .regex(/[^A-Za-z0-9]/, 'Password must contain a symbol.')
-    .optional(),
+  name: z.string().trim().min(1, 'Name cannot be empty').max(80, 'Name cannot exceed 80 characters').optional(),
+  currentPassword: z.string().max(128).optional(),
+  newPassword: PasswordRule.optional(),
 });
 
 authRouter.patch('/profile', resolveSessionIfPresent, requireAuthentication, (req: Request, res: Response, next: NextFunction) => {
   try {
     const payload = UpdateProfileSchema.parse(req.body);
-    const updated = new AuthService(getDatabase()).updateProfile(req.user!.id, payload);
+    const cleanCurrentPassword = payload.currentPassword?.trim() ? payload.currentPassword.trim() : undefined;
+    const updated = new AuthService(getDatabase()).updateProfile(req.user!.id, {
+      ...payload,
+      currentPassword: cleanCurrentPassword,
+    });
     res.json({ user: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.get('/export', resolveSessionIfPresent, requireAuthentication, rateLimit({ windowMs: 15 * 60 * 1000, max: 10, key: req => `user:${req.user!.id}` }, 'data-export'), (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const data = new AuthService(getDatabase()).exportUserData(req.user!.id);
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="shoppilot-export-${req.user!.id}.json"`);
+    res.json(data);
   } catch (err) {
     next(err);
   }

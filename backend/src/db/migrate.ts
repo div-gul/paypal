@@ -21,6 +21,28 @@ export function runMigrations(db: Database.Database): void {
     );
     CREATE INDEX IF NOT EXISTS idx_auth_sessions_user_id ON auth_sessions(user_id);
 
+    CREATE TABLE IF NOT EXISTS password_resets (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      used_at TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_password_resets_token_hash ON password_resets(token_hash);
+    CREATE INDEX IF NOT EXISTS idx_password_resets_user_id ON password_resets(user_id);
+
+    CREATE TABLE IF NOT EXISTS email_verifications (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL UNIQUE,
+      expires_at TEXT NOT NULL,
+      used_at TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_email_verifications_token_hash ON email_verifications(token_hash);
+    CREATE INDEX IF NOT EXISTS idx_email_verifications_user_id ON email_verifications(user_id);
+
     CREATE TABLE IF NOT EXISTS user_workspace (
       user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
       upcoming_order_json TEXT,
@@ -217,6 +239,7 @@ export function runMigrations(db: Database.Database): void {
 
   addColumnIfNotExists('users', 'password_hash', 'TEXT');
   addColumnIfNotExists('users', 'role', "TEXT NOT NULL DEFAULT 'user'");
+  addColumnIfNotExists('users', 'email_verified', 'INTEGER NOT NULL DEFAULT 0');
   addColumnIfNotExists('user_workspace', 'swap_decisions_json', "TEXT NOT NULL DEFAULT '{}'");
   addColumnIfNotExists('product_catalog', 'pin_code', "TEXT NOT NULL DEFAULT '411046'");
   db.exec('CREATE INDEX IF NOT EXISTS idx_product_catalog_pin_code ON product_catalog(pin_code);');

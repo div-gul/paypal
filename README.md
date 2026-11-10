@@ -1,204 +1,345 @@
-# ShopPilot AI — Autonomous Grocery Restocking & Multi-Store Basket Optimizer
+# ShopPilot AI
 
-ShopPilot AI is an autonomous grocery restocking agent developed for the PayPal AI Hackathon. It forecasts household grocery depletion, schedules weekly restocking to eliminate emergency order delivery fees, optimizes multi-store baskets with fee-aware integer-paise arithmetic, and executes policy-compliant checkout via PayPal Sandbox.
+Autonomous household grocery restocking agent that forecasts pantry depletion, optimizes multi-store baskets with delivery-fee-aware arithmetic, and executes policy-compliant checkout through PayPal Sandbox.
 
-> **CRITICAL SANDBOX NOTICE**: All payment transactions are strictly executed in **PayPal Sandbox mode** (`PAYPAL_MODE=mock|sandbox`) using test sandbox credentials. **No real money moves, and no live credit/debit cards are charged.**
+[Live demo]([[HOSTED_DEMO_URL]]) · [Demo video]([[YOUTUBE_URL]]) · [GitHub repository]([[GITHUB_URL]])
 
----
+![ShopPilot AI pantry dashboard and restock order card]([[SCREENSHOT: home-order-card]])
 
-## 1. Monorepo Architecture
+## What it does
 
+Households repeatedly run out of staples at unpredictable hours, triggering rushed late-night orders and duplicate delivery fees across quick-commerce apps. ShopPilot AI turns reactive grocery ordering into a planned, autonomous process. The agent models consumption rates, predicts stockouts, and consolidates replenishments into scheduled weekly baskets. When restocking is required, it finds the cheapest fulfillment plan across multiple stores, prompts the user for substitutions or budget overruns, and completes payment through PayPal Sandbox.
+
+1. **Tracks the pantry**: Predicts run-out dates based on household burn rates and depletion history.
+2. **Plans a restock**: Groups depleted items into scheduled weekly cycles to avoid piecemeal delivery fees.
+3. **Finds the cheapest basket**: Compares split-store and single-store consolidation to minimize combined item and delivery costs.
+4. **Asks before big changes**: Requests user approval for brand substitutions or budget cap exceptions, then pays with PayPal.
+
+## For judges: try it in 3 minutes
+
+Follow this path on the hosted demo to test the complete loop in three minutes:
+
+1. **Open the demo**: Visit [[HOSTED_DEMO_URL]] to view the landing page overview.
+2. **Use the guest demo**: Click **Instant Demo** to enter the pre-seeded demo household without registration.
+3. **Advance time**: Open the **Time Machine** drawer in the header and click **+3 Days**; watch milk and daily staples deplete toward stockout.
+4. **Review the order**: Check the **Upcoming Restock Order** card on the Home dashboard; notice depleted staples automatically queued with suggested quantities.
+5. **Approve swaps**: Open the **Approvals** tab and approve any pending brand substitution (such as Quaker to Kellogg's oats); see the basket update immediately.
+6. **Compare store baskets**: Review the **Store Comparison** matrix on the Home tab to see how delivery fees impact total basket costs across Zepto, Blinkit, and Instamart.
+7. **Pay with PayPal Sandbox**: Click **Confirm and Pay for Order**, select the PayPal button, and sign in with the sandbox personal buyer credentials provided in the submission testing instructions.
+8. **See the pantry restock**: After payment capture confirms, observe the confirmation receipt, replenished pantry stock gauges, and the new entry in the **Activity** audit log.
+9. **Verify in PayPal**: Log into the PayPal Sandbox Business account to verify the completed capture transaction under sandbox activity.
+
+## How it uses PayPal
+
+ShopPilot AI integrates the PayPal REST API (v2) and the PayPal JavaScript SDK using server-authoritative payment derivation:
+
+- **OAuth 2.0 token grant** ([`backend/src/services/payment/PayPalSandboxProvider.ts`](backend/src/services/payment/PayPalSandboxProvider.ts#L61-L91)): Generates and caches bearer tokens using sandbox client credentials.
+- **Orders v2 create** ([`backend/src/services/payment/PayPalSandboxProvider.ts`](backend/src/services/payment/PayPalSandboxProvider.ts#L131-L167)): Calls `POST /v2/checkout/orders` with a unique `PayPal-Request-Id` idempotency header derived from the run ID and revision timestamp.
+- **JavaScript SDK & QR checkout** ([`frontend/src/components/CheckoutModal.tsx`](frontend/src/components/CheckoutModal.tsx#L35-L60)): Dynamically mounts official PayPal Buttons while providing an approval link and scannable QR code for mobile testing.
+- **Orders v2 capture** ([`backend/src/services/payment/PayPalSandboxProvider.ts`](backend/src/services/payment/PayPalSandboxProvider.ts#L169-L180)): Calls `POST /v2/checkout/orders/{id}/capture` with an idempotency key upon buyer approval.
+- **Webhook signature verification** ([`backend/src/services/payment/PayPalSandboxProvider.ts`](backend/src/services/payment/PayPalSandboxProvider.ts#L196-L218)): Validates PayPal transmission headers via `POST /v1/notifications/verify-webhook-signature`.
+
+### Currency handling and inventory safety
+
+PayPal Orders v2 does not support INR transactions. When configured with `PAYPAL_CURRENCY=USD`, the backend converts the integer paise total to USD cents using the configured rate (`PAYPAL_INR_PER_USD`). On capture, the server verifies that the captured USD amount converts back to within rounding tolerance of the approved INR order. Pantry stock replenishes only inside a SQLite database transaction after verified capture.
+
+## How it uses AI
+
+AI capabilities are powered by Google Gemini (`gemini-3.5-flash-lite`) via REST integration in [`backend/src/services/ai/LLMService.ts`](backend/src/services/ai/LLMService.ts):
+
+- `POST /api/ai/parse-policy`: Parses natural language instructions (e.g. "Cap weekly grocery spending at 2000 rupees and shop on Tuesdays") into structured policy JSON proposals.
+- `POST /api/ai/substitute`: Proposes best in-stock brand alternatives when preferred items are unavailable.
+
+### Guardrails and constraints
+
+- **Strict schema validation**: All model outputs are parsed through Zod schemas (`PolicyProposalSchema` and `SubstituteResultSchema`). Unparseable responses trigger immediate fallback.
+- **Candidate allow-list**: The substitute endpoint evaluates only server-provided, in-stock catalog candidates. Hallucinated product IDs outside the list are rejected.
+- **Human confirmation required**: AI outputs are strictly proposals. The AI cannot place orders, alter saved policies, or authorize payments autonomously.
+- **Rate limits**: AI endpoints are rate-limited to 10 requests per minute and 100 requests per 24 hours per user.
+- **Deterministic fallback**: If `LLM_API_KEY` is omitted or an external request fails, deterministic regex parsers and value heuristics execute locally.
+
+## Real vs simulated
+
+| Part | Status | Notes |
+|---|---|---|
+| PayPal checkout and capture | Real | Executed against PayPal Sandbox using official Orders v2 endpoints, SDK buttons, and webhook verification. |
+| AI rule parsing and substitutions | Real | Calls Google Gemini (`gemini-3.5-flash-lite`) with Zod schema enforcement and catalog allow-lists. |
+| Server-side policy checks | Real | Server enforces spending caps, category restrictions, and brand approval rules before order creation. |
+| Store prices and delivery fees | Simulated | Derived from local seeded catalogs for Zepto, Blinkit, and Instamart with tiered fee rules. |
+| Order delivery and fulfillment | Simulated | No live grocery dispatch occurs; orders conclude at payment capture and virtual stock replenishment. |
+| Household clock and depletion | Simulated | Time Machine advances simulated dates to compute burn rates and stockout states on demand. |
+
+No real money moves and no real grocery orders are placed.
+
+## Architecture
+
+```mermaid
+flowchart TD
+    subgraph Browser ["Browser Client"]
+        UI["React SPA (Home, Approvals, Pantry)"]
+        Context["ShopPilot Context & Polling"]
+        SDK["PayPal JS SDK & QR Display"]
+    end
+
+    subgraph Server ["Node.js Express Server"]
+        Routes["Express API Routes (/api/*)"]
+        PolicyEng["Deterministic Policy Engine"]
+        Optimizer["Fee-Aware Basket Optimizer"]
+        PayService["PaymentService"]
+        LLM["LLMService (Gemini 3.5 Flash Lite)"]
+    end
+
+    subgraph Data ["Local Persistence"]
+        DB[("SQLite (better-sqlite3 WAL)")]
+    end
+
+    subgraph External ["External Services"]
+        PayPal["PayPal Sandbox (Orders v2)"]
+        Gemini["Google Generative AI"]
+    end
+
+    UI --> Context
+    Context --> SDK
+    Context --> Routes
+    Routes --> PolicyEng
+    Routes --> Optimizer
+    Routes --> PayService
+    Routes --> LLM
+    PolicyEng --> DB
+    PayService --> DB
+    PayService --> PayPal
+    LLM --> Gemini
 ```
-paypal/
-├── frontend/             # React 19 + TypeScript + Vite + Tailwind CSS
-│   ├── src/components/   # UI components (Pantry, Optimizer, Time Machine, Health Badge)
-│   ├── src/context/      # React State Provider with localStorage fallback & backend proxy
-│   └── vite.config.ts    # Proxies /api -> http://localhost:3001
-├── backend/              # Node.js + Express + TypeScript + SQLite (better-sqlite3)
-│   ├── src/db/           # SQLite connection, WAL mode, schema migrations & idempotent seeds
-│   ├── src/repositories/ # 10 user-scoped repositories (users, pantry, policies, runs, etc.)
-│   ├── src/services/     # Three-tier business logic (Pantry, Policy, Run, Quote, Payment, AI)
-│   ├── src/routes/       # Zod-validated HTTP endpoints (no direct DB logic)
-│   └── src/adapters/     # Store adapters for simulated quick-commerce catalogs
-├── shared/               # Pure business logic shared across frontend and backend
-│   ├── types/            # Canonical domain types (PantryItem, StoreProduct, BasketStrategy)
-│   ├── services/         # Consumption engine, restock scheduler, basket optimizer, currency
-│   ├── adapters/         # Store adapter interfaces and fee calculation logic
-│   └── policy.ts         # Deterministic policy engine (spending caps, brand rules, blocked categories)
-└── package.json          # Monorepo root scripts (concurrent dev, unified test & build)
+
+### Checkout sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Judge as User / Judge
+    participant App as React App
+    participant API as Express API
+    participant DB as SQLite DB
+    participant PP as PayPal Sandbox
+
+    Judge->>App: Confirm and Pay for Order
+    App->>API: POST /api/checkout/create-order { runId }
+    API->>DB: Re-verify policy & order items
+    API->>PP: POST /v2/checkout/orders (PayPal-Request-Id)
+    PP-->>API: Returns orderId & approvalUrl
+    API->>DB: Set status: payment_pending
+    API-->>App: Returns checkout config
+    App->>Judge: Renders PayPal buttons & QR code
+    Judge->>PP: Approves sandbox payment
+    PP-->>App: onApprove callback
+    App->>API: POST /api/checkout/capture { orderId }
+    API->>PP: POST /v2/checkout/orders/{id}/capture
+    PP-->>API: Returns 201 Created (COMPLETED)
+    API->>DB: Atomic Tx: mark paid, save receipt, restock pantry, log audit
+    API-->>App: Return capture confirmation
+    App->>Judge: Display receipt & replenished pantry
 ```
 
----
-
-## 2. Quick Start (Single Command)
+## Run it locally
 
 ### Prerequisites
-- **Node.js**: `v20.x` or `v22.x`
-- **npm**: `v10.x` or higher
+- Node.js `v20.x` (verified on `v20.20.2`; required for native `better-sqlite3` bindings)
+- npm `v10.x` or higher (verified on `10.8.2` and `11.12.1`)
+- Git
 
-### 1. Setup Environment
-```bash
-# Copy example environment variables
-cp .env.example .env
-```
+### Installation and start
 
-### 2. Install Dependencies
 ```bash
+# 1. Clone repository
+git clone [[GITHUB_URL]]
+cd paypal
+
+# 2. Install dependencies (root, backend, and frontend)
 npm install
 npm --prefix backend install
 npm --prefix frontend install
+
+# 3. Configure environment
+cp .env.example .env
 ```
 
-### 3. Run Dev Server (Frontend + Backend)
+#### Minimum environment variables for mock mode (no keys required)
+Works out of the box with zero external credentials:
 ```bash
+PORT=3001
+NODE_ENV=development
+PAYPAL_MODE=mock
+DATABASE_PATH=./data/shoppilot.db
+APP_BASE_URL=http://localhost:5173
+PUBLIC_APP_URL=http://localhost:5173
+```
+
+#### Minimum environment variables for PayPal Sandbox mode
+To test real sandbox orders, update `.env` (credentials obtained from [developer.paypal.com](https://developer.paypal.com)):
+```bash
+PAYPAL_MODE=sandbox
+PAYPAL_CLIENT_ID=your_sandbox_client_id
+PAYPAL_CLIENT_SECRET=your_sandbox_client_secret
+PAYPAL_CURRENCY=USD
+PAYPAL_INR_PER_USD=85.00
+LLM_API_KEY=your_gemini_api_key   # Optional: uses local NLP if omitted
+```
+
+```bash
+# 4. Start frontend and backend concurrently
 npm run dev
 ```
-- **Backend API**: [http://localhost:3001](http://localhost:3001)
-- **Frontend App**: [http://localhost:5173](http://localhost:5173) (or dynamic Vite port)
 
-### 4. Accounts
-The app opens on the Login page. Register for a personal account. A seeded Guest account is available only in local development and tests; production does not seed or accept the shared guest account.
+- **Frontend**: [http://localhost:5173](http://localhost:5173) (verified)
+- **Backend API**: [http://localhost:3001](http://localhost:3001) (verified)
+- **Health check**: [http://localhost:3001/api/health](http://localhost:3001/api/health) (verified)
 
-New accounts start with an empty pantry, no saved restocking policy, orders, approvals, or activity history. Future Simulation is available to the Guest account only; the backend enforces this restriction.
-
-### 5. Run Test Suites
+### Resetting demo data
+To reset the demo household to clean seed values, click **Reset Demo State** in the header or run:
 ```bash
-# Run all tests across backend (Vitest) and frontend (autonomous suite)
-npm test
-
-# Build production bundles for both backend and frontend
-npm run build
+curl -X POST http://localhost:3001/api/state/reset -H "Content-Type: application/json" --cookie "shoppilot_session=..."
 ```
+Alternatively, delete `backend/data/shoppilot.db` and restart the backend.
 
----
+## Environment variables
 
-## 3. Environment Variables Reference
+Configured in [`backend/src/config.ts`](backend/src/config.ts):
 
-All secrets reside exclusively on the backend. The frontend consumes the backend via Vite's proxy `/api`.
-
-| Variable | Default | Description |
-|---|---|---|
-| `PORT` | `3001` | Express backend listening port |
-| `DATABASE_PATH` | `./data/shoppilot.db` | SQLite database file location (`:memory:` supported for tests) |
-| `PAYPAL_MODE` | `mock` | `mock`, `sandbox`, or explicitly enabled `live` for PayPal Orders v2 |
-| `ALLOW_LIVE_PAYMENTS` | `false` | Must be `true` together with `PAYPAL_MODE=live` and the official live API host to enable real charges |
-| `PAYPAL_CLIENT_ID` | — | PayPal App Client ID (backend config; returned to authenticated checkout UI for the JS SDK) |
-| `PAYPAL_CLIENT_SECRET` | — | PayPal App Secret; backend only |
-| `PAYPAL_BASE_URL` | `https://api-m.sandbox.paypal.com` | PayPal API origin |
-| `PAYPAL_WEBHOOK_ID` | — | Webhook ID used for PayPal signature verification |
-| `PAYPAL_CURRENCY` | `INR` | `INR` or `USD`; no silent currency fallback is performed |
-| `PAYPAL_INR_PER_USD` | — | Required explicit INR-per-USD rate when charging in USD |
-| `APP_BASE_URL` | `http://localhost:5173` | Publicly reachable frontend URL used for PayPal return/cancel redirects |
-| `PUBLIC_APP_URL` | `APP_BASE_URL` origin | Exact browser origin allowed by CORS; use HTTPS in production |
-| `LLM_API_KEY` | `""` | Optional API key for external LLM parsing (falls back to deterministic NLP) |
-
----
-
-## 4. Real vs. Simulated Transparency Table
-
-To maintain complete integrity for hackathon judges, here is the transparent breakdown:
-
-| Capability | Real | Simulated / Mocked | Explanation |
+| Variable | Required | Default | Description |
 |---|---|---|---|
-| **PayPal Checkout** | PayPal Orders v2 in Sandbox mode | Explicit mock mode only | OAuth client credentials, server-created orders, server captures, persisted payment states, verified webhooks and approval-link QR codes. Live mode is disabled unless explicitly enabled in server config. |
-| **Store Pricing & Quotes** | — | **Simulated** (Local Quick-Commerce Catalog) | Local store adapters provide simulated Blinkit, Zepto, and Instamart prices for the autonomous basket optimizer. |
-| **Integer-Paise Money Math** | **Real** | — | Floating point arithmetic is forbidden. All monetary math uses integer paise (`₹1.00 = 100 paise`), preventing roundoff leakage. |
-| **Depletion & Burning** | **Real** (Deterministic) | — | Mathematical consumption formulas ($ \text{Stock} / \text{Burn} $) accurately project stockout days. |
-| **Multi-Store Basket Optimization** | **Real** | — | Dynamically compares 4 basket strategies accounting for independent delivery, handling, and minimum-order fees. |
-| **AI Policy Parsing & Substitution** | **Real** (NLP Engine) | — | Server-side parser extracts budget caps, shopping days, and blocked categories. Substitutions are strictly validated against server candidate lists. |
-| **Store Fulfillment / Couriers** | — | **Simulated** | We do not dispatch real delivery riders or place live grocery orders with Blinkit/Zepto. |
+| `PORT` | No | `3001` | Express backend listening port. |
+| `NODE_ENV` | No | `development` | Environment mode (`development`, `test`, `production`). |
+| `DATABASE_PATH` | No | `./data/shoppilot.db` | Filesystem path for SQLite database. |
+| `PAYPAL_MODE` | No | `mock` | Payment mode: `mock`, `sandbox`, or `live`. |
+| `ALLOW_LIVE_PAYMENTS` | No | `false` | Safety toggle; must be `true` with `PAYPAL_MODE=live` to charge real funds. |
+| `PAYPAL_CLIENT_ID` | Sandbox only | `undefined` | PayPal REST application Client ID. |
+| `PAYPAL_CLIENT_SECRET` | Sandbox only | `undefined` | PayPal REST application Client Secret (server-side only). |
+| `PAYPAL_WEBHOOK_ID` | No | `undefined` | PayPal Webhook ID for signature verification. |
+| `PAYPAL_BASE_URL` | No | `https://api-m.sandbox.paypal.com` | PayPal REST API origin. |
+| `PAYPAL_CURRENCY` | No | `INR` | Charge currency (`INR` or `USD`). |
+| `PAYPAL_INR_PER_USD` | USD mode | `undefined` | Required explicit conversion rate when charging in USD. |
+| `APP_BASE_URL` | No | `http://localhost:5173` | Frontend application URL for returns and CORS. |
+| `PUBLIC_APP_URL` | No | `APP_BASE_URL` origin | Browser origin permitted by CORS and CSRF guards. |
+| `GOOGLE_CLIENT_ID` | No | `undefined` | Google OAuth Client ID for Google Identity Services. |
+| `GOOGLE_CLIENT_SECRET` | No | `undefined` | Google OAuth Client Secret. |
+| `LLM_API_KEY` | No | `undefined` | Google Gemini API key; falls back to deterministic NLP if unset. |
+| `SMTP_HOST` | No | `undefined` | SMTP server host for transactional emails. |
+| `SMTP_PORT` | No | `587` | SMTP server port. |
+| `SMTP_SECURE` | No | `false` | Direct TLS toggle for SMTP. |
+| `SMTP_USER` | No | `undefined` | SMTP username. |
+| `SMTP_PASS` | No | `undefined` | SMTP password. |
+| `EMAIL_FROM` | No | `ShopPilot AI <no-reply@shoppilot.local>` | Sender address for outgoing emails. |
 
----
+## API reference
 
-## 5. API Endpoint Reference
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/health` | Public | Service status and active PayPal mode. |
+| `POST` | `/api/auth/register` | Public | Register new account with validation. |
+| `POST` | `/api/auth/login` | Public | Sign in and receive 7-day session cookie. |
+| `POST` | `/api/auth/logout` | Session | Revoke session and clear cookie. |
+| `GET` | `/api/auth/me` | Session | Retrieve current authenticated user. |
+| `POST` | `/api/auth/google` | Public | Google Identity Services token sign-in. |
+| `GET` | `/api/state` | Session | Complete state snapshot (pantry, clock, policy, runs). |
+| `POST` | `/api/state/reset` | Session (Guest) | Reset demo data to seed defaults. |
+| `GET` | `/api/pantry` | Session | List household pantry items. |
+| `POST` | `/api/pantry` | Session | Add new pantry staple with burn rate. |
+| `PUT` | `/api/pantry/:id` | Session | Update stock quantity or consumption rate. |
+| `DELETE` | `/api/pantry/:id` | Session | Remove staple from pantry. |
+| `GET` | `/api/policy` | Session | Get restocking rules and spending caps. |
+| `PUT` | `/api/policy` | Session | Update shopping schedule and spending caps. |
+| `GET` | `/api/time` | Session (Guest) | Get current simulation clock state. |
+| `POST` | `/api/time/advance` | Session (Guest) | Advance clock by 1, 3, or 7 days and compute burn. |
+| `GET` | `/api/quotes` | Session | Get simulated multi-store pricing. |
+| `POST` | `/api/runs/plan` | Session | Plan restock run and evaluate policy. |
+| `PUT` | `/api/runs/:id/strategy` | Session | Change strategy on an unapproved run. |
+| `POST` | `/api/runs/:id/approve` | Session | Approve flagged restock run. |
+| `POST` | `/api/runs/:id/reject` | Session | Reject restock run. |
+| `GET` | `/api/audit-log` | Session | Fetch immutable audit log entries. |
+| `GET` | `/api/checkout/config` | Session | Fetch client checkout configuration. |
+| `POST` | `/api/checkout/create-order` | Session | Create idempotent PayPal sandbox order. |
+| `POST` | `/api/checkout/capture` | Session | Capture payment and atomically restock pantry. |
+| `GET` | `/api/checkout/status/:runId` | Session | Query checkout status for recovery and QR flows. |
+| `POST` | `/api/checkout/cancel` | Session | Cancel pending checkout while preserving plan. |
+| `POST` | `/api/webhooks/paypal` | Public (Signed) | Process PayPal webhook events idempotently. |
+| `POST` | `/api/ai/parse-policy` | Session | Parse plain English into policy proposal. |
+| `POST` | `/api/ai/substitute` | Session | Propose substitute item from catalog allow-list. |
 
-All endpoints are scoped to `demo-user` via auth middleware and return errors in standard `{ error: { code, message, details? } }` format.
+## Testing
 
-### Seeded Product Catalog
-
-The backend stores and serves 33 curated product groups as 88 platform-specific offers from Blinkit, Zepto, and Instamart in SQLite for the current demo service area: **Katraj, Pune, Maharashtra – 411046, India**. Categories include fresh produce, dairy, bakery, pantry staples, breakfast and cereals, snacks, beverages, personal care, and household essentials. This is a static curated demo dataset with illustrative prices and simulated offers; it is not live-scraped. Actual platform delivery coverage and inventory in this PIN code have not been verified, and the data does not represent real-time prices or availability.
-
-- `GET /api/products` — Authenticated catalog listing; defaults to PIN code `411046` and supports `pinCode`, `q`, `category`, `platform` (`blinkit`, `zepto`, or `instamart`), and `available` (`true` or `false`) filters. Only the Katraj demo area is currently supported.
-
-### Health & State
-- `GET /api/health` — Backend health, service mode, active user ID.
-- `GET /api/state` — Complete hydrated state snapshot (clock, pantry, policy, latest run, stats).
-
-### Pantry Management
-- `GET /api/pantry` — List all user pantry items.
-- `POST /api/pantry` — Add new pantry item with burn rate and thresholds.
-- `GET /api/pantry/:id` — Fetch single pantry item.
-- `PUT /api/pantry/:id` — Update item details, target stock, or substitution preferences.
-- `DELETE /api/pantry/:id` — Remove item from pantry.
-- `POST /api/pantry/:id/adjust` — Adjust stock quantity (e.g. manual restock or manual consume).
-
-### Restock Policy & Time Machine
-- `GET /api/policy` — Get weekly scheduler configuration and spending caps.
-- `PUT /api/policy` — Update budget limits, per-order caps, preferred restock day, and blocked categories.
-- `POST /api/time/advance` — Fast-forward simulation clock by $N$ days, apply consumption depletion, and update stockout counters.
-
-### Restocking Runs & Basket Optimization
-- `POST /api/runs/plan` — Generate restock run, evaluate 4 basket strategies, and enforce policy rules (`auto_approved`, `needs_approval`, or `blocked`).
-- `GET /api/runs/:id` — Retrieve planned run details with line items.
-- `POST /api/runs/:id/approve` — User approves a run flagged with `needs_approval`.
-- `POST /api/runs/:id/reject` — User rejects a planned run.
-
-### Checkout & PayPal Integration
-- `GET /api/checkout/config` — Public PayPal JS SDK Client ID and checkout mode/currency (never the Client Secret).
-- `POST /api/checkout/create-order` — Verify policy approval on server; initiate PayPal sandbox order.
-- `POST /api/checkout/capture` — Captures through PayPal, then atomically updates the run, receipt, pantry and audit log. Idempotent on repeat.
-- `GET /api/checkout/status/:runId` — Recovers payment status after a refresh and captures a buyer-approved QR order from the server.
-- `POST /api/checkout/cancel` — Records a cancelled attempt while preserving the order for retry.
-- `POST /api/webhooks/paypal` — Verifies signatures with PayPal and processes capture/order events idempotently.
-
-### PayPal Sandbox setup and test
-
-1. Copy `backend/.env.example` to `backend/.env` and set the Sandbox Business App Client ID, Client Secret, and `PAYPAL_MODE=sandbox`. Keep the Client Secret in this backend file only.
-2. PayPal's current REST currency list does not include INR. Keep `PAYPAL_CURRENCY=INR` to get an explicit PayPal rejection, or intentionally charge USD by setting `PAYPAL_CURRENCY=USD` and the merchant-approved `PAYPAL_INR_PER_USD` conversion rate. ShopPilot does not fetch or guess an exchange rate; the browser shows the USD charge beside the INR basket total.
-3. Set `APP_BASE_URL` to the frontend address reachable by the QR buyer's device. For a local second-device test, expose Vite on the LAN with `npm --prefix frontend run dev -- --host 0.0.0.0` and use the computer's LAN IP, or use a trusted HTTPS tunnel. `localhost` on the buyer's phone points to the phone itself.
-4. Start with `npm run dev`, approve the order, and click **Confirm and Pay for Order**. The official PayPal button opens Sandbox checkout; the QR contains that same order's PayPal approval URL. Scan it with a Sandbox Personal buyer account while keeping the original ShopPilot tab open.
-5. Confirm that the original tab changes to captured only after the server confirms PayPal capture. In the Sandbox Business account, verify the transaction. Test cancel, retry, refresh/reopen, duplicate capture, invalid run ID, and failed capture. Configure a webhook ID in PayPal Developer only if testing webhook delivery; local checkout-status polling does not depend on webhooks.
-
-Sandbox end-to-end capture requires a Sandbox Personal buyer login and a deliberate supported currency/rate choice. Automated backend tests use the explicit mock provider and do not create PayPal transactions.
-
-### Security
-
-See [SECURITY.md](SECURITY.md) for security controls, deployment settings, limitations and responsible disclosure. Production uses authenticated, user-scoped data routes, origin checks, rate limits, security headers, explicit HTTPS origins and a sandbox-only PayPal API host unless live payments are deliberately enabled.
-
-Run the local curl-based verification checks with the setup in [docs/security-checks.md](docs/security-checks.md) and `bash docs/security-checks.sh`.
-
-### Rate limiting
-
-Unauthenticated requests to protected API routes and `/api/auth/me` are limited to 60 requests per 15 minutes per client IP; excess requests receive HTTP 429. The limiter uses in-memory counters, which reset when the backend restarts and are not shared across backend instances. Authenticated requests retain the existing limit of 300 requests per 15 minutes per user. Signup, login, logout, health, and PayPal webhook routes retain their existing rate-limiting behavior.
-
-### PayPal webhook verification
-
-The backend uses PayPal's official webhook signature-verification API, validates required transmission headers, and accepts events only when PayPal returns `verification_status: SUCCESS`. Events must have a valid structure and event ID; duplicate processing is prevented through idempotency. Automated mock tests for webhook verification have passed. Real PayPal Sandbox webhook delivery and signature verification have **not** been independently confirmed: PayPal cannot directly reach the localhost endpoint used for testing. Verification requires a publicly accessible HTTPS endpoint or HTTPS tunnel.
-
-### AI Endpoints (Server-Side, Validated)
-- `POST /api/ai/parse-policy` — Translates natural language into a proposed policy modification (proposal only; never auto-saved without user confirmation).
-- `POST /api/ai/substitute` — Selects closest in-stock alternative strictly from server-provided candidates; rejects hallucinations.
-
----
-
-## 6. Testing & Quality Verification
+Automated test suites cover policy evaluation, state transitions, idempotent capture, user scoping, migrations, and rate limits:
 
 ```bash
-# 1. Backend Vitest Suite (29 automated tests)
+# Run backend Vitest suite (85 tests across 13 test files)
 npm --prefix backend test
 
-# 2. Frontend Autonomous Verification Suite (5 verification stages)
+# Run frontend autonomous SSR verification suite (5 stages, 10 workflow tests)
 npm --prefix frontend test
 
-# 3. Production Build Validation (TypeScript + Vite SSR + Vite Client)
+# Run full monorepo build verification
 npm run build
 ```
 
----
+- **Backend suite**: 85 passing tests verifying user isolation, schema migrations, brute-force login throttling, AI schema validation, policy rules, and idempotent payment capture.
+- **Frontend suite**: Autonomous verification covering integer paise arithmetic, depletion forecasts, brand swap decisions, bucket editing, and multi-store delivery fee optimization.
 
-## 7. License & Hackathon Submission
-Developed for the **PayPal AI Hackathon 2026**. Licensed under the MIT License.
+## Security
 
-## License
+Security controls implemented in code:
 
-See the [MIT License](LICENSE).
+- **Cookie sessions**: 7-day session tokens stored as SHA-256 hashes in SQLite; cookies use `HttpOnly`, `SameSite=Lax`, and `Secure` in production ([`backend/src/middleware/auth.ts`](backend/src/middleware/auth.ts)).
+- **User isolation**: All queries partition records strictly by authenticated user ID ([`backend/src/repositories/`](backend/src/repositories/)).
+- **Atomic settlement**: Payment capture, settled receipt generation, pantry replenishment, and audit logging execute inside a single SQLite transaction ([`backend/src/services/payment/PaymentService.ts`](backend/src/services/payment/PaymentService.ts)).
+- **Request throttling**: In-memory rate limits on auth routes, checkout creation (10/hr), AI endpoints (10/min), and unauthenticated traffic ([`backend/src/middleware/rateLimit.ts`](backend/src/middleware/rateLimit.ts)).
+- **Origin verification**: State-changing requests validate `Origin` against `PUBLIC_APP_URL` / `APP_BASE_URL` ([`backend/src/app.ts`](backend/src/app.ts)).
+- **Hardened headers**: Restrictive Content Security Policy, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and production HSTS ([`backend/src/app.ts`](backend/src/app.ts)).
+- **Live payment lockout**: Live transactions require `PAYPAL_MODE=live`, `ALLOW_LIVE_PAYMENTS=true`, and the live PayPal host; otherwise blocked ([`backend/src/config.ts`](backend/src/config.ts)).
+
+See [SECURITY.md](SECURITY.md) for vulnerability reporting and deployment controls.
+
+## Project structure
+
+```
+paypal/
+├── backend/                  # Express REST API
+│   ├── src/adapters/         # Server catalog and quote providers
+│   ├── src/db/               # SQLite connection, migrations, and seed data
+│   ├── src/middleware/       # Auth, rate limiting, logging, error handling
+│   ├── src/repositories/     # User-scoped data access repositories
+│   ├── src/routes/           # Zod-validated route controllers
+│   ├── src/services/         # Business logic (Payment, Policy, AI, Pantry, Run)
+│   └── src/__tests__/        # Backend Vitest automated test suites
+├── frontend/                 # React 19 single-page application
+│   ├── src/api/              # HTTP client and error handlers
+│   ├── src/components/       # UI views (Home, Approvals, Pantry, CheckoutModal)
+│   ├── src/context/          # Application state provider and recovery polling
+│   └── src/tests/            # Autonomous verification test suite
+├── shared/                   # Pure business logic shared across client and server
+│   ├── adapters/             # Quick-commerce store adapters (Blinkit, Zepto, Instamart)
+│   ├── services/             # Optimizer, consumption engine, scheduler, currency math
+│   └── types/                # Canonical domain models and TypeScript interfaces
+└── docs/                     # Architectural specs, Devpost submission, screenshot guides
+```
+
+## Limitations and what's next
+
+- **In-memory rate limiting**: Limiters store counters in single-process memory. Horizontal scaling requires an external store such as Redis.
+- **Local SQLite persistence**: SQLite runs on the local filesystem. Production on Render requires an attached persistent disk mount (`/var/data`).
+- **Simulated store integrations**: Quick-commerce stores are modeled through local seed catalogs rather than live private APIs.
+- **Sandbox environment**: PayPal transactions run in Sandbox mode; no real financial settlement occurs.
+
+### Roadmap
+- Real quick-commerce store partnerships and catalog sync.
+- Pre-authorized recurring household restocking with saved payment methods via PayPal Vault.
+- Receipt OCR and barcode scanning for instant pantry logging.
+- Multi-household accounts with granular per-member spending limits and shared approvals.
+
+## Credits and notices
+
+- **License**: Released under the [MIT License](LICENSE). Copyright (c) 2026 Divyani Gulhane and Gargi Joshi.
+- **Typography**: [Bricolage Grotesque](https://github.com/alphanew/bricolage) (Open Font License), [Instrument Serif](https://github.com/Instrument/instrument-serif) (Open Font License).
+- **Icons**: [Lucide React](https://lucide.dev) (ISC License).
+- **AI-generated landing imagery**: Marketing graphics on the landing page were generated using AI design tools to illustrate household pantry concepts.
+- **Notice**: Zepto, Blinkit, Instamart, and product brand names are used solely to illustrate simulated quick-commerce data. This project is not affiliated with, sponsored by, or endorsed by them or by PayPal.
+
+Built for the **Build What's Next with PayPal and AI** hackathon.

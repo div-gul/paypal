@@ -1,5 +1,8 @@
 import express, { Express } from 'express';
 import cors from 'cors';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { requestLogger } from './middleware/logging.js';
 import { injectTestUser, requireAuthentication, resolveSessionIfPresent } from './middleware/auth.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -36,11 +39,11 @@ export function createApp(options: { testAuth?: boolean } = {}): Express {
       "base-uri 'self'",
       "object-src 'none'",
       "frame-ancestors 'none'",
-      "script-src 'self' https://www.paypal.com https://www.sandbox.paypal.com",
-      "style-src 'self' 'unsafe-inline' https://www.paypal.com https://www.paypalobjects.com",
-      "connect-src 'self' https://api-m.sandbox.paypal.com https://api-m.paypal.com https://www.paypal.com https://www.paypalobjects.com",
-      "frame-src https://www.paypal.com https://www.sandbox.paypal.com https://*.paypal.com",
-      "img-src 'self' data: https://*.paypalobjects.com",
+      "script-src 'self' https://www.paypal.com https://www.sandbox.paypal.com https://accounts.google.com",
+      "style-src 'self' 'unsafe-inline' https://www.paypal.com https://www.paypalobjects.com https://accounts.google.com",
+      "connect-src 'self' https://api-m.sandbox.paypal.com https://api-m.paypal.com https://www.paypal.com https://www.paypalobjects.com https://accounts.google.com",
+      "frame-src https://www.paypal.com https://www.sandbox.paypal.com https://*.paypal.com https://accounts.google.com",
+      "img-src 'self' data: https://*.paypalobjects.com https://*.googleusercontent.com",
       "font-src 'self' data:",
     ].join('; '));
     if (config.NODE_ENV === 'production') res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
@@ -107,6 +110,18 @@ export function createApp(options: { testAuth?: boolean } = {}): Express {
 
   // Global centralized error handler
   app.use(errorHandler);
+
+  // In production / monorepo deployments, serve frontend build if present
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const frontendDist = path.resolve(__dirname, '../../frontend/dist');
+  if (fs.existsSync(frontendDist)) {
+    app.use(express.static(frontendDist));
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api')) return next();
+      res.sendFile(path.join(frontendDist, 'index.html'));
+    });
+  }
 
   return app;
 }

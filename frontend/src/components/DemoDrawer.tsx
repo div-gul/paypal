@@ -1,7 +1,6 @@
 import React from 'react';
 import { useShopPilot } from '../context/ShopPilotContext';
 import { TimeMachine } from './TimeMachine';
-import { BackendHealthBadge } from './BackendHealthBadge';
 import {
   X,
   RotateCcw,
@@ -74,7 +73,6 @@ export const DemoDrawer: React.FC<DemoDrawerProps> = ({ isOpen, onClose }) => {
                 <Info className="w-4 h-4 text-brand" />
                 Integration Architecture
               </span>
-              <BackendHealthBadge />
             </div>
             <p className="text-xs text-ink-muted leading-relaxed">
               ShopPilot uses local mock store adapters with strict validation,

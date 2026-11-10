@@ -8,11 +8,12 @@ import {
   X,
   Code,
   CheckCircle,
+  ChevronDown,
 } from 'lucide-react';
 
 interface LandingPageProps {
   onEnterDemo: () => void;
-  onOpenAuth: (mode?: 'login' | 'register') => void;
+  onOpenAuth: (mode?: 'login' | 'register' | 'forgot' | 'reset' | 'verify') => void;
   currentUser?: AuthUser | null;
   onGoToApp?: () => void;
 }
@@ -128,7 +129,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* ============================================================== */}
       <header
         ref={heroRef}
-        className="relative overflow-hidden min-h-[600px] h-[88vh] max-h-[850px] bg-night-teal bg-[#0A3540] flex flex-col justify-between"
+        className="relative overflow-hidden min-h-screen min-h-[100dvh] bg-night-teal bg-[#0A3540] flex flex-col justify-between"
         style={{ backgroundColor: '#0A3540' }}
       >
         {/* Single Hero Image */}
@@ -235,7 +236,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </nav>
 
         {/* Hero Content Bottom-Left + Glass Card Bottom-Right */}
-        <div className="relative z-10 px-4 sm:px-8 pb-8 sm:pb-12 pt-16 flex flex-col lg:flex-row lg:items-end justify-between gap-8 max-w-[1280px] w-full mx-auto">
+        <div className="relative z-10 px-4 sm:px-8 py-8 sm:py-12 my-auto flex flex-col lg:flex-row lg:items-end justify-between gap-8 max-w-[1280px] w-full mx-auto">
           {/* Content Left */}
           <div className="max-w-[640px] space-y-5 text-white">
             <h1 className="landing-h1 font-bold text-white tracking-tight">
@@ -306,12 +307,29 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               This week's demo order
             </span>
             <div className="font-serif-italic text-[56px] leading-tight text-white my-1">
-              ₹103 saved
+              ₹143 saved
             </div>
             <p className="landing-caption text-white/85">
-              One store and one delivery fee instead of two.
+              Split across stores to capture the best discounts.
             </p>
           </aside>
+        </div>
+
+        {/* Scroll Down Animation */}
+        <div className="relative z-20 pb-6 pt-2 flex flex-col items-center justify-center">
+          <a
+            href="#how-it-works"
+            className="inline-flex flex-col items-center gap-1.5 text-white/70 hover:text-white transition duration-200 group cursor-pointer focus:outline-none"
+            aria-label="Scroll to see more"
+          >
+            <span className="text-[11px] font-semibold tracking-widest uppercase transition-colors group-hover:text-sand">
+              Scroll to see more
+            </span>
+            <div className="w-5 h-8 rounded-full border border-white/35 flex items-start justify-center p-1 group-hover:border-white transition-colors">
+              <div className="w-1 h-2 rounded-full bg-sand animate-bounce" />
+            </div>
+            <ChevronDown className="w-3.5 h-3.5 text-white/50 group-hover:text-sand -mt-0.5 animate-bounce transition-colors" />
+          </a>
         </div>
 
         {/* Mobile Nav Full-Screen Drawer */}
@@ -617,10 +635,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             {/* Left Column (45% / 5 cols) */}
             <div className="lg:col-span-5 space-y-4">
               <h2 className="landing-h2 font-bold text-ink leading-tight">
-                One delivery fee beats two.
+                Smart splits that save you more.
               </h2>
               <p className="landing-body text-ink-muted">
-                A split across stores can win on item prices and still lose after fees. ShopPilot adds it all up before it suggests anything.
+                Buying everything from one store can carry steep markups. ShopPilot compares basket combinations across quick-commerce apps, automatically factoring in delivery fees so splitting saves you real money.
               </p>
             </div>
 
@@ -637,38 +655,37 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                     role="radio"
                     aria-checked={savingsMode === 'split'}
                     onClick={() => setSavingsMode('split')}
-                    className={`flex-1 py-2.5 px-4 rounded-full text-xs sm:text-sm font-semibold transition cursor-pointer ${savingsMode === 'split'
+                    className={`flex-1 py-2.5 px-4 rounded-full text-xs sm:text-sm font-semibold transition cursor-pointer flex items-center justify-center gap-2 ${savingsMode === 'split'
                       ? 'bg-white text-ink shadow-xs'
                       : 'text-ink-muted hover:text-ink'
                       }`}
                   >
-                    Split across stores
+                    <span>Split across stores</span>
+                    {savingsMode === 'split' && (
+                      <span className="bg-teal/10 text-teal border border-teal/20 px-2.5 py-0.5 rounded-full text-[11px] font-bold">
+                        You save ₹143
+                      </span>
+                    )}
                   </button>
                   <button
                     role="radio"
                     aria-checked={savingsMode === 'single'}
                     onClick={() => setSavingsMode('single')}
-                    className={`flex-1 py-2.5 px-4 rounded-full text-xs sm:text-sm font-semibold transition cursor-pointer flex items-center justify-center gap-2 ${savingsMode === 'single'
+                    className={`flex-1 py-2.5 px-4 rounded-full text-xs sm:text-sm font-semibold transition cursor-pointer ${savingsMode === 'single'
                       ? 'bg-white text-ink shadow-xs'
                       : 'text-ink-muted hover:text-ink'
                       }`}
                   >
-                    <span>One store</span>
-                    {savingsMode === 'single' && (
-                      <span className="bg-mist text-teal border border-teal/20 px-2 py-0.5 rounded-full text-[11px] font-bold">
-                        You save ₹103
-                      </span>
-                    )}
+                    One store
                   </button>
                 </div>
 
                 {/* Price Breakdown with 200ms Crossfade */}
-                {/* Figures verified against demo seed in shared/services/basketOptimizer.ts */}
                 <div className="space-y-3 transition-opacity duration-200">
                   <div className="flex items-center justify-between text-sm py-1 border-b border-mist">
                     <span className="text-ink-muted">Items subtotal</span>
                     <span className="font-semibold text-ink tabular-nums">
-                      {savingsMode === 'split' ? '₹875.00' : '₹887.00'}
+                      {savingsMode === 'split' ? '₹738.00' : '₹936.00'}
                     </span>
                   </div>
 
@@ -682,20 +699,32 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <div className="flex items-center justify-between text-sm py-1 border-b border-mist">
                     <span className="text-ink-muted">Platform & handling fees</span>
                     <span className="font-semibold text-ink tabular-nums">
-                      {savingsMode === 'split' ? '₹134.75' : '₹48.35'}
+                      {savingsMode === 'split' ? '₹68.00' : '₹42.35'}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between text-base sm:text-lg font-bold text-ink pt-2">
+                  <div
+                    className={`flex items-center justify-between text-base sm:text-lg font-bold p-3.5 rounded-2xl transition duration-200 ${savingsMode === 'split'
+                      ? 'bg-teal/5 border border-teal/20 text-teal'
+                      : 'text-ink'
+                      }`}
+                  >
                     <div className="space-y-0.5">
-                      <span>Total payable</span>
+                      <span className="text-ink font-bold">Total payable</span>
                       <span className="block text-xs font-normal text-ink-muted">
-                        {savingsMode === 'split' ? '2 separate deliveries' : '1 consolidated delivery'}
+                        {savingsMode === 'split' ? '2 optimized deliveries' : '1 consolidated delivery'}
                       </span>
                     </div>
-                    <span className={`tabular-nums ${savingsMode === 'single' ? 'text-teal font-extrabold text-xl' : ''}`}>
-                      {savingsMode === 'split' ? '₹1,038.75' : '₹935.35'}
-                    </span>
+                    <div className="text-right">
+                      <span className={`tabular-nums ${savingsMode === 'split' ? 'text-teal font-extrabold text-xl sm:text-2xl' : 'text-ink'}`}>
+                        {savingsMode === 'split' ? '₹835.00' : '₹978.35'}
+                      </span>
+                      {savingsMode === 'split' && (
+                        <span className="block text-[11px] font-bold text-teal">
+                          ₹143.35 cheaper
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -931,7 +960,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <ArrowRight className="w-4 h-4" />
                 </button>
                 <a
-                  href="https://github.com/"
+                  href="https://github.com/div-gul/paypal"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="border border-white/30 hover:bg-white/10 text-white text-sm font-semibold px-6 py-4 rounded-full transition cursor-pointer inline-flex items-center gap-2"
@@ -970,7 +999,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 Under the hood
               </a>
               <a
-                href="https://github.com/"
+                href="https://github.com/div-gul/paypal"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:text-teal transition"
