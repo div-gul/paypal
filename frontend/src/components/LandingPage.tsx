@@ -452,7 +452,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 if (e.key === 'ArrowLeft') scrollCarousel('left');
                 if (e.key === 'ArrowRight') scrollCarousel('right');
               }}
-              className="flex gap-5 overflow-x-auto snap-x snap-mandatory pb-4 pt-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal rounded-card-lg"
+              className="flex gap-5 overflow-x-auto snap-x snap-mandatory pb-4 pt-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal rounded-card-lg no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
               aria-label="How it works 4-step sequence"
             >
               {/* Step 1 */}

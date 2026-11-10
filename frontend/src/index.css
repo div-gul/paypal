@@ -12,6 +12,13 @@
     overflow-x: hidden;
     max-width: 100vw;
     scroll-behavior: smooth;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    display: none;
   }
 
   body {
@@ -35,6 +42,14 @@
 .font-serif-italic {
   font-family: 'Instrument Serif', Georgia, serif;
   font-style: italic;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 .landing-h1 {
