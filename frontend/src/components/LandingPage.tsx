@@ -30,9 +30,32 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [showStickyBar, setShowStickyBar] = useState(false);
   const [savingsMode, setSavingsMode] = useState<'split' | 'single'>('split');
   const [heroAnimated, setHeroAnimated] = useState(false);
+  const [canScrollCarouselLeft, setCanScrollCarouselLeft] = useState(false);
+  const [canScrollCarouselRight, setCanScrollCarouselRight] = useState(false);
 
   const heroRef = useRef<HTMLDivElement>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
+
+  const updateCarouselControls = () => {
+    const carousel = carouselRef.current;
+    if (!carousel) return;
+    const maxScrollLeft = Math.max(0, carousel.scrollWidth - carousel.clientWidth);
+    setCanScrollCarouselLeft(carousel.scrollLeft > 1);
+    setCanScrollCarouselRight(carousel.scrollLeft < maxScrollLeft - 1);
+  };
+
+  useEffect(() => {
+    const carousel = carouselRef.current;
+    if (!carousel) return;
+    updateCarouselControls();
+    const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateCarouselControls);
+    resizeObserver?.observe(carousel);
+    window.addEventListener('resize', updateCarouselControls);
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', updateCarouselControls);
+    };
+  }, []);
 
   // Trigger hero entrance sequence on mount
   useEffect(() => {
@@ -72,9 +95,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   };
 
   const scrollCarousel = (direction: 'left' | 'right') => {
-    if (!carouselRef.current) return;
+    const carousel = carouselRef.current;
+    if (!carousel) return;
+    const maxScrollLeft = Math.max(0, carousel.scrollWidth - carousel.clientWidth);
+    if (direction === 'left' && carousel.scrollLeft <= 1) return;
+    if (direction === 'right' && carousel.scrollLeft >= maxScrollLeft - 1) return;
     const scrollAmount = 400;
-    carouselRef.current.scrollBy({
+    carousel.scrollBy({
       left: direction === 'left' ? -scrollAmount : scrollAmount,
       behavior: 'smooth',
     });
@@ -446,16 +473,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <div className="hidden md:flex items-center gap-2">
                 <button
+                  type="button"
                   onClick={() => scrollCarousel('left')}
-                  className="w-11 h-11 rounded-full bg-white border border-mist text-ink hover:text-teal hover:border-teal transition flex items-center justify-center cursor-pointer shadow-landing-soft"
+                  disabled={!canScrollCarouselLeft}
+                  className={`w-11 h-11 rounded-full bg-white border border-mist transition flex items-center justify-center ${canScrollCarouselLeft ? 'text-ink hover:text-teal hover:border-teal cursor-pointer shadow-landing-soft' : 'text-ink-muted/50 opacity-40 cursor-not-allowed'}`}
                   aria-label="Scroll previous card"
+                  aria-controls="how-it-works-carousel"
                 >
                   <ArrowLeft className="w-5 h-5" />
                 </button>
                 <button
+                  type="button"
                   onClick={() => scrollCarousel('right')}
-                  className="w-11 h-11 rounded-full bg-white border border-mist text-ink hover:text-teal hover:border-teal transition flex items-center justify-center cursor-pointer shadow-landing-soft"
+                  disabled={!canScrollCarouselRight}
+                  className={`w-11 h-11 rounded-full bg-white border border-mist transition flex items-center justify-center ${canScrollCarouselRight ? 'text-ink hover:text-teal hover:border-teal cursor-pointer shadow-landing-soft' : 'text-ink-muted/50 opacity-40 cursor-not-allowed'}`}
                   aria-label="Scroll next card"
+                  aria-controls="how-it-works-carousel"
                 >
                   <ArrowRight className="w-5 h-5" />
                 </button>
@@ -465,6 +498,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             {/* Horizontally Scrolling Card Carousel */}
             <div
               ref={carouselRef}
+              id="how-it-works-carousel"
+              onScroll={updateCarouselControls}
               tabIndex={0}
               onKeyDown={(e) => {
                 if (e.key === 'ArrowLeft') scrollCarousel('left');

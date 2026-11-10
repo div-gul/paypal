@@ -25,9 +25,9 @@ Follow this path on the hosted demo to test the complete loop in three minutes:
 4. **Review the order**: Check the **Upcoming Restock Order** card on the Home dashboard; notice depleted staples automatically queued with suggested quantities.
 5. **Approve swaps**: Open the **Approvals** tab and approve any pending brand substitution (such as Quaker to Kellogg's oats); see the basket update immediately.
 6. **Compare store baskets**: Review the **Store Comparison** matrix on the Home tab to see how delivery fees impact total basket costs across Zepto, Blinkit, and Instamart.
-7. **Pay with PayPal Sandbox**: Click **Confirm and Pay for Order**, select the PayPal button, and sign in with the sandbox personal buyer credentials provided in the submission testing instructions.
+7. **Pay with PayPal Sandbox**: Click **Confirm and Pay for Order**, select the PayPal button, and sign in with either buyer account listed above.
 8. **See the pantry restock**: After payment capture confirms, observe the confirmation receipt, replenished pantry stock gauges, and the new entry in the **Activity** audit log.
-9. **Verify in PayPal**: Log into the PayPal Sandbox Business account to verify the completed capture transaction under sandbox activity.
+9. **Verify in PayPal**: Log into the Sandbox seller account listed above to verify the completed capture transaction under sandbox activity.
 
 ## How it uses PayPal
 
