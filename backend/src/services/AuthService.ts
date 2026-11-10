@@ -80,6 +80,42 @@ export class AuthService {
     return { user, ...createSession(this.db, user) };
   }
 
+  loginWithGoogle(input: { email: string; name: string }) {
+    const email = input.email.trim().toLowerCase();
+    const existing = this.db.prepare('SELECT id, name, email, role FROM users WHERE LOWER(email) = ?')
+      .get(email) as PublicUser | undefined;
+
+    if (existing) {
+      return { user: existing, ...createSession(this.db, existing) };
+    }
+
+    const user: PublicUser = {
+      id: randomUUID(),
+      name: input.name?.trim() || email.split('@')[0],
+      email,
+      role: 'user',
+    };
+    const now = new Date().toISOString();
+    const tx = this.db.transaction(() => {
+      this.db.prepare('INSERT INTO users(id, name, email, password_hash, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(user.id, user.name, user.email, null, user.role, now, now);
+      this.db.prepare('INSERT INTO sim_clock(user_id, simulated_date, days_elapsed, cycle_count, updated_at) VALUES (?, ?, 0, 1, ?)')
+        .run(user.id, now, now);
+      return createSession(this.db, user);
+    });
+
+    try {
+      return { user, ...tx() };
+    } catch (error) {
+      if ((error as { code?: string })?.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+        const fallback = this.db.prepare('SELECT id, name, email, role FROM users WHERE LOWER(email) = ?')
+          .get(email) as PublicUser;
+        return { user: fallback, ...createSession(this.db, fallback) };
+      }
+      throw error;
+    }
+  }
+
   logout(token: string | undefined): void {
     if (!token) return;
     this.db.prepare('DELETE FROM auth_sessions WHERE token_hash = ?')

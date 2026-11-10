@@ -31,6 +31,10 @@ const ConfigSchema = z.object({
   APP_BASE_URL: z.string().url().default('http://localhost:5173'),
   PUBLIC_APP_URL: z.string().url().optional(),
 
+  // Google OAuth Configuration
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+
   // LLM Configuration
   LLM_API_KEY: z.string().optional(),
 

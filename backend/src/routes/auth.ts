@@ -4,6 +4,7 @@ import { getDatabase } from '../db/connection.js';
 import { AuthService } from '../services/AuthService.js';
 import { readSessionToken, requireAuthentication, resolveSessionIfPresent, SESSION_COOKIE } from '../middleware/auth.js';
 import { rateLimit, loginFailureLimit, unauthenticatedApiRateLimit } from '../middleware/rateLimit.js';
+import { config } from '../config.js';
 
 export const authRouter = Router();
 
@@ -42,12 +43,12 @@ authRouter.post('/login',
   loginFailureLimit(15 * 60 * 1000, 20, req => `ip:${req.ip}`, 'login-ip'),
   loginFailureLimit(15 * 60 * 1000, 5, req => `account-ip:${String(req.body?.email || '').trim().toLowerCase()}|${req.ip}`, 'login-account'),
   (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const payload = LoginSchema.parse(req.body);
-    const result = new AuthService(getDatabase()).login(payload.email, payload.password);
-    setSessionCookie(res, result.token);
-    res.json({ user: result.user });
-  } catch (err) { next(err); }
+    try {
+      const payload = LoginSchema.parse(req.body);
+      const result = new AuthService(getDatabase()).login(payload.email, payload.password);
+      setSessionCookie(res, result.token);
+      res.json({ user: result.user });
+    } catch (err) { next(err); }
   }
 );
 
@@ -59,4 +60,58 @@ authRouter.post('/logout', (req: Request, res: Response) => {
 
 authRouter.get('/me', resolveSessionIfPresent, unauthenticatedApiRateLimit, requireAuthentication, (req: Request, res: Response) => {
   res.json({ user: req.user });
+});
+
+authRouter.get('/google/config', (_req: Request, res: Response) => {
+  res.json({
+    enabled: Boolean(config.GOOGLE_CLIENT_ID),
+    clientId: config.GOOGLE_CLIENT_ID || null,
+  });
+});
+
+const GoogleAuthSchema = z.object({
+  credential: z.string().min(1),
+});
+
+authRouter.post('/google', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { credential } = GoogleAuthSchema.parse(req.body);
+    if (!config.GOOGLE_CLIENT_ID) {
+      res.status(400).json({ error: { code: 'GOOGLE_AUTH_DISABLED', message: 'Google Sign-In is not configured.' } });
+      return;
+    }
+
+    const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+    if (!verifyRes.ok) {
+      res.status(401).json({ error: { code: 'INVALID_CREDENTIAL', message: 'Invalid Google credential.' } });
+      return;
+    }
+
+    const payload = await verifyRes.json() as {
+      aud?: string;
+      email?: string;
+      name?: string;
+      email_verified?: string | boolean;
+    };
+
+    if (payload.aud !== config.GOOGLE_CLIENT_ID) {
+      res.status(401).json({ error: { code: 'AUDIENCE_MISMATCH', message: 'Google token was not issued for this client.' } });
+      return;
+    }
+
+    if (!payload.email || (payload.email_verified !== 'true' && payload.email_verified !== true)) {
+      res.status(401).json({ error: { code: 'UNVERIFIED_EMAIL', message: 'Google account email is not verified.' } });
+      return;
+    }
+
+    const result = new AuthService(getDatabase()).loginWithGoogle({
+      email: payload.email,
+      name: payload.name || payload.email.split('@')[0],
+    });
+
+    setSessionCookie(res, result.token);
+    res.json({ user: result.user });
+  } catch (err) {
+    next(err);
+  }
 });

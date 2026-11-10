@@ -175,4 +175,12 @@ describe('cookie authentication, isolation, and guest simulation permissions', (
   it('requires authentication for user data APIs', async () => {
     expect((await fetch(`${baseUrl}/api/pantry`)).status).toBe(401);
   });
+
+  it('exposes public google auth config without requiring session cookies', async () => {
+    const res = await fetch(`${baseUrl}/api/auth/google/config`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as any;
+    expect(typeof body.enabled).toBe('boolean');
+    expect('clientId' in body).toBe(true);
+  });
 });

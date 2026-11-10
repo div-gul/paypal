@@ -498,32 +498,6 @@ export const PantryManager: React.FC<PantryManagerProps> = ({ onOpenSettings }) 
                     />
                   </div>
                 </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-ink font-semibold">Product Image URL (Optional)</label>
-                    {formData.imageUrl && (
-                      <span className="text-[10px] text-brand font-medium">Image preview active</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="url"
-                      placeholder="https://images.unsplash.com/... or image link"
-                      value={formData.imageUrl || ''}
-                      onChange={e => setFormData({ ...formData, imageUrl: e.target.value })}
-                      className="flex-1 px-3 py-2 border rounded-xl border-secondary-tint bg-surface text-ink min-h-[44px]"
-                    />
-                    {formData.imageUrl && (
-                      <ProductImage
-                        src={formData.imageUrl}
-                        alt={formData.name || 'Preview'}
-                        category={formData.category}
-                        size="sm"
-                      />
-                    )}
-                  </div>
-                </div>
               </div>
 
               {/* Consumption and Thresholds */}

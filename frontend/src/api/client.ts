@@ -114,7 +114,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   }
 
   if (!response.ok) {
-    if (response.status === 401 && !['/auth/me', '/auth/login', '/auth/register', '/auth/logout'].includes(endpoint)) {
+    if (response.status === 401 && !['/auth/me', '/auth/login', '/auth/register', '/auth/logout', '/auth/google', '/auth/google/config'].includes(endpoint)) {
       window.dispatchEvent(new Event('shoppilot:session-expired'));
     }
     const errorPayload = data as ApiResponseError | undefined;
@@ -134,6 +134,10 @@ export const api = {
   }),
   register: (name: string, email: string, password: string) => request<{ message: string }>('/auth/register', {
     method: 'POST', body: JSON.stringify({ name, email, password }),
+  }),
+  getGoogleAuthConfig: () => request<{ enabled: boolean; clientId: string | null }>('/auth/google/config'),
+  loginWithGoogle: (credential: string) => request<{ user: AuthUser }>('/auth/google', {
+    method: 'POST', body: JSON.stringify({ credential }),
   }),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
   getWorkspace: () => request<{ upcomingOrder: any | null; swapDecisions: Record<string, 'approved' | 'rejected'> }>('/workspace'),
