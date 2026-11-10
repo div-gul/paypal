@@ -793,7 +793,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const capturePayPalOrder = useCallback(
     async (orderId: string, runId: string, strategy: BasketStrategyResult) => {
-      await api.captureCheckoutOrder(orderId, runId);
+      await api.captureCheckoutOrder(orderId);
       setCheckoutModal(previous => ({
         ...previous,
         isOpen: true,
@@ -859,7 +859,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
 
         const orderRes = await api.createCheckoutOrder(runId);
-        await api.captureCheckoutOrder(orderRes.orderId, runId);
+        await api.captureCheckoutOrder(orderRes.orderId);
 
         upcomingCheckoutRunIdRef.current = null;
         await markUpcomingOrderPaid();

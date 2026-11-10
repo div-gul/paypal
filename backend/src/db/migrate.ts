@@ -229,8 +229,10 @@ export function runMigrations(db: Database.Database): void {
 
   // Idempotent indexes
   try { db.exec('CREATE INDEX IF NOT EXISTS idx_runs_order_id ON runs(order_id);'); } catch {}
-  try { db.exec('CREATE INDEX IF NOT EXISTS idx_runs_paypal_order_id ON runs(paypal_order_id);'); } catch {}
-  try { db.exec('CREATE INDEX IF NOT EXISTS idx_receipts_paypal_capture_id ON receipts(paypal_capture_id);'); } catch {}
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_runs_order_id_unique ON runs(order_id) WHERE order_id IS NOT NULL;');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_runs_paypal_order_id ON runs(paypal_order_id) WHERE paypal_order_id IS NOT NULL;');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_runs_paypal_capture_id ON runs(paypal_capture_id) WHERE paypal_capture_id IS NOT NULL;');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_receipts_capture_id ON receipts(capture_id) WHERE capture_id IS NOT NULL;');
 
   // Pantry items quantity step and fractions
   addColumnIfNotExists('pantry_items', 'quantity_step', 'REAL');

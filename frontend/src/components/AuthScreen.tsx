@@ -28,9 +28,13 @@ export const AuthScreen: React.FC<Props> = ({ onAuthenticated, initialMode, onBa
     }
     setBusy(true);
     try {
-      const result = isRegister
-        ? await api.register(name, email, password)
-        : await api.login(email, password);
+      if (isRegister) {
+        const result = await api.register(name, email, password);
+        setIsRegister(false);
+        setError(result.message);
+        return;
+      }
+      const result = await api.login(email, password);
       window.history.replaceState({}, '', '/');
       onAuthenticated(result.user);
     } catch (err: any) {

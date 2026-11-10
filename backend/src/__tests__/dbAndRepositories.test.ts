@@ -286,7 +286,7 @@ describe('Phase 2: Database Schema, Seed, and Repositories', () => {
       expect(order.provider).toBe('mock');
 
       // Capture checkout order
-      const capture = await paymentService.captureCheckoutOrder('demo-user', order.orderId, plan.run.id);
+      const capture = await paymentService.captureCheckoutOrder('demo-user', order.orderId);
       expect(capture.success).toBe(true);
       expect(capture.receipt).toBeDefined();
 

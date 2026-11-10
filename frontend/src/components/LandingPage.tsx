@@ -933,7 +933,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <a
                   href="https://github.com/"
                   target="_blank"
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                   className="border border-white/30 hover:bg-white/10 text-white text-sm font-semibold px-6 py-4 rounded-full transition cursor-pointer inline-flex items-center gap-2"
                 >
                   <Code className="w-4 h-4" />
@@ -972,7 +972,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <a
                 href="https://github.com/"
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
                 className="hover:text-teal transition"
               >
                 GitHub

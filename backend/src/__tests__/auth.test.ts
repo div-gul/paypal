@@ -21,7 +21,8 @@ async function register(name: string, email: string) {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, email, password: PASSWORD }),
   });
-  return { response, cookie: response.ok ? cookieFrom(response) : '' };
+  const loginResult = response.status === 202 ? await login(email, PASSWORD) : null;
+  return { response, cookie: loginResult?.response.ok ? loginResult.cookie : '' };
 }
 
 async function login(email: string, password: string) {
@@ -53,14 +54,14 @@ describe('cookie authentication, isolation, and guest simulation permissions', (
 
   it('registers an empty account, persists its cookie session, and rejects duplicate email', async () => {
     const { response, cookie } = await register('Alice', 'alice@example.com');
-    expect(response.status).toBe(201);
-    const body = await response.json() as { user: { id: string; role: string } };
-    const { user } = body;
-    expect(user.role).toBe('user');
-    expect(JSON.stringify(body)).not.toContain('password_hash');
+    expect(response.status).toBe(202);
+    const body = await response.json() as { message: string };
+    expect(body.message).toBe('If registration can be completed, sign in to continue.');
     const me = await fetch(`${baseUrl}/api/auth/me`, { headers: { Cookie: cookie } });
     expect(me.status).toBe(200);
-    expect((await me.json() as any).user.id).toBe(user.id);
+    const user = (await me.json() as any).user;
+    expect(user.role).toBe('user');
+    expect(JSON.stringify(user)).not.toContain('password_hash');
 
     const db = getDatabase();
     expect((db.prepare('SELECT COUNT(*) AS n FROM pantry_items WHERE user_id = ?').get(user.id) as any).n).toBe(0);
@@ -76,7 +77,8 @@ describe('cookie authentication, isolation, and guest simulation permissions', (
     expect((db.prepare('SELECT COUNT(*) AS n FROM policies WHERE user_id = ?').get(user.id) as any).n).toBe(0);
 
     const duplicate = await register('Alice Again', 'ALICE@example.com');
-    expect(duplicate.response.status).toBe(409);
+    expect(duplicate.response.status).toBe(202);
+    expect(await duplicate.response.json()).toEqual(body);
   });
 
   it('rejects bad credentials and invalidates the session on logout', async () => {
@@ -86,6 +88,33 @@ describe('cookie authentication, isolation, and guest simulation permissions', (
     const logout = await fetch(`${baseUrl}/api/auth/logout`, { method: 'POST', headers: { Cookie: cookie } });
     expect(logout.status).toBe(204);
     expect((await fetch(`${baseUrl}/api/auth/me`, { headers: { Cookie: cookie } })).status).toBe(401);
+  });
+
+  it('rotates existing sessions at login and sets production cookie flags', async () => {
+    const { response, cookie: oldCookie } = await register('Rotation Test', 'rotation@example.com');
+    expect(response.status).toBe(202);
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      const { response: loginResponse, cookie: newCookie } = await login('rotation@example.com', PASSWORD);
+      expect(loginResponse.status).toBe(200);
+      expect(loginResponse.headers.get('set-cookie')).toContain('HttpOnly');
+      expect(loginResponse.headers.get('set-cookie')).toContain('Secure');
+      expect(loginResponse.headers.get('set-cookie')).toContain('SameSite=Lax');
+      expect((await fetch(`${baseUrl}/api/auth/me`, { headers: { Cookie: oldCookie } })).status).toBe(401);
+      expect((await fetch(`${baseUrl}/api/auth/me`, { headers: { Cookie: newCookie } })).status).toBe(200);
+    } finally { process.env.NODE_ENV = originalEnv; }
+  });
+
+  it('blocks the shared guest account in production', async () => {
+    const { response, cookie } = await login('guest_paypal@example.com', 'GUEST_paypal@1502');
+    expect(response.status).toBe(200);
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      expect((await fetch(`${baseUrl}/api/auth/me`, { headers: { Cookie: cookie } })).status).toBe(401);
+      expect((await login('guest_paypal@example.com', 'GUEST_paypal@1502')).response.status).toBe(401);
+    } finally { process.env.NODE_ENV = originalEnv; }
   });
 
   it('keeps two users’ pantry records isolated and blocks non-guest simulation routes', async () => {

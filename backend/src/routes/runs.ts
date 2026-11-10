@@ -3,8 +3,12 @@ import { z } from 'zod';
 import { getDatabase } from '../db/connection.js';
 import { OrderRunItemInput, RunService } from '../services/RunService.js';
 import { RunItemRepository } from '../repositories/RunItemRepository.js';
+import { rateLimit } from '../middleware/rateLimit.js';
+import { RunRepository } from '../repositories/RunRepository.js';
+import { AppError } from '../middleware/errorHandler.js';
 
 export const runsRouter = Router();
+const runWriteLimit = rateLimit({ windowMs: 60_000, max: 60 }, 'run-write');
 
 const StrategyTypeSchema = z.enum([
   'STRATEGY_A_LOWEST_PRICE',
@@ -35,8 +39,9 @@ const LimitQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
-runsRouter.post('/runs/plan', async (req: Request, res: Response, next: NextFunction) => {
+runsRouter.post('/runs/plan', runWriteLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    if (new RunRepository(getDatabase()).getAll(req.user!.id, 101).length >= 100) throw new AppError('RUN_LIMIT', 'This account has reached the run history limit.', 409);
     const overrides = req.body && Object.keys(req.body).length > 0 ? PlanRunInputSchema.parse(req.body) : undefined;
     const runService = new RunService(getDatabase());
     const planResult = await runService.planRun(req.user!.id, overrides);
@@ -46,8 +51,9 @@ runsRouter.post('/runs/plan', async (req: Request, res: Response, next: NextFunc
   }
 });
 
-runsRouter.post('/runs/order', (req: Request, res: Response, next: NextFunction) => {
+runsRouter.post('/runs/order', runWriteLimit, (req: Request, res: Response, next: NextFunction) => {
   try {
+    if (new RunRepository(getDatabase()).getAll(req.user!.id, 101).length >= 100) throw new AppError('RUN_LIMIT', 'This account has reached the run history limit.', 409);
     const { items } = CreateOrderRunSchema.parse(req.body);
     const runService = new RunService(getDatabase());
     const run = runService.createOrderRun(req.user!.id, items as OrderRunItemInput[]);
@@ -57,7 +63,7 @@ runsRouter.post('/runs/order', (req: Request, res: Response, next: NextFunction)
   }
 });
 
-runsRouter.put('/runs/:id/strategy', async (req: Request, res: Response, next: NextFunction) => {
+runsRouter.put('/runs/:id/strategy', runWriteLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
     const { strategy } = ChangeStrategyInputSchema.parse(req.body);
@@ -69,7 +75,7 @@ runsRouter.put('/runs/:id/strategy', async (req: Request, res: Response, next: N
   }
 });
 
-runsRouter.post('/runs/:id/approve', (req: Request, res: Response, next: NextFunction) => {
+runsRouter.post('/runs/:id/approve', runWriteLimit, (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
     const runService = new RunService(getDatabase());
@@ -80,7 +86,7 @@ runsRouter.post('/runs/:id/approve', (req: Request, res: Response, next: NextFun
   }
 });
 
-runsRouter.post('/runs/:id/reject', (req: Request, res: Response, next: NextFunction) => {
+runsRouter.post('/runs/:id/reject', runWriteLimit, (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
     const runService = new RunService(getDatabase());

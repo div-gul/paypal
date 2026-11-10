@@ -2,9 +2,10 @@ import Database from 'better-sqlite3';
 import { createHash, randomBytes, scryptSync, timingSafeEqual, randomUUID } from 'node:crypto';
 import { AppError } from '../middleware/errorHandler.js';
 
-const SESSION_DAYS = 30;
+const SESSION_DAYS = 7;
 const GUEST_EMAIL = 'guest_paypal@example.com';
 const GUEST_PASSWORD = 'GUEST_paypal@1502';
+const DUMMY_PASSWORD_HASH = hashPassword('unused-dummy-password-value');
 
 export interface PublicUser {
   id: string;
@@ -28,6 +29,7 @@ function verifyPassword(password: string, encoded: string): boolean {
 }
 
 function createSession(db: Database.Database, user: PublicUser): { token: string; expiresAt: string } {
+  db.prepare('DELETE FROM auth_sessions WHERE expires_at <= ?').run(new Date().toISOString());
   const token = randomBytes(32).toString('base64url');
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000).toISOString();
   db.prepare('INSERT INTO auth_sessions(token_hash, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)')
@@ -38,26 +40,26 @@ function createSession(db: Database.Database, user: PublicUser): { token: string
 export class AuthService {
   constructor(private db: Database.Database) {}
 
-  register(input: { name: string; email: string; password: string }) {
+  register(input: { name: string; email: string; password: string }): void {
     const email = input.email.trim().toLowerCase();
-    if (email === GUEST_EMAIL) throw new AppError('EMAIL_UNAVAILABLE', 'This email address is reserved.', 409);
+    const passwordHash = hashPassword(input.password);
+    if (email === GUEST_EMAIL) return;
     if (this.db.prepare('SELECT 1 FROM users WHERE LOWER(email) = ?').get(email)) {
-      throw new AppError('EMAIL_EXISTS', 'An account with this email already exists.', 409);
+      return;
     }
-    const user: PublicUser = { id: randomUUID(), name: input.name.trim(), email, role: 'user' };
+    const userId = randomUUID();
     const now = new Date().toISOString();
     const tx = this.db.transaction(() => {
       this.db.prepare('INSERT INTO users(id, name, email, password_hash, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-        .run(user.id, user.name, user.email, hashPassword(input.password), user.role, now, now);
+        .run(userId, input.name.trim(), email, passwordHash, 'user', now, now);
       this.db.prepare('INSERT INTO sim_clock(user_id, simulated_date, days_elapsed, cycle_count, updated_at) VALUES (?, ?, 0, 1, ?)')
-        .run(user.id, now, now);
-      return createSession(this.db, user);
+        .run(userId, now, now);
     });
     try {
-      return { user, ...tx() };
+      tx();
     } catch (error) {
       if ((error as { code?: string })?.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-        throw new AppError('EMAIL_EXISTS', 'An account with this email already exists.', 409);
+        return;
       }
       throw error;
     }
@@ -66,10 +68,15 @@ export class AuthService {
   login(emailInput: string, password: string) {
     const row = this.db.prepare('SELECT id, name, email, password_hash, role FROM users WHERE LOWER(email) = ?')
       .get(emailInput.trim().toLowerCase()) as (PublicUser & { password_hash: string | null }) | undefined;
-    if (!row?.password_hash || !verifyPassword(password, row.password_hash)) {
+    const passwordIsValid = verifyPassword(password, row?.password_hash || DUMMY_PASSWORD_HASH);
+    if (!row?.password_hash || !passwordIsValid) {
+      throw new AppError('INVALID_CREDENTIALS', 'Email or password is incorrect.', 401);
+    }
+    if (row.role === 'guest' && process.env.NODE_ENV === 'production') {
       throw new AppError('INVALID_CREDENTIALS', 'Email or password is incorrect.', 401);
     }
     const user: PublicUser = { id: row.id, name: row.name, email: row.email, role: row.role };
+    this.db.prepare('DELETE FROM auth_sessions WHERE user_id = ?').run(user.id);
     return { user, ...createSession(this.db, user) };
   }
 

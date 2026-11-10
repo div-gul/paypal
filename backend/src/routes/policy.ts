@@ -2,6 +2,9 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { getDatabase } from '../db/connection.js';
 import { PolicyService } from '../services/PolicyService.js';
+import { rateLimit } from '../middleware/rateLimit.js';
+
+const policyWriteLimit = rateLimit({ windowMs: 60_000, max: 60 }, 'policy-write');
 
 export const policyRouter = Router();
 
@@ -28,7 +31,7 @@ policyRouter.get('/policy', (req: Request, res: Response, next: NextFunction) =>
   }
 });
 
-policyRouter.put('/policy', (req: Request, res: Response, next: NextFunction) => {
+policyRouter.put('/policy', policyWriteLimit, (req: Request, res: Response, next: NextFunction) => {
   try {
     const validated = UpdatePolicySchema.parse(req.body);
     const policyService = new PolicyService(getDatabase());

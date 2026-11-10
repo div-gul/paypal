@@ -53,6 +53,12 @@ export class AuditLogRepository {
       item.metadata ? JSON.stringify(item.metadata) : null
     ) as AuditLogRow;
 
+    this.db.prepare(`
+      DELETE FROM audit_log WHERE user_id = ? AND id NOT IN (
+        SELECT id FROM audit_log WHERE user_id = ? ORDER BY timestamp DESC LIMIT 1000
+      )
+    `).run(userId, userId);
+
     return rowToLog(row);
   }
 

@@ -6,6 +6,7 @@ import { seedDatabase } from '../db/seed.js';
 import { evaluatePolicy } from '@shared/policy';
 import { BasketStrategyResult, PantryItem, WeeklySchedulerConfig } from '@shared/types';
 import http from 'http';
+import { PaymentService } from '../services/payment/PaymentService.js';
 
 describe('Phase 4: Policy Enforcement & Checkout Flow', () => {
   let server: http.Server;
@@ -115,6 +116,19 @@ describe('Phase 4: Policy Enforcement & Checkout Flow', () => {
     `);
     seedDatabase(db, 'demo-user');
   });
+
+  async function createPendingCheckout() {
+    const planResponse = await fetch(`${baseUrl}/api/runs/plan`, { method: 'POST' });
+    const plan: any = await planResponse.json();
+    if (plan.run.status === 'needs_approval') {
+      await fetch(`${baseUrl}/api/runs/${plan.run.id}/approve`, { method: 'POST' });
+    }
+    const orderResponse = await fetch(`${baseUrl}/api/checkout/create-order`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ runId: plan.run.id }),
+    });
+    return { runId: plan.run.id, order: await orderResponse.json() as any };
+  }
 
   afterAll(async () => {
     await new Promise<void>(resolve => server.close(() => resolve()));
@@ -265,6 +279,20 @@ describe('Phase 4: Policy Enforcement & Checkout Flow', () => {
       expect(response.status).toBe(400);
     });
 
+    it('rejects client-supplied payment fields and capture run IDs', async () => {
+      const createResponse = await fetch(`${baseUrl}/api/checkout/create-order`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runId: 'not-used', amount: '0.01', currency: 'USD', strategy: 'forged' }),
+      });
+      expect(createResponse.status).toBe(400);
+
+      const captureResponse = await fetch(`${baseUrl}/api/checkout/capture`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: 'not-used', runId: 'client-run', amount: '0.01', currency: 'USD' }),
+      });
+      expect(captureResponse.status).toBe(400);
+    });
+
     it('refuses to create an order if run status is not approved or auto_approved', async () => {
       // 1. Plan a run
       const planRes = await fetch(`${baseUrl}/api/runs/plan`, { method: 'POST' });
@@ -283,6 +311,59 @@ describe('Phase 4: Policy Enforcement & Checkout Flow', () => {
         const errData: any = await orderRes.json();
         expect(errData.error.code).toBe('APPROVAL_REQUIRED');
       }
+    });
+
+    it('rechecks current policy before returning an existing checkout order', async () => {
+      const { runId } = await createPendingCheckout();
+      getDatabase().prepare('UPDATE policies SET blocked_categories = ? WHERE user_id = ?').run('["Dairy"]', 'demo-user');
+      const response = await fetch(`${baseUrl}/api/checkout/create-order`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runId }),
+      });
+      expect(response.status).toBe(403);
+      expect((await response.json() as any).error.code).toBe('POLICY_VIOLATION_BLOCKED');
+    });
+
+    it('returns 404 when another user attempts to capture an order', async () => {
+      const { runId, order } = await createPendingCheckout();
+      const db = getDatabase();
+      const now = new Date().toISOString();
+      db.prepare('INSERT INTO users(id, name, email, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run('user-b', 'User B', 'user-b@example.com', 'user', now, now);
+      db.prepare('UPDATE runs SET user_id = ? WHERE id = ?').run('user-b', runId);
+      db.prepare('UPDATE run_items SET user_id = ? WHERE run_id = ?').run('user-b', runId);
+      const response = await fetch(`${baseUrl}/api/checkout/capture`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.orderId }),
+      });
+      expect(response.status).toBe(404);
+      expect((await response.json() as any).error.code).toBe('ORDER_NOT_FOUND');
+    });
+
+    it('rejects capture unless the run is payment_pending', async () => {
+      const { runId, order } = await createPendingCheckout();
+      getDatabase().prepare("UPDATE runs SET status = 'approved' WHERE id = ?").run(runId);
+      const response = await fetch(`${baseUrl}/api/checkout/capture`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: order.orderId }),
+      });
+      expect(response.status).toBe(400);
+      expect((await response.json() as any).error.code).toBe('INVALID_STATE_TRANSITION');
+    });
+
+    it('rejects a provider capture whose order ID differs from the stored order', async () => {
+      const { runId, order } = await createPendingCheckout();
+      const fakeProvider = {
+        providerId: 'mock' as const,
+        createOrder: async () => { throw new Error('not used'); },
+        captureOrder: async (orderId: string) => ({
+          orderId: `${orderId}-other`, captureId: 'capture-wrong-order', status: 'COMPLETED' as const,
+          amountPaise: 1, currency: 'INR', provider: 'mock' as const,
+        }),
+        getOrderStatus: async () => { throw new Error('not used'); },
+      };
+      await expect(new PaymentService(getDatabase(), fakeProvider).captureCheckoutOrder('demo-user', order.orderId))
+        .rejects.toMatchObject({ code: 'PAYMENT_ORDER_MISMATCH' });
     });
 
     it('creates order, captures atomically, restocks pantry, and is idempotent on repeat', async () => {
@@ -313,7 +394,7 @@ describe('Phase 4: Policy Enforcement & Checkout Flow', () => {
       const captureRes = await fetch(`${baseUrl}/api/checkout/capture`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, runId }),
+        body: JSON.stringify({ orderId }),
       });
       expect(captureRes.status).toBe(200);
       const captureData: any = await captureRes.json();
@@ -339,7 +420,7 @@ describe('Phase 4: Policy Enforcement & Checkout Flow', () => {
       const repeatCaptureRes = await fetch(`${baseUrl}/api/checkout/capture`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, runId }),
+        body: JSON.stringify({ orderId }),
       });
       expect(repeatCaptureRes.status).toBe(200);
       const repeatData: any = await repeatCaptureRes.json();
@@ -349,7 +430,7 @@ describe('Phase 4: Policy Enforcement & Checkout Flow', () => {
   });
 
   describe('POST /api/webhooks/paypal', () => {
-    it('records and processes webhook events idempotently', async () => {
+    it('rejects PayPal webhooks in mock mode without recording events', async () => {
       const webhookPayload = {
         id: 'WH-EVT-SANDBOX-001',
         event_type: 'PAYMENT.CAPTURE.COMPLETED',
@@ -370,10 +451,8 @@ describe('Phase 4: Policy Enforcement & Checkout Flow', () => {
         body: JSON.stringify(webhookPayload),
       });
 
-      expect(firstRes.status).toBe(200);
-      const firstData: any = await firstRes.json();
-      expect(firstData.received).toBe(true);
-      expect(firstData.processed).toBe(true);
+      expect(firstRes.status).toBe(401);
+      expect((await firstRes.json() as any).error.code).toBe('WEBHOOKS_DISABLED');
 
       // Repeat identical webhook post -> idempotent no-op
       const secondRes = await fetch(`${baseUrl}/api/webhooks/paypal`, {
@@ -386,9 +465,8 @@ describe('Phase 4: Policy Enforcement & Checkout Flow', () => {
         body: JSON.stringify(webhookPayload),
       });
 
-      expect(secondRes.status).toBe(200);
-      const secondData: any = await secondRes.json();
-      expect(secondData.duplicate).toBe(true);
+      expect(secondRes.status).toBe(401);
+      expect((getDatabase().prepare('SELECT COUNT(*) AS count FROM webhook_events').get() as any).count).toBe(0);
     });
   });
 });

@@ -6,6 +6,7 @@ import { runMigrations } from '../db/migrate';
 import { seedDatabase } from '../db/seed';
 import { StoreProduct } from '@shared/types';
 import { LLMService } from '../services/ai/LLMService';
+import { QuoteService } from '../services/QuoteService.js';
 
 describe('Phase 5: AI Endpoints (Server-Side, Validated)', () => {
   let server: Server;
@@ -119,6 +120,23 @@ describe('Phase 5: AI Endpoints (Server-Side, Validated)', () => {
       const data: any = await res.json();
       expect(data.error.code).toBe('VALIDATION_ERROR');
     });
+
+    it('rejects oversized and control-character prompts', async () => {
+      for (const prompt of ['x'.repeat(501), 'budget\u0000 change']) {
+        const response = await fetch(`${baseUrl}/api/ai/parse-policy`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt }),
+        });
+        expect(response.status).toBe(400);
+      }
+    });
+
+    it('rejects policy model output outside the strict schema', async () => {
+      const service: any = new LLMService('configured');
+      service.callExternalLLMPolicyParser = async () => ({
+        preferredShoppingDay: 8, explanation: 'bad', changesSummary: [],
+      });
+      await expect(service.parsePolicy('change the shopping day', {} as any)).rejects.toThrow();
+    });
   });
 
   describe('POST /api/ai/substitute', () => {
@@ -128,9 +146,6 @@ describe('Phase 5: AI Endpoints (Server-Side, Validated)', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           pantryItemId: 'item-milk',
-          itemName: 'Fresh Toned Milk',
-          preferredBrand: 'Amul',
-          candidates: mockCandidates,
         }),
       });
 
@@ -139,21 +154,20 @@ describe('Phase 5: AI Endpoints (Server-Side, Validated)', () => {
       expect(data.substitute).toBeDefined();
 
       const { substitute } = data;
-      expect(substitute.selectedProductId).toBe('zp-milk-1');
+      const trustedCandidates = await new QuoteService(getDatabase()).getQuotesForPantryItemId('demo-user', 'item-milk');
+      expect(trustedCandidates.map(candidate => candidate.id)).toContain(substitute.selectedProductId);
       expect(substitute.brand).toBe('Amul');
       expect(substitute.confidence).toBeGreaterThan(0.9);
       expect(substitute.reasoning).toContain('Amul');
     });
 
-    it('selects lowest-cost in-stock alternative if preferred brand is unavailable', async () => {
+    it('selects only from current server catalog quotes', async () => {
       const res = await fetch(`${baseUrl}/api/ai/substitute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           pantryItemId: 'item-milk',
-          itemName: 'Fresh Toned Milk',
-          preferredBrand: 'Nandini', // Not in candidates
-          candidates: mockCandidates,
+          reason: 'Check current alternatives',
         }),
       });
 
@@ -161,10 +175,9 @@ describe('Phase 5: AI Endpoints (Server-Side, Validated)', () => {
       const data: any = await res.json();
       const { substitute } = data;
 
-      // Should choose the lowest cost in-stock candidate (Mother Dairy @ 6400 paise)
-      expect(substitute.selectedProductId).toBe('bl-milk-sub');
-      expect(substitute.brand).toBe('Mother Dairy');
-      expect(substitute.pricePaise).toBe(6400);
+      const trustedCandidates = await new QuoteService(getDatabase()).getQuotesForPantryItemId('demo-user', 'item-milk');
+      expect(trustedCandidates.map(candidate => candidate.id)).toContain(substitute.selectedProductId);
+      expect(substitute.brand).toBe('Amul');
       expect(substitute.reasoning).toBeDefined();
     });
 
@@ -184,21 +197,26 @@ describe('Phase 5: AI Endpoints (Server-Side, Validated)', () => {
       expect(validIds).toContain(result.selectedProductId);
     });
 
-    it('returns 400 when candidate list is empty', async () => {
+    it('rejects pantry item IDs that are not owned by the user', async () => {
       const res = await fetch(`${baseUrl}/api/ai/substitute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          pantryItemId: 'item-milk',
-          itemName: 'Fresh Toned Milk',
-          preferredBrand: 'Amul',
-          candidates: [],
+          pantryItemId: 'missing-item',
         }),
       });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(404);
       const data: any = await res.json();
-      expect(data.error.code).toBe('VALIDATION_ERROR');
+      expect(data.error.code).toBe('ITEM_NOT_FOUND');
+    });
+
+    it('does not accept client-supplied substitution candidates', async () => {
+      const response = await fetch(`${baseUrl}/api/ai/substitute`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pantryItemId: 'item-milk', candidates: mockCandidates }),
+      });
+      expect(response.status).toBe(400);
     });
   });
 });

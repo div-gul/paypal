@@ -181,6 +181,12 @@ export class RunRepository {
     return row ? rowToRun(row) : null;
   }
 
+  findByOrderIdForUser(userId: string, orderId: string): RunRecord | null {
+    const row = this.db.prepare('SELECT * FROM runs WHERE user_id = ? AND order_id = ? LIMIT 1')
+      .get(userId, orderId) as RunRow | undefined;
+    return row ? rowToRun(row) : null;
+  }
+
   getLatest(userId: string): RunRecord | null {
     const stmt = this.db.prepare('SELECT * FROM runs WHERE user_id = ? ORDER BY created_at DESC LIMIT 1');
     const row = stmt.get(userId) as RunRow | undefined;

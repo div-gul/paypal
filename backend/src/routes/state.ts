@@ -9,8 +9,13 @@ import { ClockService } from '../services/ClockService.js';
 import { RunService } from '../services/RunService.js';
 import { AuditLogService } from '../services/AuditLogService.js';
 import { requireGuest } from '../middleware/auth.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 
 export const stateRouter = Router();
+
+export function isStateResetAllowed(nodeEnv: string, demoMode: string | undefined): boolean {
+  return nodeEnv !== 'production' || demoMode === 'true';
+}
 
 stateRouter.get('/state', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -46,9 +51,9 @@ stateRouter.get('/state', async (req: Request, res: Response, next: NextFunction
  * Resets the authenticated user's pantry, policies, clock, and runs to initial demo state.
  * Disabled in production unless DEMO_MODE=true.
  */
-stateRouter.post('/state/reset', requireGuest, (req: Request, res: Response, next: NextFunction) => {
+stateRouter.post('/state/reset', requireGuest, rateLimit({ windowMs: 60 * 60 * 1000, max: 3 }, 'state-reset'), (req: Request, res: Response, next: NextFunction) => {
   try {
-    if (config.NODE_ENV === 'production' && process.env.DEMO_MODE !== 'true') {
+    if (!isStateResetAllowed(config.NODE_ENV, process.env.DEMO_MODE)) {
       throw new AppError('FORBIDDEN', 'Reset is disabled in production unless DEMO_MODE=true', 403);
     }
 

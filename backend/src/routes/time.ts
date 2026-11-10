@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getDatabase } from '../db/connection.js';
 import { ClockService } from '../services/ClockService.js';
 import { requireGuest } from '../middleware/auth.js';
+import { rateLimit } from '../middleware/rateLimit.js';
 
 export const timeRouter = Router();
 
@@ -20,7 +21,7 @@ timeRouter.get('/time', requireGuest, (req: Request, res: Response, next: NextFu
   }
 });
 
-timeRouter.post('/time/advance', requireGuest, (req: Request, res: Response, next: NextFunction) => {
+timeRouter.post('/time/advance', requireGuest, rateLimit({ windowMs: 60_000, max: 60 }, 'time-advance'), (req: Request, res: Response, next: NextFunction) => {
   try {
     const { days } = AdvanceTimeSchema.parse(req.body);
     const clockService = new ClockService(getDatabase());

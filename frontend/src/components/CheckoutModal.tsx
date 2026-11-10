@@ -39,7 +39,7 @@ function loadPayPalSdk(clientId: string, currency: string): Promise<void> {
     script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(clientId)}&currency=${encodeURIComponent(currency)}&intent=capture&components=buttons`;
     script.async = true;
     script.onload = () => window.paypal ? resolve() : reject(new Error('PayPal SDK did not initialize'));
-    script.onerror = () => reject(new Error('Could not load PayPal checkout. Check your connection and Sandbox Client ID.'));
+    script.onerror = () => reject(new Error('Could not load PayPal checkout. Check your connection and PayPal Client ID.'));
     document.head.appendChild(script);
   }).catch(error => {
     window.__shopPilotPayPalSdk = undefined;
@@ -75,6 +75,8 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
   const runId = checkoutModal.runId || activeRun?.id;
   const isOrderPlaced = paymentState === 'CAPTURED';
   const isSandbox = providerConfig?.mode === 'sandbox';
+  const isPayPal = providerConfig?.mode === 'sandbox' || providerConfig?.mode === 'live';
+  const isLive = providerConfig?.mode === 'live';
   const pendingApprovalsCount = activeRun?.status === 'approved'
     ? 0
     : recommendations.filter(r => r.approvalStatus !== 'approved' && r.approvalStatus !== 'rejected' && (r.requiresApproval || r.isSubstitution)).length;
@@ -93,17 +95,17 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
 
   // Create or recover a persistent server-side PayPal order
   useEffect(() => {
-    if (!checkoutModal.isOpen || !isSandbox || !strategy || !runId || orderId || paymentState === 'CAPTURED' || checkoutItemCount === 0) return;
+    if (!checkoutModal.isOpen || !isPayPal || !strategy || !runId || orderId || paymentState === 'CAPTURED' || checkoutItemCount === 0) return;
     let cancelled = false;
     setIsPreparing(true);
     createPayPalOrder(runId, strategy)
-      .catch(error => { if (!cancelled) setErrorMessage(error.message || 'Could not create PayPal Sandbox order.'); })
+      .catch(error => { if (!cancelled) setErrorMessage(error.message || 'Could not create PayPal order.'); })
       .finally(() => { if (!cancelled) setIsPreparing(false); });
     return () => { cancelled = true; };
-  }, [checkoutModal.isOpen, isSandbox, strategy, runId, orderId, paymentState, checkoutItemCount, createPayPalOrder]);
+  }, [checkoutModal.isOpen, isPayPal, strategy, runId, orderId, paymentState, checkoutItemCount, createPayPalOrder]);
 
   useEffect(() => {
-    if (!approvalUrl || !isSandbox) {
+    if (!approvalUrl || !isPayPal) {
       setQrImage(null);
       return;
     }
@@ -112,11 +114,11 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
       .then(dataUrl => { if (!cancelled) setQrImage(dataUrl); })
       .catch(error => { if (!cancelled) setErrorMessage(error.message || 'Could not generate the PayPal checkout QR code.'); });
     return () => { cancelled = true; };
-  }, [approvalUrl, isSandbox]);
+  }, [approvalUrl, isPayPal]);
 
   // Render the official PayPal button
   useEffect(() => {
-    if (!checkoutModal.isOpen || !isSandbox || !providerConfig?.clientId || !strategy || !runId || !orderId || isOrderPlaced || checkoutItemCount === 0) return;
+    if (!checkoutModal.isOpen || !isPayPal || !providerConfig?.clientId || !strategy || !runId || !orderId || isOrderPlaced || checkoutItemCount === 0) return;
     let cancelled = false;
     const container = paypalButtonContainer.current;
     if (!container) return;
@@ -146,11 +148,11 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
       cancelled = true;
       container.replaceChildren();
     };
-  }, [checkoutModal.isOpen, isSandbox, providerConfig, strategy, runId, orderId, isOrderPlaced, checkoutItemCount, capturePayPalOrder, cancelPayPalOrder]);
+  }, [checkoutModal.isOpen, isPayPal, providerConfig, strategy, runId, orderId, isOrderPlaced, checkoutItemCount, capturePayPalOrder, cancelPayPalOrder]);
 
   // Poll server for status
   useEffect(() => {
-    if (!checkoutModal.isOpen || !isSandbox || !strategy || !runId || !orderId || isOrderPlaced || checkoutItemCount === 0) return;
+    if (!checkoutModal.isOpen || !isPayPal || !strategy || !runId || !orderId || isOrderPlaced || checkoutItemCount === 0) return;
     let cancelled = false;
     const checkStatus = async () => {
       try {
@@ -165,7 +167,7 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
     void checkStatus();
     const timer = window.setInterval(() => { void checkStatus(); }, 3000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [checkoutModal.isOpen, isSandbox, strategy, runId, orderId, isOrderPlaced, checkoutItemCount, getCheckoutStatus]);
+  }, [checkoutModal.isOpen, isPayPal, strategy, runId, orderId, isOrderPlaced, checkoutItemCount, getCheckoutStatus]);
 
   if (!checkoutModal.isOpen || !strategy) return null;
 
@@ -201,7 +203,7 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
               <div className="flex items-center gap-2">
                 <span className="font-extrabold text-base tracking-tight text-white">PayPal</span>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-tint text-brand-dark uppercase">
-                  {isSandbox ? 'Sandbox' : 'Mock'}
+                  {isLive ? 'Live' : isSandbox ? 'Sandbox' : 'Mock'}
                 </span>
               </div>
               <p className="text-xs text-brand-tint/80">{isOrderPlaced ? 'Payment Captured' : 'Review & Pay for Restock Order'}</p>
@@ -232,7 +234,7 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
               </div>
               <div>
                 <h3 className="text-lg font-bold text-ink font-heading">Payment Confirmed!</h3>
-                <p className="text-ink-muted text-xs mt-1">PayPal Sandbox confirmed capture. No real money was moved.</p>
+                <p className="text-ink-muted text-xs mt-1">{isLive ? 'PayPal confirmed this live capture.' : 'PayPal Sandbox confirmed capture. No real money was moved.'}</p>
                 <div className="inline-block mt-2 bg-paper text-ink-muted px-3 py-1 rounded-lg tabular-nums font-semibold text-xs border border-secondary-tint">
                   PayPal order {orderId} {checkoutModal.timestamp ? `• ${checkoutModal.timestamp}` : ''}
                 </div>
@@ -278,9 +280,11 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
               <div className="bg-secondary-tint text-secondary border border-secondary/20 rounded-xl p-3 flex items-center gap-2.5">
                 <Info className="w-4 h-4 shrink-0" />
                 <p className="text-xs font-medium">
-                  {isSandbox
-                    ? 'Sandbox payment, no real money — test transaction only; no live funds will be charged.'
-                    : 'Mock checkout mode — no live transaction will be processed.'}
+                  {isLive
+                    ? 'LIVE PAYMENT — real funds may be charged.'
+                    : isSandbox
+                      ? 'Sandbox payment, no real money — test transaction only; no live funds will be charged.'
+                      : 'Mock checkout mode — no live transaction will be processed.'}
                 </p>
               </div>
 
@@ -351,7 +355,7 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
                 )}
 
                 {/* Dual INR and USD note */}
-                {isSandbox && providerConfig?.currency === 'USD' && checkoutModal.chargedAmount && (
+                {isPayPal && providerConfig?.currency === 'USD' && checkoutModal.chargedAmount && (
                   <div className="rounded-xl bg-paper border border-secondary-tint p-3 text-ink flex items-center justify-between text-xs tabular-nums">
                     <span>
                       USD Amount: <strong className="text-ink">USD ${checkoutModal.chargedAmount}</strong>
@@ -408,29 +412,29 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
               </div>
 
               {/* PayPal Sandbox / Mock Checkout Area */}
-              {isSandbox ? (
+              {isPayPal ? (
                 <div className="space-y-4 border-t border-secondary-tint pt-4">
-                  {isPreparing && <p className="text-center text-xs text-ink-muted">Preparing secure PayPal Sandbox order…</p>}
+                  {isPreparing && <p className="text-center text-xs text-ink-muted">Preparing secure PayPal order…</p>}
                   {!providerConfig?.clientId && providerConfig && (
-                    <p className="text-center text-xs text-danger">PayPal Sandbox Client ID is missing. Set PAYPAL_CLIENT_ID in backend/.env.</p>
+                    <p className="text-center text-xs text-danger">PayPal Client ID is missing. Set PAYPAL_CLIENT_ID in backend/.env.</p>
                   )}
                   {orderId && <div ref={paypalButtonContainer} className={needsApproval ? 'pointer-events-none opacity-40' : ''} />}
                   {approvalUrl && (
                     <div className="rounded-xl border border-secondary-tint bg-paper p-4 flex flex-col sm:flex-row items-center gap-4">
                       <div className="w-32 h-32 bg-surface border border-secondary-tint rounded-xl flex items-center justify-center shrink-0 shadow-soft">
                         {qrImage ? (
-                          <img src={qrImage} alt="QR code linking to PayPal Sandbox order" className="w-28 h-28" />
+                          <img src={qrImage} alt={`QR code linking to PayPal ${isLive ? 'live' : 'Sandbox'} order`} className="w-28 h-28" />
                         ) : (
                           <QrCode className="w-8 h-8 text-ink-muted" />
                         )}
                       </div>
                       <div className="space-y-1.5 text-center sm:text-left">
-                        <h4 className="font-bold text-ink text-xs">Scan to pay with PayPal Sandbox</h4>
+                        <h4 className="font-bold text-ink text-xs">{isLive ? 'Scan to pay with PayPal' : 'Scan to pay with PayPal Sandbox'}</h4>
                         <p className="text-[11px] text-ink-muted">Open the buyer approval page on your mobile device. Payment status updates automatically.</p>
                         <a
                           href={approvalUrl}
                           target="_blank"
-                          rel="noreferrer"
+                          rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 text-[11px] text-brand hover:underline font-semibold"
                         >
                           Open PayPal checkout <ExternalLink className="w-3 h-3" />

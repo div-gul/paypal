@@ -7,11 +7,13 @@ import { AuthService } from './services/AuthService.js';
 
 // Initialize and migrate database
 const db = getDatabase();
-console.log(`📦 Initializing SQLite database at: ${config.DATABASE_PATH}`);
+console.log('📦 Initializing SQLite database');
 runMigrations(db);
-const guestAlreadySeeded = db.prepare('SELECT 1 FROM users WHERE LOWER(email) = ?').get('guest_paypal@example.com');
-if (!guestAlreadySeeded) seedDatabase(db);
-new AuthService(db).seedGuest();
+if (config.NODE_ENV !== 'production') {
+  const guestAlreadySeeded = db.prepare('SELECT 1 FROM users WHERE LOWER(email) = ?').get('guest_paypal@example.com');
+  if (!guestAlreadySeeded) seedDatabase(db);
+  new AuthService(db).seedGuest();
+}
 console.log('✅ Database migrations & seed completed.');
 
 const app = createApp();

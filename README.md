@@ -57,10 +57,7 @@ npm run dev
 - **Frontend App**: [http://localhost:5173](http://localhost:5173) (or dynamic Vite port)
 
 ### 4. Accounts
-The app opens on the Login page. Register for a personal account, or use the seeded Guest account to explore the demo pantry and Future Simulation controls:
-
-- **Guest email**: `guest_paypal@example.com`
-- **Guest password**: `GUEST_paypal@1502`
+The app opens on the Login page. Register for a personal account. A seeded Guest account is available only in local development and tests; production does not seed or accept the shared guest account.
 
 New accounts start with an empty pantry, no saved restocking policy, orders, approvals, or activity history. Future Simulation is available to the Guest account only; the backend enforces this restriction.
 
@@ -83,14 +80,16 @@ All secrets reside exclusively on the backend. The frontend consumes the backend
 |---|---|---|
 | `PORT` | `3001` | Express backend listening port |
 | `DATABASE_PATH` | `./data/shoppilot.db` | SQLite database file location (`:memory:` supported for tests) |
-| `PAYPAL_MODE` | `mock` | `mock` for local-only test payments or `sandbox` for PayPal Orders v2 |
-| `PAYPAL_CLIENT_ID` | — | PayPal Sandbox App Client ID (backend only; returned to browser only through public checkout config for the JS SDK) |
-| `PAYPAL_CLIENT_SECRET` | — | PayPal Sandbox App Secret; backend only |
+| `PAYPAL_MODE` | `mock` | `mock`, `sandbox`, or explicitly enabled `live` for PayPal Orders v2 |
+| `ALLOW_LIVE_PAYMENTS` | `false` | Must be `true` together with `PAYPAL_MODE=live` and the official live API host to enable real charges |
+| `PAYPAL_CLIENT_ID` | — | PayPal App Client ID (backend config; returned to authenticated checkout UI for the JS SDK) |
+| `PAYPAL_CLIENT_SECRET` | — | PayPal App Secret; backend only |
 | `PAYPAL_BASE_URL` | `https://api-m.sandbox.paypal.com` | PayPal API origin |
 | `PAYPAL_WEBHOOK_ID` | — | Webhook ID used for PayPal signature verification |
 | `PAYPAL_CURRENCY` | `INR` | `INR` or `USD`; no silent currency fallback is performed |
 | `PAYPAL_INR_PER_USD` | — | Required explicit INR-per-USD rate when charging in USD |
 | `APP_BASE_URL` | `http://localhost:5173` | Publicly reachable frontend URL used for PayPal return/cancel redirects |
+| `PUBLIC_APP_URL` | `APP_BASE_URL` origin | Exact browser origin allowed by CORS; use HTTPS in production |
 | `LLM_API_KEY` | `""` | Optional API key for external LLM parsing (falls back to deterministic NLP) |
 
 ---
@@ -101,7 +100,7 @@ To maintain complete integrity for hackathon judges, here is the transparent bre
 
 | Capability | Real | Simulated / Mocked | Explanation |
 |---|---|---|---|
-| **PayPal Checkout** | PayPal Orders v2 in Sandbox mode | Explicit mock mode only | OAuth client credentials, server-created orders, server captures, persisted payment states, verified webhooks and approval-link QR codes. Sandbox only; no live funds. |
+| **PayPal Checkout** | PayPal Orders v2 in Sandbox mode | Explicit mock mode only | OAuth client credentials, server-created orders, server captures, persisted payment states, verified webhooks and approval-link QR codes. Live mode is disabled unless explicitly enabled in server config. |
 | **Store Pricing & Quotes** | — | **Simulated** (Local Quick-Commerce Catalog) | Local store adapters provide simulated Blinkit, Zepto, and Instamart prices for the autonomous basket optimizer. |
 | **Integer-Paise Money Math** | **Real** | — | Floating point arithmetic is forbidden. All monetary math uses integer paise (`₹1.00 = 100 paise`), preventing roundoff leakage. |
 | **Depletion & Burning** | **Real** (Deterministic) | — | Mathematical consumption formulas ($ \text{Stock} / \text{Burn} $) accurately project stockout days. |
@@ -155,6 +154,12 @@ All endpoints are scoped to `demo-user` via auth middleware and return errors in
 5. Confirm that the original tab changes to captured only after the server confirms PayPal capture. In the Sandbox Business account, verify the transaction. Test cancel, retry, refresh/reopen, duplicate capture, invalid run ID, and failed capture. Configure a webhook ID in PayPal Developer only if testing webhook delivery; local checkout-status polling does not depend on webhooks.
 
 Sandbox end-to-end capture requires a Sandbox Personal buyer login and a deliberate supported currency/rate choice. Automated backend tests use the explicit mock provider and do not create PayPal transactions.
+
+### Security
+
+See [SECURITY.md](SECURITY.md) for security controls, deployment settings, limitations and responsible disclosure. Production uses authenticated, user-scoped data routes, origin checks, rate limits, security headers, explicit HTTPS origins and a sandbox-only PayPal API host unless live payments are deliberately enabled.
+
+Run the local curl-based verification checks with the setup in [docs/security-checks.md](docs/security-checks.md) and `bash docs/security-checks.sh`.
 
 ### AI Endpoints (Server-Side, Validated)
 - `POST /api/ai/parse-policy` — Translates natural language into a proposed policy modification (proposal only; never auto-saved without user confirmation).

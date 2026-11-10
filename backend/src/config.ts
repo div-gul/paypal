@@ -17,7 +17,8 @@ const ConfigSchema = z.object({
   DATABASE_PATH: z.string().default('./data/shoppilot.db'),
 
   // PayPal Sandbox Integration
-  PAYPAL_MODE: z.enum(['mock', 'sandbox']).default('mock'),
+  PAYPAL_MODE: z.enum(['mock', 'sandbox', 'live']).default('mock'),
+  ALLOW_LIVE_PAYMENTS: z.preprocess(value => value === 'true' || value === true, z.boolean()).default(false),
   PAYPAL_CLIENT_ID: z.string().optional(),
   PAYPAL_CLIENT_SECRET: z.string().optional(),
   PAYPAL_WEBHOOK_ID: z.string().optional(),
@@ -28,12 +29,22 @@ const ConfigSchema = z.object({
     z.coerce.number().positive().optional()
   ),
   APP_BASE_URL: z.string().url().default('http://localhost:5173'),
+  PUBLIC_APP_URL: z.string().url().optional(),
 
   // LLM Configuration
   LLM_API_KEY: z.string().optional(),
 
 }).superRefine((data, ctx) => {
-  if (data.PAYPAL_MODE === 'sandbox') {
+  const paypalHost = new URL(data.PAYPAL_BASE_URL).hostname.toLowerCase();
+  const sandboxHost = paypalHost === 'api-m.sandbox.paypal.com' || paypalHost === 'api.sandbox.paypal.com';
+  const liveHost = paypalHost === 'api-m.paypal.com';
+  if (!sandboxHost && !(data.PAYPAL_MODE === 'live' && data.ALLOW_LIVE_PAYMENTS && liveHost)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['PAYPAL_BASE_URL'], message: 'Use the PayPal Sandbox API host; live payments require PAYPAL_MODE=live and ALLOW_LIVE_PAYMENTS=true.' });
+  }
+  if (data.PAYPAL_MODE === 'live' && (!data.ALLOW_LIVE_PAYMENTS || !liveHost)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['ALLOW_LIVE_PAYMENTS'], message: 'Live payments require the live PayPal API host and ALLOW_LIVE_PAYMENTS=true.' });
+  }
+  if (data.PAYPAL_MODE !== 'mock') {
     if (!data.PAYPAL_CLIENT_ID) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -56,27 +67,39 @@ const ConfigSchema = z.object({
       });
     }
   }
+  if (data.NODE_ENV === 'production') {
+    for (const [key, value] of [['APP_BASE_URL', data.APP_BASE_URL], ['PUBLIC_APP_URL', data.PUBLIC_APP_URL || data.APP_BASE_URL]] as const) {
+      if (new URL(value).protocol !== 'https:') {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [key], message: `${key} must use HTTPS in production.` });
+      }
+    }
+    if (data.PUBLIC_APP_URL && new URL(data.PUBLIC_APP_URL).origin !== new URL(data.APP_BASE_URL).origin) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['PUBLIC_APP_URL'], message: 'PUBLIC_APP_URL and APP_BASE_URL must use the same origin.' });
+    }
+  }
 
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;
+
+export function parseAppConfig(input: NodeJS.ProcessEnv = process.env): AppConfig {
+  const result = ConfigSchema.safeParse(input);
+  if (!result.success) throw new Error('Invalid server configuration. Check your environment variables.');
+  return result.data;
+}
 
 let cachedConfig: AppConfig | null = null;
 
 function loadConfig(): AppConfig {
   if (cachedConfig) return cachedConfig;
 
-  const result = ConfigSchema.safeParse(process.env);
-  if (!result.success) {
+  try {
+    cachedConfig = parseAppConfig();
+    return cachedConfig;
+  } catch {
     console.error('❌ Configuration validation failed:');
-    result.error.issues.forEach(issue => {
-      console.error(`  - [${issue.path.join('.')}] ${issue.message}`);
-    });
     throw new Error('Fatal: Invalid server configuration. Check your environment variables.');
   }
-
-  cachedConfig = result.data;
-  return cachedConfig;
 }
 
 export const config = loadConfig();

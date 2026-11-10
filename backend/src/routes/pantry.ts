@@ -4,6 +4,9 @@ import { getDatabase } from '../db/connection.js';
 import { PantryService } from '../services/PantryService.js';
 import { ProductCategory, UnitOfMeasurement } from '@shared/types';
 import { AppError } from '../middleware/errorHandler.js';
+import { rateLimit } from '../middleware/rateLimit.js';
+
+const pantryWriteLimit = rateLimit({ windowMs: 60_000, max: 60 }, 'pantry-write');
 
 export const pantryRouter = Router();
 
@@ -107,7 +110,7 @@ pantryRouter.get('/pantry/:id', (req: Request, res: Response, next: NextFunction
   }
 });
 
-pantryRouter.post('/pantry', (req: Request, res: Response, next: NextFunction) => {
+pantryRouter.post('/pantry', pantryWriteLimit, (req: Request, res: Response, next: NextFunction) => {
   try {
     const validated = CreatePantryItemSchema.parse(req.body);
     validateStockRules(
@@ -120,6 +123,9 @@ pantryRouter.post('/pantry', (req: Request, res: Response, next: NextFunction) =
     );
 
     const pantryService = new PantryService(getDatabase());
+    if (pantryService.getPantry(req.user!.id).length >= 100) {
+      throw new AppError('PANTRY_LIMIT', 'This account has reached the pantry item limit.', 409);
+    }
     const itemId = validated.id || `item-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
 
     const isCountable = ['pcs', 'packs', 'units', 'eggs', 'loaf', 'pack', 'dozen'].includes(validated.unit.toLowerCase());
@@ -151,7 +157,7 @@ pantryRouter.post('/pantry', (req: Request, res: Response, next: NextFunction) =
   }
 });
 
-pantryRouter.put('/pantry/:id', (req: Request, res: Response, next: NextFunction) => {
+pantryRouter.put('/pantry/:id', pantryWriteLimit, (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
     const validated = UpdatePantryItemSchema.parse(req.body);
@@ -178,7 +184,7 @@ pantryRouter.put('/pantry/:id', (req: Request, res: Response, next: NextFunction
   }
 });
 
-pantryRouter.delete('/pantry/:id', (req: Request, res: Response, next: NextFunction) => {
+pantryRouter.delete('/pantry/:id', pantryWriteLimit, (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
     const pantryService = new PantryService(getDatabase());
@@ -189,7 +195,7 @@ pantryRouter.delete('/pantry/:id', (req: Request, res: Response, next: NextFunct
   }
 });
 
-pantryRouter.post('/pantry/:id/adjust', (req: Request, res: Response, next: NextFunction) => {
+pantryRouter.post('/pantry/:id/adjust', pantryWriteLimit, (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
     const { delta } = AdjustQuantitySchema.parse(req.body);

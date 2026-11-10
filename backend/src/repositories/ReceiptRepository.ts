@@ -7,7 +7,7 @@ export interface ReceiptRecord {
   orderId: string;
   amountPaise: number;
   currency: string;
-  paymentProvider: 'mock' | 'paypal_sandbox';
+  paymentProvider: 'mock' | 'paypal_sandbox' | 'paypal_live';
   itemsJson: string;
   breakdownJson: string;
   status: 'settled' | 'refunded';
@@ -25,7 +25,7 @@ interface ReceiptRow {
   order_id: string;
   amount_paise: number;
   currency: string;
-  payment_provider: 'mock' | 'paypal_sandbox';
+  payment_provider: 'mock' | 'paypal_sandbox' | 'paypal_live';
   items_json: string;
   breakdown_json: string;
   status: 'settled' | 'refunded';

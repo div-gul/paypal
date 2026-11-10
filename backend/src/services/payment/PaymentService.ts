@@ -24,7 +24,7 @@ export class PaymentService {
   private auditRepo: AuditLogRepository;
 
   constructor(private db: Database.Database, customProvider?: IPaymentProvider) {
-    this.provider = customProvider || (config.PAYPAL_MODE === 'sandbox'
+    this.provider = customProvider || (config.PAYPAL_MODE !== 'mock'
       ? new PayPalSandboxProvider()
       : new MockPaymentProvider());
     this.runRepo = new RunRepository(db);
@@ -58,19 +58,6 @@ export class PaymentService {
     if (run.paymentState === 'CAPTURED' || run.status === 'paid') {
       throw new AppError('ORDER_ALREADY_PAID', 'This ShopPilot order has already been paid.', 409);
     }
-    if (run.orderId && ['PENDING', 'APPROVED'].includes(run.paymentState)) {
-      return {
-        orderId: run.orderId,
-        approvalUrl: run.paypalApprovalUrl || undefined,
-        amountPaise: run.grandTotalPaise,
-        currency: run.paymentCurrency || 'INR',
-        chargedAmount: run.paymentAmount || undefined,
-        status: run.paymentState === 'APPROVED' ? 'APPROVED' : 'CREATED',
-        provider: this.provider.providerId,
-        run,
-      };
-    }
-
     const policy = new PolicyService(this.db).getPolicy(userId);
     const pantryItems = this.pantryRepo.getAllByUserId(userId);
     const clock = this.clockRepo.getByUserId(userId);
@@ -81,6 +68,21 @@ export class PaymentService {
     if (policyEval.decision === 'blocked') {
       this.runRepo.updateStatus(userId, runId, 'blocked');
       throw new AppError('POLICY_VIOLATION_BLOCKED', `Run is blocked by policy: ${policyEval.reasons.join('; ')}`, 403);
+    }
+    if (run.orderId && ['PENDING', 'APPROVED'].includes(run.paymentState)) {
+      if (run.status !== 'payment_pending') {
+        throw new AppError('INVALID_STATE_TRANSITION', 'The existing checkout is not in a payable state.', 409);
+      }
+      return {
+        orderId: run.orderId,
+        approvalUrl: run.paypalApprovalUrl || undefined,
+        amountPaise: run.grandTotalPaise,
+        currency: run.paymentCurrency || 'INR',
+        chargedAmount: run.paymentAmount || undefined,
+        status: run.paymentState === 'APPROVED' ? 'APPROVED' : 'CREATED',
+        provider: this.provider.providerId,
+        run,
+      };
     }
     const previouslyApprovedPayment = ['CANCELLED', 'FAILED'].includes(run.paymentState) && Boolean(run.orderId);
     if (!previouslyApprovedPayment && !['approved', 'auto_approved'].includes(run.status)) {
@@ -100,21 +102,19 @@ export class PaymentService {
     return { ...orderResult, run };
   }
 
-  async captureCheckoutOrder(userId: string, orderId: string, clientRunId?: string) {
+  async captureCheckoutOrder(userId: string, orderId: string) {
     const existingReceipt = this.receiptRepo.findByOrderId(userId, orderId);
     if (existingReceipt) {
       const run = this.runRepo.getById(userId, existingReceipt.runId);
       return { success: true, receipt: existingReceipt, run: run!, alreadyCaptured: true };
     }
 
-    const run = this.runRepo.findByOrderId(orderId);
-    if (!run) throw new AppError('ORDER_NOT_FOUND', `No ShopPilot run found for order "${orderId}"`, 404);
-    if (run.userId !== userId) throw new AppError('UNAUTHORIZED', 'This PayPal order belongs to another user.', 403);
-    if (clientRunId && run.id !== clientRunId) throw new AppError('RUN_MISMATCH', 'The PayPal order does not match this ShopPilot run.', 400);
+    const run = this.runRepo.findByOrderIdForUser(userId, orderId);
+    if (!run) throw new AppError('ORDER_NOT_FOUND', 'PayPal order not found.', 404);
     if (run.paymentState === 'CANCELLED' || run.paymentState === 'FAILED') {
       throw new AppError('PAYMENT_NOT_ACTIVE', `This payment is ${run.paymentState.toLowerCase()}; create a new checkout session to retry.`, 409);
     }
-    if (!['payment_pending', 'approved', 'auto_approved'].includes(run.status)) {
+    if (run.status !== 'payment_pending') {
       throw new AppError('INVALID_STATE_TRANSITION', `Run ${run.id} in status "${run.status}" cannot be captured.`, 400);
     }
 
@@ -130,6 +130,9 @@ export class PaymentService {
       this.runRepo.setPaymentState(userId, run.id, 'FAILED');
       this.runRepo.updateStatus(userId, run.id, 'failed');
       throw new AppError('PAYMENT_CAPTURE_FAILED', `PayPal did not confirm capture for order ${orderId}.`, 402);
+    }
+    if (captureResult.orderId !== orderId) {
+      throw new AppError('PAYMENT_ORDER_MISMATCH', 'PayPal returned a capture for a different order.', 409);
     }
     return this.finalizeCapture(userId, run, captureResult);
   }
@@ -152,7 +155,7 @@ export class PaymentService {
     const paypal = await this.provider.getOrderStatus(run.orderId, run);
     if (paypal.status === 'APPROVED') {
       this.runRepo.setPaymentState(userId, run.id, 'APPROVED');
-      const captured = await this.captureCheckoutOrder(userId, run.orderId, run.id);
+      const captured = await this.captureCheckoutOrder(userId, run.orderId);
       return { runId, orderId: run.orderId, paymentState: 'CAPTURED' as const, approvalUrl: run.paypalApprovalUrl, receipt: captured.receipt };
     }
     if (paypal.status === 'COMPLETED' && paypal.capture) {
@@ -180,7 +183,7 @@ export class PaymentService {
     if (run.paymentState === 'CAPTURED' || this.receiptRepo.findByOrderId(userId, run.orderId)) {
       return this.getCheckoutStatus(userId, runId);
     }
-    if (this.provider.providerId === 'paypal_sandbox') {
+    if (this.provider.providerId !== 'mock') {
       const paypal = await this.provider.getOrderStatus(run.orderId, run);
       if (paypal.status === 'COMPLETED' && paypal.capture) {
         await this.finalizeCapture(userId, run, paypal.capture);

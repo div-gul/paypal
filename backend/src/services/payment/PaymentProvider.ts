@@ -6,7 +6,7 @@ export interface PaymentOrderResult {
   amountPaise: number;
   currency: string;
   status: 'CREATED' | 'SAVED' | 'APPROVED' | 'VOIDED' | 'COMPLETED' | 'PAYER_ACTION_REQUIRED';
-  provider: 'mock' | 'paypal_sandbox';
+  provider: 'mock' | 'paypal_sandbox' | 'paypal_live';
   chargedAmount?: string;
 }
 
@@ -16,7 +16,7 @@ export interface PaymentCaptureResult {
   status: 'COMPLETED' | 'FAILED';
   amountPaise: number;
   currency: string;
-  provider: 'mock' | 'paypal_sandbox';
+  provider: 'mock' | 'paypal_sandbox' | 'paypal_live';
   payerEmail?: string;
   rawResponse?: Record<string, unknown>;
   chargedAmount?: string;
@@ -34,7 +34,7 @@ export interface PaymentStatusResult {
 }
 
 export interface IPaymentProvider {
-  readonly providerId: 'mock' | 'paypal_sandbox';
+  readonly providerId: 'mock' | 'paypal_sandbox' | 'paypal_live';
   createOrder(run: RunRecord, returnUrl?: string, cancelUrl?: string): Promise<PaymentOrderResult>;
   captureOrder(orderId: string, run?: RunRecord): Promise<PaymentCaptureResult>;
   getOrderStatus(orderId: string, run?: RunRecord): Promise<PaymentStatusResult>;

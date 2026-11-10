@@ -2,18 +2,21 @@ import { z } from 'zod';
 import { StoreProduct, WeeklySchedulerConfig } from '@shared/types';
 import { AppError } from '../../middleware/errorHandler.js';
 
+const PolicyCategorySchema = z.enum(['Dairy', 'Bakery & Bread', 'Fresh Produce', 'Beverages', 'Pantry Staples', 'Breakfast & Cereals', 'Snacks', 'Personal Care', 'Household', 'Household Essentials']);
+type PolicyCategory = z.infer<typeof PolicyCategorySchema>;
+
 const PolicyProposalSchema = z.object({
   preferredShoppingDay: z.number().int().min(0).max(6).optional(),
   shoppingFrequency: z.enum(['weekly', 'biweekly']).optional(),
   emergencyRestockPreference: z.enum(['auto_order', 'ask_approval', 'alert_only']).optional(),
   urgentThresholdDays: z.number().min(1).max(14).optional(),
-  perCycleBudgetPaise: z.number().int().nonnegative().optional(),
-  perOrderCapPaise: z.number().int().nonnegative().optional(),
+  perCycleBudgetPaise: z.number().int().min(0).max(100_000_000).optional(),
+  perOrderCapPaise: z.number().int().min(0).max(100_000_000).optional(),
   requireApprovalBrandSubstitution: z.boolean().optional(),
-  blockedCategories: z.array(z.string()).optional(),
-  explanation: z.string(),
-  changesSummary: z.array(z.string()),
-});
+  blockedCategories: z.array(PolicyCategorySchema).max(30).optional(),
+  explanation: z.string().max(1000),
+  changesSummary: z.array(z.string().max(200)).max(30),
+}).strict();
 
 export type PolicyProposal = z.infer<typeof PolicyProposalSchema>;
 
@@ -23,8 +26,8 @@ const SubstituteResultSchema = z.object({
   brand: z.string(),
   pricePaise: z.number().int().positive(),
   confidence: z.number().min(0).max(1),
-  reasoning: z.string(),
-});
+  reasoning: z.string().max(1000),
+}).strict();
 
 export type SubstituteResult = z.infer<typeof SubstituteResultSchema>;
 
@@ -47,14 +50,16 @@ export class LLMService {
 
     if (this.apiKey && this.apiKey !== 'mock') {
       try {
-        return await this.callExternalLLMPolicyParser(trimmed, currentPolicy);
+        const result = await this.callExternalLLMPolicyParser(trimmed, currentPolicy);
+        return PolicyProposalSchema.parse(result);
       } catch (err: any) {
-        console.warn(`[LLMService] External LLM call failed (${err.message}). Falling back to deterministic NLP parser.`);
+        if (err instanceof z.ZodError) throw err;
+        console.warn('[LLMService] External LLM call failed. Falling back to deterministic NLP parser.');
       }
     }
 
     // Deterministic Rule-Based Fallback Parser (Robust & Fast)
-    return this.deterministicPolicyParser(trimmed, currentPolicy);
+    return PolicyProposalSchema.parse(this.deterministicPolicyParser(trimmed, currentPolicy));
   }
 
   /**
@@ -86,7 +91,7 @@ export class LLMService {
       try {
         selected = await this.callExternalLLMSubstitute(itemName, preferredBrand, validCandidates, reason);
       } catch (err: any) {
-        console.warn(`[LLMService] External LLM substitute failed (${err.message}). Falling back to heuristic substitution.`);
+        console.warn('[LLMService] External LLM substitute failed. Falling back to heuristic substitution.');
         selected = this.deterministicSubstitute(preferredBrand, validCandidates);
       }
     } else {
@@ -108,7 +113,7 @@ export class LLMService {
       };
     }
 
-    return selected;
+    return SubstituteResultSchema.parse(selected);
   }
 
   /**
@@ -117,7 +122,7 @@ export class LLMService {
   private deterministicPolicyParser(prompt: string, current: WeeklySchedulerConfig): PolicyProposal {
     const lower = prompt.toLowerCase();
     const changesSummary: string[] = [];
-    const proposal: Partial<WeeklySchedulerConfig> = {};
+    const proposal: Partial<Omit<WeeklySchedulerConfig, 'blockedCategories'>> & { blockedCategories?: PolicyCategory[] } = {};
 
     // 1. Budget Cap extraction (e.g. "budget of ₹3000", "limit to 2500 rupees", "budget 2000")
     const budgetMatch = lower.match(/(?:budget|cycle|limit|spend)\s*(?:of|to|is)?\s*(?:₹|rs\.?|inr)?\s*(\d+(?:,\d+)*(?:\.\d+)?)/i);
@@ -180,13 +185,14 @@ export class LLMService {
     }
 
     // 7. Category blocks (e.g. "block snacks", "stop buying alcohol", "don't buy meat")
-    const blockedCategories = current.blockedCategories ? [...current.blockedCategories] : [];
+    const blockedCategories: PolicyCategory[] = (current.blockedCategories || [])
+      .filter((category): category is PolicyCategory => PolicyCategorySchema.options.includes(category as PolicyCategory));
     const blockPatterns = [
       { pattern: /(?:block|stop buying|don't buy|avoid)\s*(?:any\s*)?(snacks|junk food)/i, cat: 'Snacks' },
       { pattern: /(?:block|stop buying|don't buy|avoid)\s*(?:any\s*)?(dairy|milk products)/i, cat: 'Dairy' },
       { pattern: /(?:block|stop buying|don't buy|avoid)\s*(?:any\s*)?(beverages|drinks|soda)/i, cat: 'Beverages' },
       { pattern: /(?:block|stop buying|don't buy|avoid)\s*(?:any\s*)?(personal care|cosmetics)/i, cat: 'Personal Care' },
-    ];
+    ] satisfies Array<{ pattern: RegExp; cat: PolicyCategory }>;
 
     for (const b of blockPatterns) {
       if (b.pattern.test(lower) && !blockedCategories.includes(b.cat)) {

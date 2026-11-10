@@ -132,7 +132,7 @@ export const api = {
   login: (email: string, password: string) => request<{ user: AuthUser }>('/auth/login', {
     method: 'POST', body: JSON.stringify({ email, password }),
   }),
-  register: (name: string, email: string, password: string) => request<{ user: AuthUser }>('/auth/register', {
+  register: (name: string, email: string, password: string) => request<{ message: string }>('/auth/register', {
     method: 'POST', body: JSON.stringify({ name, email, password }),
   }),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
@@ -212,10 +212,10 @@ export const api = {
 
   // Checkout & Payments
   getCheckoutConfig: () => request<{
-    mode: 'mock' | 'sandbox';
+    mode: 'mock' | 'sandbox' | 'live';
     clientId: string | null;
     currency: string;
-    provider: 'mock' | 'paypal_sandbox';
+    provider: 'mock' | 'paypal_sandbox' | 'paypal_live';
   }>('/checkout/config'),
   createCheckoutOrder: (runId: string) =>
     request<{
@@ -225,13 +225,13 @@ export const api = {
       currency: string;
       chargedAmount?: string;
       status: string;
-      provider: 'mock' | 'paypal_sandbox';
+      provider: 'mock' | 'paypal_sandbox' | 'paypal_live';
       run: any;
     }>('/checkout/create-order', {
       method: 'POST',
       body: JSON.stringify({ runId }),
     }),
-  captureCheckoutOrder: (orderId: string, runId?: string) =>
+  captureCheckoutOrder: (orderId: string) =>
     request<{
       success: boolean;
       receipt: any;
@@ -239,7 +239,7 @@ export const api = {
       alreadyCaptured: boolean;
     }>('/checkout/capture', {
       method: 'POST',
-      body: JSON.stringify({ orderId, runId }),
+      body: JSON.stringify({ orderId }),
     }),
   getCheckoutStatus: (runId: string) =>
     request<{
@@ -271,9 +271,6 @@ export const api = {
     }),
   substituteAI: (params: {
     pantryItemId: string;
-    itemName: string;
-    preferredBrand: string;
-    candidates: StoreProduct[];
     reason?: string;
   }) =>
     request<{ substitute: AiSubstituteResult }>('/ai/substitute', {

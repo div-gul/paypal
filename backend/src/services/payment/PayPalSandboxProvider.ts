@@ -28,7 +28,7 @@ interface PayPalOrder {
 }
 
 export class PayPalSandboxProvider implements IPaymentProvider {
-  readonly providerId = 'paypal_sandbox' as const;
+  readonly providerId: 'paypal_sandbox' | 'paypal_live' = config.PAYPAL_MODE === 'live' ? 'paypal_live' : 'paypal_sandbox';
   private accessToken?: string;
   private tokenExpiresAt = 0;
 
@@ -58,7 +58,7 @@ export class PayPalSandboxProvider implements IPaymentProvider {
   private async getAccessToken(): Promise<string> {
     if (this.accessToken && Date.now() < this.tokenExpiresAt - 15_000) return this.accessToken;
     if (!config.PAYPAL_CLIENT_ID || !config.PAYPAL_CLIENT_SECRET) {
-      throw new AppError('PAYPAL_NOT_CONFIGURED', 'PayPal Sandbox credentials are not configured.', 503);
+      throw new AppError('PAYPAL_NOT_CONFIGURED', 'PayPal credentials are not configured.', 503);
     }
 
     let response: Response;
@@ -74,12 +74,12 @@ export class PayPalSandboxProvider implements IPaymentProvider {
         signal: AbortSignal.timeout(15_000),
       });
     } catch {
-      throw new AppError('PAYPAL_UNAVAILABLE', 'Could not connect to PayPal Sandbox authentication.', 502);
+      throw new AppError('PAYPAL_UNAVAILABLE', 'Could not connect to PayPal authentication.', 502);
     }
 
     const data = await this.readJson(response);
     if (!response.ok || typeof data.access_token !== 'string') {
-      throw this.payPalError(response.status, data, 'PayPal Sandbox authentication failed.');
+      throw this.payPalError(response.status, data, 'PayPal authentication failed.');
     }
     this.accessToken = data.access_token;
     this.tokenExpiresAt = Date.now() + (Number(data.expires_in) || 300) * 1000;
@@ -101,7 +101,7 @@ export class PayPalSandboxProvider implements IPaymentProvider {
         signal: init.signal || AbortSignal.timeout(20_000),
       });
     } catch {
-      throw new AppError('PAYPAL_UNAVAILABLE', 'Could not connect to PayPal Sandbox.', 502);
+      throw new AppError('PAYPAL_UNAVAILABLE', 'Could not connect to PayPal.', 502);
     }
     return { response, data: await this.readJson(response) };
   }
@@ -121,12 +121,11 @@ export class PayPalSandboxProvider implements IPaymentProvider {
     const issue = detail?.issue ? String(detail.issue) : '';
     const detailDescription = detail?.description ? String(detail.description) : '';
     const name = String(issue || data?.name || 'PAYPAL_API_ERROR');
-    const message = String(detailDescription || data?.message || fallback);
     const errorText = `${name} ${issue} ${detailDescription} ${data?.name || ''} ${data?.message || ''}`;
     if (/unsupported_payee_currency|(?:owner|merchant|payee|seller).{0,80}(?:does not|doesn't|cannot|can't).{0,40}accept.{0,40}currenc|currenc.{0,80}(?:not enabled|not accepted|not configured to accept)/i.test(errorText)) {
       return new AppError(
         'PAYPAL_MERCHANT_CURRENCY_NOT_ACCEPTED',
-        `The Sandbox merchant account is refusing ${this.chargeCurrency}. Enable ${this.chargeCurrency} in that Business account's wallet/receiving settings, or use a Sandbox merchant account configured to accept it. The ShopPilot INR total was not changed and no payment was captured.`,
+        `The PayPal merchant account is refusing ${this.chargeCurrency}. Configure the merchant account to accept that currency. The ShopPilot INR total was not changed and no payment was captured.`,
         422
       );
     }
@@ -137,7 +136,7 @@ export class PayPalSandboxProvider implements IPaymentProvider {
         422
       );
     }
-    return new AppError(name, message, status >= 400 && status < 600 ? status : 502);
+    return new AppError('PAYPAL_API_ERROR', fallback, status >= 400 && status < 600 ? status : 502);
   }
 
   private captureFromOrder(order: PayPalOrder, run: RunRecord): PaymentCaptureResult | undefined {
@@ -145,11 +144,12 @@ export class PayPalSandboxProvider implements IPaymentProvider {
     if (!capture?.id || capture.status !== 'COMPLETED' || !capture.amount?.value || !capture.amount.currency_code) {
       return undefined;
     }
-    const expectedAmount = this.chargeAmount(run);
-    if (capture.amount.currency_code !== this.chargeCurrency || capture.amount.value !== expectedAmount) {
+    const expectedCurrency = run.paymentCurrency || this.chargeCurrency;
+    const expectedAmount = run.paymentAmount || this.chargeAmount(run);
+    if (order.id !== run.orderId || capture.amount.currency_code !== expectedCurrency || capture.amount.value !== expectedAmount) {
       throw new AppError('PAYPAL_AMOUNT_MISMATCH', 'PayPal capture amount or currency does not match the approved ShopPilot order.', 409);
     }
-    if (this.chargeCurrency === 'USD') {
+    if (expectedCurrency === 'USD') {
       const roundTripInrPaise = usdAmountToInrPaise(capture.amount.value, config.PAYPAL_INR_PER_USD!);
       const maximumRoundingDifference = Math.ceil(config.PAYPAL_INR_PER_USD! / 2);
       if (Math.abs(roundTripInrPaise - run.grandTotalPaise) > maximumRoundingDifference) {
