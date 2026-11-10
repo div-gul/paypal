@@ -85,6 +85,7 @@ export interface AuthUser {
   email: string;
   role: 'user' | 'guest';
   hasPassword?: boolean;
+  emailVerified?: boolean;
   createdAt?: string;
 }
 
@@ -116,7 +117,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   }
 
   if (!response.ok) {
-    if (response.status === 401 && !['/auth/me', '/auth/login', '/auth/register', '/auth/logout', '/auth/google', '/auth/google/config', '/auth/forgot-password', '/auth/reset-password'].includes(endpoint)) {
+    if (response.status === 401 && !['/auth/me', '/auth/login', '/auth/register', '/auth/logout', '/auth/google', '/auth/google/config', '/auth/forgot-password', '/auth/reset-password', '/auth/verify-email'].includes(endpoint)) {
       window.dispatchEvent(new Event('shoppilot:session-expired'));
     }
     const errorPayload = data as ApiResponseError | undefined;
@@ -149,6 +150,13 @@ export const api = {
   resetPassword: (token: string, newPassword: string) => request<{ success: boolean; message: string }>('/auth/reset-password', {
     method: 'POST', body: JSON.stringify({ token, newPassword }),
   }),
+  verifyEmail: (token: string) => request<{ success: boolean; message: string; user?: AuthUser }>('/auth/verify-email', {
+    method: 'POST', body: JSON.stringify({ token }),
+  }),
+  resendVerification: () => request<{ success: boolean; message: string }>('/auth/resend-verification', {
+    method: 'POST',
+  }),
+  exportUserData: () => request<any>('/auth/export'),
   getGoogleAuthConfig: () => request<{ enabled: boolean; clientId: string | null }>('/auth/google/config'),
   loginWithGoogle: (credential: string) => request<{ user: AuthUser }>('/auth/google', {
     method: 'POST', body: JSON.stringify({ credential }),

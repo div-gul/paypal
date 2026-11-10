@@ -13,6 +13,7 @@ import {
   Lock,
   Sparkles,
   AlertCircle,
+  Download,
 } from 'lucide-react';
 
 interface ProfileViewProps {
@@ -41,8 +42,50 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
   const [deleteError, setDeleteError] = useState('');
 
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportMessage, setExportMessage] = useState('');
+  const [resendingVerification, setResendingVerification] = useState(false);
+  const [verificationNotice, setVerificationNotice] = useState('');
+
   const isGuest = user.role === 'guest';
   const hasPasswordAuth = Boolean(user.hasPassword);
+
+  const handleResendVerification = async () => {
+    setResendingVerification(true);
+    setVerificationNotice('');
+    try {
+      const res = await api.resendVerification();
+      setVerificationNotice(res.message || 'Verification email sent. Please check your inbox.');
+      setTimeout(() => setVerificationNotice(''), 6000);
+    } catch (err: any) {
+      setVerificationNotice(err?.message || 'Could not send verification email.');
+    } finally {
+      setResendingVerification(false);
+    }
+  };
+
+  const handleExportData = async () => {
+    setIsExporting(true);
+    setExportMessage('');
+    try {
+      const data = await api.exportUserData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `shoppilot-data-export-${user.id}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setExportMessage('Data exported successfully.');
+      setTimeout(() => setExportMessage(''), 4000);
+    } catch (err: any) {
+      setExportMessage(err?.message || 'Could not export user data.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,10 +199,37 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   {isGuest ? 'Demo Guest' : 'Household Owner'}
                 </Badge>
               </div>
-              <p className="text-xs text-ink-muted flex items-center gap-1.5 mt-0.5">
-                <Mail className="w-3.5 h-3.5" />
-                <span>{user.email}</span>
-              </p>
+              <div className="flex flex-wrap items-center gap-2 mt-1">
+                <span className="text-xs text-ink-muted flex items-center gap-1.5">
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>{user.email}</span>
+                </span>
+                {!isGuest && (
+                  user.emailVerified ? (
+                    <span className="px-2 py-0.5 rounded-full bg-teal/10 text-teal border border-teal/20 text-[10px] font-bold flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" />
+                      Verified
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 border border-amber-500/20 text-[10px] font-bold">
+                        Unverified
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleResendVerification}
+                        disabled={resendingVerification}
+                        className="text-[11px] font-semibold text-brand hover:underline cursor-pointer disabled:opacity-60"
+                      >
+                        {resendingVerification ? 'Sending…' : 'Resend link'}
+                      </button>
+                    </span>
+                  )
+                )}
+              </div>
+              {verificationNotice && (
+                <p className="text-[11px] text-brand mt-1">{verificationNotice}</p>
+              )}
             </div>
           </div>
 
@@ -326,6 +396,35 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </Button>
           </div>
         </form>
+      </Card>
+
+      {/* Data Portability & Privacy: User Data Export */}
+      <Card className="p-6 bg-surface border-secondary-tint shadow-card">
+        <div className="flex items-center gap-2 mb-3 pb-3 border-b border-secondary-tint">
+          <Download className="w-4 h-4 text-brand" />
+          <h3 className="text-sm font-bold text-ink">Data Portability & Export</h3>
+        </div>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h4 className="text-xs font-bold text-ink">Export Account & Pantry Data</h4>
+            <p className="text-xs text-ink-muted mt-0.5">
+              Download a complete JSON export of your personal profile, pantry items, order history, approvals, and simulation activity.
+            </p>
+            {exportMessage && (
+              <p className="text-xs text-teal font-medium mt-1">{exportMessage}</p>
+            )}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isExporting}
+            onClick={handleExportData}
+            className="shrink-0 text-xs min-h-[42px]"
+          >
+            <Download className="w-3.5 h-3.5 mr-1.5" />
+            <span>{isExporting ? 'Exporting...' : 'Export My Data (JSON)'}</span>
+          </Button>
+        </div>
       </Card>
 
       {/* Danger Zone: Account Deletion */}

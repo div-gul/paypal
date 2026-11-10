@@ -10,17 +10,18 @@ declare global {
 
 interface Props {
   onAuthenticated: (user: AuthUser) => void;
-  initialMode?: 'login' | 'register' | 'forgot' | 'reset';
+  initialMode?: 'login' | 'register' | 'forgot' | 'reset' | 'verify';
   initialToken?: string;
   onBack?: () => void;
 }
 
 export const AuthScreen: React.FC<Props> = ({ onAuthenticated, initialMode, initialToken, onBack }) => {
-  const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'reset'>(() => {
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'reset' | 'verify'>(() => {
     if (initialMode) return initialMode;
     const path = typeof window !== 'undefined' ? window.location.pathname.replace(/\/$/, '') : '';
     if (path === '/register') return 'register';
     if (path === '/forgot-password' || path === '/forgot') return 'forgot';
+    if (path === '/verify-email' || path === '/verify') return 'verify';
     if (path === '/reset-password' || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('token'))) {
       return 'reset';
     }
@@ -55,6 +56,28 @@ export const AuthScreen: React.FC<Props> = ({ onAuthenticated, initialMode, init
       setResetToken(initialToken);
     }
   }, [initialToken]);
+
+  useEffect(() => {
+    if (mode !== 'verify') return;
+    const token = typeof window !== 'undefined'
+      ? (new URLSearchParams(window.location.search).get('token') || initialToken)
+      : initialToken;
+    if (!token) {
+      setError('Verification token is missing. Please check your verification link.');
+      return;
+    }
+    setBusy(true);
+    api.verifyEmail(token)
+      .then(res => {
+        setInfoMessage(res.message || 'Email verified successfully! You can now log in.');
+      })
+      .catch(err => {
+        setError(err?.message || 'Could not verify email. The link may have expired.');
+      })
+      .finally(() => {
+        setBusy(false);
+      });
+  }, [mode, initialToken]);
 
   useEffect(() => {
     const envClientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID;
@@ -300,6 +323,17 @@ export const AuthScreen: React.FC<Props> = ({ onAuthenticated, initialMode, init
             </p>
           </>
         )}
+        {mode === 'verify' && (
+          <div className="py-2 text-center">
+            <div className="inline-flex p-3 rounded-2xl bg-brand/10 text-brand mb-3">
+              <Mail className="w-6 h-6" />
+            </div>
+            <h2 className="text-2xl font-bold mb-1">Email Verification</h2>
+            <p className="text-sm text-ink-muted mb-6">
+              {busy ? 'Verifying your email address…' : infoMessage || error || 'Processing verification link.'}
+            </p>
+          </div>
+        )}
 
         {/* Google One-Click Auth (Only on Login and Register) */}
         {(mode === 'login' || mode === 'register') && (
@@ -356,7 +390,23 @@ export const AuthScreen: React.FC<Props> = ({ onAuthenticated, initialMode, init
           </p>
         )}
 
-        <form onSubmit={submit} className="space-y-4">
+        {mode === 'verify' ? (
+          <div className="space-y-4">
+            <button
+              type="button"
+              onClick={() => {
+                setMode('login');
+                setError('');
+                setInfoMessage('');
+                window.history.replaceState({}, '', '/');
+              }}
+              className="w-full rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white shadow-soft transition hover:bg-brand-dark cursor-pointer"
+            >
+              Back to Login
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={submit} className="space-y-4">
           {mode === 'register' && (
             <label className="block text-sm font-medium">Name
               <input
@@ -477,6 +527,7 @@ export const AuthScreen: React.FC<Props> = ({ onAuthenticated, initialMode, init
               : 'Log in'}
           </button>
         </form>
+        )}
 
         {/* Demo Guest Household Login (on login/register) */}
         {(mode === 'login' || mode === 'register') && (

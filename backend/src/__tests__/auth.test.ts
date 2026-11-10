@@ -56,7 +56,7 @@ describe('cookie authentication, isolation, and guest simulation permissions', (
     const { response, cookie } = await register('Alice', 'alice@example.com');
     expect(response.status).toBe(202);
     const body = await response.json() as { message: string };
-    expect(body.message).toBe('If registration can be completed, sign in to continue.');
+    expect(body.message).toBe('If registration can be completed, check your email to verify your account and sign in.');
     const me = await fetch(`${baseUrl}/api/auth/me`, { headers: { Cookie: cookie } });
     expect(me.status).toBe(200);
     const user = (await me.json() as any).user;
@@ -334,5 +334,141 @@ describe('cookie authentication, isolation, and guest simulation permissions', (
     // New password works
     const newLogin = await login('forgot_test@example.com', 'BrandNewPass@2026');
     expect(newLogin.response.status).toBe(200);
+  });
+
+  it('transparently upgrades legacy scrypt passwords to bcrypt on successful login', async () => {
+    const db = getDatabase();
+    const crypto = await import('node:crypto');
+    const legacyPass = 'LegacySecret@2026';
+    const salt = crypto.randomBytes(16);
+    const legacyHash = crypto.scryptSync(legacyPass, salt, 64);
+    const encodedLegacyHash = `scrypt$${salt.toString('hex')}$${legacyHash.toString('hex')}`;
+    const legacyUserId = crypto.randomUUID();
+
+    const now = new Date().toISOString();
+    // Insert user directly with legacy scrypt hash
+    db.prepare(`
+      INSERT INTO users (id, name, email, password_hash, role, email_verified, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 'user', 1, ?, ?)
+    `).run(legacyUserId, 'Legacy User', 'legacy@example.com', encodedLegacyHash, now, now);
+
+    // Verify stored hash starts with scrypt$
+    const beforeRow = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(legacyUserId) as { password_hash: string };
+    expect(beforeRow.password_hash.startsWith('scrypt$')).toBe(true);
+
+    // Login with legacy credentials
+    const loginRes = await login('legacy@example.com', legacyPass);
+    expect(loginRes.response.status).toBe(200);
+
+    // Verify hash has been transparently rehashed to bcrypt ($2a$ or $2b$)
+    const afterRow = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(legacyUserId) as { password_hash: string };
+    expect(afterRow.password_hash.startsWith('$2a$') || afterRow.password_hash.startsWith('$2b$')).toBe(true);
+
+    // Login again with the new bcrypt hash
+    const loginAgain = await login('legacy@example.com', legacyPass);
+    expect(loginAgain.response.status).toBe(200);
+  });
+
+  it('handles email verification lifecycle safely', async () => {
+    const db = getDatabase();
+    const authService = new AuthService(db);
+    const regResult = authService.register({
+      name: 'Verify Test User',
+      email: 'verify_test@example.com',
+      password: PASSWORD,
+    });
+    expect(regResult).not.toBeNull();
+    const verificationToken = regResult!.verificationToken;
+
+    // Initially unverified
+    const userRow = db.prepare('SELECT email_verified FROM users WHERE id = ?').get(regResult!.user.id) as { email_verified: number };
+    expect(userRow.email_verified).toBe(0);
+
+    // Resend verification endpoint
+    const resendRes = await fetch(`${baseUrl}/api/auth/resend-verification`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'verify_test@example.com' }),
+    });
+    expect(resendRes.status).toBe(200);
+    const resendBody = await resendRes.json() as any;
+    expect(resendBody.message).toContain('verification link');
+
+    // Attempt verify with invalid token
+    const invalidVerifyRes = await fetch(`${baseUrl}/api/auth/verify-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'nonexistent-token' }),
+    });
+    expect(invalidVerifyRes.status).toBe(400);
+
+    // Attempt verify with valid token
+    const validVerifyRes = await fetch(`${baseUrl}/api/auth/verify-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: verificationToken }),
+    });
+    expect(validVerifyRes.status).toBe(200);
+    const validVerifyBody = await validVerifyRes.json() as any;
+    expect(validVerifyBody.message).toContain('Email verified successfully');
+
+    // Check DB status is now 1
+    const verifiedRow = db.prepare('SELECT email_verified FROM users WHERE id = ?').get(regResult!.user.id) as { email_verified: number };
+    expect(verifiedRow.email_verified).toBe(1);
+
+    // Token cannot be reused
+    const reusedVerifyRes = await fetch(`${baseUrl}/api/auth/verify-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: verificationToken }),
+    });
+    expect(reusedVerifyRes.status).toBe(400);
+  });
+
+  it('exports user-scoped account data without sensitive secrets', async () => {
+    // Unauthenticated export rejected
+    const unauthRes = await fetch(`${baseUrl}/api/auth/export`);
+    expect(unauthRes.status).toBe(401);
+
+    // Register user with pantry item
+    new AuthService(getDatabase()).register({ name: 'Export User', email: 'export_test@example.com', password: PASSWORD });
+    const reg = await login('export_test@example.com', PASSWORD);
+    expect(reg.cookie).toBeTruthy();
+
+    await fetch(`${baseUrl}/api/pantry`, {
+      method: 'POST',
+      headers: { Cookie: reg.cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Export Almond Milk',
+        category: 'Dairy',
+        preferredBrand: 'Oatly',
+        preferredPackageSize: '1 L',
+        unit: 'L',
+        currentQuantity: 2,
+        averageDailyConsumption: 0.2,
+        minStockThreshold: 1,
+        targetStock: 3,
+      }),
+    });
+
+    const exportRes = await fetch(`${baseUrl}/api/auth/export`, {
+      headers: { Cookie: reg.cookie },
+    });
+    expect(exportRes.status).toBe(200);
+    expect(exportRes.headers.get('content-disposition')).toContain('attachment; filename="shoppilot-export-');
+
+    const exportData = await exportRes.json() as any;
+    expect(exportData.account.email).toBe('export_test@example.com');
+    expect(exportData.account.name).toBe('Export User');
+    expect(Array.isArray(exportData.pantry)).toBe(true);
+    expect(exportData.pantry.length).toBe(1);
+    expect(exportData.pantry[0].name).toBe('Export Almond Milk');
+
+    // Verify sensitive properties are NOT leaked
+    const serialized = JSON.stringify(exportData);
+    expect(serialized).not.toContain('password_hash');
+    expect(serialized).not.toContain('token_hash');
+    expect(serialized).not.toContain('auth_sessions');
+    expect(exportData.account.password_hash).toBeUndefined();
   });
 });

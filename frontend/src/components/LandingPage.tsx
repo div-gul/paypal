@@ -13,7 +13,7 @@ import {
 
 interface LandingPageProps {
   onEnterDemo: () => void;
-  onOpenAuth: (mode?: 'login' | 'register' | 'forgot' | 'reset') => void;
+  onOpenAuth: (mode?: 'login' | 'register' | 'forgot' | 'reset' | 'verify') => void;
   currentUser?: AuthUser | null;
   onGoToApp?: () => void;
 }
@@ -704,11 +704,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   </div>
 
                   <div
-                    className={`flex items-center justify-between text-base sm:text-lg font-bold p-3.5 rounded-2xl transition duration-200 ${
-                      savingsMode === 'split'
-                        ? 'bg-teal/5 border border-teal/20 text-teal'
-                        : 'text-ink'
-                    }`}
+                    className={`flex items-center justify-between text-base sm:text-lg font-bold p-3.5 rounded-2xl transition duration-200 ${savingsMode === 'split'
+                      ? 'bg-teal/5 border border-teal/20 text-teal'
+                      : 'text-ink'
+                      }`}
                   >
                     <div className="space-y-0.5">
                       <span className="text-ink font-bold">Total payable</span>
@@ -961,7 +960,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   <ArrowRight className="w-4 h-4" />
                 </button>
                 <a
-                  href="https://github.com/"
+                  href="https://github.com/div-gul/paypal"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="border border-white/30 hover:bg-white/10 text-white text-sm font-semibold px-6 py-4 rounded-full transition cursor-pointer inline-flex items-center gap-2"
@@ -1000,7 +999,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 Under the hood
               </a>
               <a
-                href="https://github.com/"
+                href="https://github.com/div-gul/paypal"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:text-teal transition"

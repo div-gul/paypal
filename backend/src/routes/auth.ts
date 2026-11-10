@@ -35,13 +35,73 @@ function clearSessionCookie(res: Response): void {
   res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; Path=/api; HttpOnly; SameSite=Lax; Max-Age=0${secure}`);
 }
 
-authRouter.post('/register', rateLimit({ windowMs: 60 * 60 * 1000, max: 5, key: req => `ip:${req.ip}` }, 'signup'), (req: Request, res: Response, next: NextFunction) => {
+authRouter.post('/register', rateLimit({ windowMs: 60 * 60 * 1000, max: 5, key: req => `ip:${req.ip}` }, 'signup'), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parsed = RegisterSchema.parse(req.body);
     const payload = { name: parsed.name!, email: parsed.email!, password: parsed.password! };
-    new AuthService(getDatabase()).register(payload);
-    res.status(202).json({ message: 'If registration can be completed, sign in to continue.' });
+    const authService = new AuthService(getDatabase());
+    const regResult = authService.register(payload);
+    if (regResult) {
+      const verificationLink = `${config.APP_BASE_URL}/verify-email?token=${encodeURIComponent(regResult.verificationToken)}`;
+      const emailService = new EmailService();
+      await emailService.sendVerificationEmail(regResult.user.email, verificationLink, regResult.user.name);
+    }
+    res.status(202).json({ message: 'If registration can be completed, check your email to verify your account and sign in.' });
   } catch (err) { next(err); }
+});
+
+const VerifyEmailSchema = z.object({
+  token: z.string().min(10, 'Verification token is missing or invalid'),
+});
+
+authRouter.post('/verify-email', rateLimit({ windowMs: 15 * 60 * 1000, max: 15, key: req => `ip:${req.ip}` }, 'verify-email'), (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { token } = VerifyEmailSchema.parse(req.body);
+    const authService = new AuthService(getDatabase());
+    const result = authService.verifyEmail(token);
+    res.json({ success: true, message: 'Email verified successfully.', user: result.user });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const ResendVerificationSchema = z.object({
+  email: z.string().email().optional(),
+});
+
+authRouter.post('/resend-verification', resolveSessionIfPresent, rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  key: req => (req.user ? `user:${req.user.id}` : `ip:${req.ip}`),
+}, 'resend-verification'), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { email } = ResendVerificationSchema.parse(req.body || {});
+    const authService = new AuthService(getDatabase());
+
+    let targetUserId = req.user?.id;
+    if (!targetUserId && email) {
+      const userRow = getDatabase().prepare('SELECT id, email_verified FROM users WHERE LOWER(email) = ?')
+        .get(email.trim().toLowerCase()) as { id: string; email_verified: number } | undefined;
+      if (userRow && !userRow.email_verified) {
+        targetUserId = userRow.id;
+      }
+    }
+
+    if (targetUserId) {
+      const userRow = getDatabase().prepare('SELECT email_verified FROM users WHERE id = ?').get(targetUserId) as { email_verified: number } | undefined;
+      if (!userRow?.email_verified) {
+        const result = authService.createEmailVerification(targetUserId);
+        const verificationLink = `${config.APP_BASE_URL}/verify-email?token=${encodeURIComponent(result.verificationToken)}`;
+        const emailService = new EmailService();
+        await emailService.sendVerificationEmail(result.user.email, verificationLink, result.user.name);
+      }
+    }
+
+    // Always return safe generic success message to prevent account enumeration
+    res.json({ success: true, message: 'If an unverified account exists, a verification link has been sent.' });
+  } catch (err) {
+    next(err);
+  }
 });
 
 authRouter.post('/login',
@@ -121,6 +181,17 @@ authRouter.patch('/profile', resolveSessionIfPresent, requireAuthentication, (re
       currentPassword: cleanCurrentPassword,
     });
     res.json({ user: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.get('/export', resolveSessionIfPresent, requireAuthentication, rateLimit({ windowMs: 15 * 60 * 1000, max: 10, key: req => `user:${req.user!.id}` }, 'data-export'), (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const data = new AuthService(getDatabase()).exportUserData(req.user!.id);
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="shoppilot-export-${req.user!.id}.json"`);
+    res.json(data);
   } catch (err) {
     next(err);
   }

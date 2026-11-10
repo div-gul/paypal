@@ -9,6 +9,7 @@ export interface AuthenticatedUser {
   email: string;
   role: 'user' | 'guest';
   hasPassword?: boolean;
+  emailVerified?: boolean;
   createdAt?: string;
 }
 
@@ -34,7 +35,7 @@ function resolveSessionUser(req: Request): AuthenticatedUser | undefined {
   if (!token) return undefined;
   const tokenHash = createHash('sha256').update(token).digest('hex');
   const row = getDatabase().prepare(`
-    SELECT u.id, u.name, u.email, u.role, (u.password_hash IS NOT NULL) AS hasPassword, u.created_at AS createdAt
+    SELECT u.id, u.name, u.email, u.role, (u.password_hash IS NOT NULL) AS hasPassword, (u.email_verified = 1) AS emailVerified, u.created_at AS createdAt
     FROM auth_sessions s JOIN users u ON u.id = s.user_id
     WHERE s.token_hash = ? AND s.expires_at > ?
   `).get(tokenHash, new Date().toISOString()) as any;
@@ -45,6 +46,7 @@ function resolveSessionUser(req: Request): AuthenticatedUser | undefined {
     email: row.email,
     role: row.role,
     hasPassword: Boolean(row.hasPassword),
+    emailVerified: Boolean(row.emailVerified),
     createdAt: row.createdAt,
   };
 }
@@ -97,6 +99,8 @@ export function injectTestUser(req: Request, _res: Response, next: NextFunction)
     name: 'Demo Household',
     email: 'demo@shoppilot.local',
     role: 'guest',
+    hasPassword: true,
+    emailVerified: true,
   };
   next();
 }

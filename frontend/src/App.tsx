@@ -375,13 +375,16 @@ const App: React.FC = () => {
   const [checking, setChecking] = useState(true);
   const [logoutError, setLogoutError] = useState('');
   const [viewMode, setViewMode] = useState<'landing' | 'auth' | 'app'>('landing');
-  const [authInitialMode, setAuthInitialMode] = useState<'login' | 'register' | 'forgot' | 'reset'>('login');
+  const [authInitialMode, setAuthInitialMode] = useState<'login' | 'register' | 'forgot' | 'reset' | 'verify'>('login');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const path = window.location.pathname.replace(/\/$/, '');
-      if (params.has('token') || path === '/reset-password') {
+      if (path === '/verify-email' || path === '/verify') {
+        setAuthInitialMode('verify');
+        setViewMode('auth');
+      } else if (params.has('token') || path === '/reset-password') {
         setAuthInitialMode('reset');
         setViewMode('auth');
       } else if (path === '/forgot-password' || path === '/forgot') {
@@ -396,10 +399,10 @@ const App: React.FC = () => {
     api.getCurrentUser().then(({ user: currentUser }) => {
       if (active && currentUser) {
         setUser(currentUser);
-        // Only override to app if not explicitly visiting password reset
+        // Only override to app if not explicitly visiting password reset or verification
         const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
         const path = typeof window !== 'undefined' ? window.location.pathname.replace(/\/$/, '') : '';
-        if (!params?.has('token') && path !== '/reset-password') {
+        if (!params?.has('token') && path !== '/reset-password' && path !== '/verify-email' && path !== '/verify') {
           setViewMode('app');
         }
       }
