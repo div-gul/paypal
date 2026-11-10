@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { useShopPilot } from '../context/ShopPilotContext';
 import { api } from '../api/client';
+import { useDeliveryAddresses, formatDeliveryAddress } from '../context/DeliveryAddressContext';
+import { DeliveryAddressFormDialog } from './DeliveryAddressManager';
 import { formatPaise } from '../services/currency';
 import { Button } from './ui/Button';
 import { ProductImage } from './ui/ProductImage';
@@ -18,6 +20,8 @@ import {
   ExternalLink,
   ShieldCheck,
   Info,
+  MapPin,
+  Plus,
 } from 'lucide-react';
 
 interface PayPalButtons {
@@ -67,7 +71,10 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
   const [isPreparing, setIsPreparing] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [qrImage, setQrImage] = useState<string | null>(null);
+  const [showAddressForm, setShowAddressForm] = useState(false);
   const paypalButtonContainer = useRef<HTMLDivElement>(null);
+  const orderAddressKeyRef = useRef('');
+  const { addresses, selectedAddress, select } = useDeliveryAddresses();
   const strategyRef = useRef(checkoutModal.strategy);
   strategyRef.current = checkoutModal.strategy;
 
@@ -95,14 +102,21 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
 
   // Create or recover a persistent server-side PayPal order
   useEffect(() => {
-    if (!checkoutModal.isOpen || !isPayPal || !strategy || !runId || orderId || paymentState === 'CAPTURED' || checkoutItemCount === 0) return;
+    if (!checkoutModal.isOpen) {
+      orderAddressKeyRef.current = '';
+      return;
+    }
+    if (!isPayPal || !strategy || !runId || !selectedAddress || paymentState === 'CAPTURED' || checkoutItemCount === 0) return;
+    const addressKey = `${runId}:${selectedAddress.id}`;
+    if (orderAddressKeyRef.current === addressKey) return;
+    orderAddressKeyRef.current = addressKey;
     let cancelled = false;
     setIsPreparing(true);
-    createPayPalOrder(runId, strategy)
+    createPayPalOrder(runId, strategy, selectedAddress.id)
       .catch(error => { if (!cancelled) setErrorMessage(error.message || 'Could not create PayPal order.'); })
       .finally(() => { if (!cancelled) setIsPreparing(false); });
     return () => { cancelled = true; };
-  }, [checkoutModal.isOpen, isPayPal, strategy, runId, orderId, paymentState, checkoutItemCount, createPayPalOrder]);
+  }, [checkoutModal.isOpen, isPayPal, strategy, runId, paymentState, checkoutItemCount, createPayPalOrder, selectedAddress?.id]);
 
   useEffect(() => {
     if (!approvalUrl || !isPayPal) {
@@ -172,11 +186,15 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
   if (!checkoutModal.isOpen || !strategy) return null;
 
   const handleMockPayment = async () => {
+    if (!selectedAddress) {
+      setErrorMessage('Add a delivery address before checkout.');
+      return;
+    }
     if (needsApproval) return;
     setIsPreparing(true);
     setErrorMessage(null);
     try {
-      await confirmMockPayment(strategy);
+      await confirmMockPayment(strategy, selectedAddress.id);
     } catch (error: any) {
       setErrorMessage(error.message || 'Mock checkout failed.');
     } finally {
@@ -185,6 +203,7 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
   };
 
   const handleRetry = () => {
+    orderAddressKeyRef.current = '';
     closeCheckoutModal();
     window.setTimeout(() => openCheckoutModal(strategy), 0);
   };
@@ -234,11 +253,12 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
               </div>
               <div>
                 <h3 className="text-lg font-bold text-ink font-heading">Payment Confirmed!</h3>
-                <p className="text-ink-muted text-xs mt-1">{isLive ? 'PayPal confirmed this live capture.' : 'PayPal Sandbox confirmed capture. No real money was moved.'}</p>
+                <p className="text-ink-muted text-xs mt-1">{isLive ? 'PayPal confirmed this live capture.' : 'PayPal Sandbox confirmed capture. No real money was moved.'} This confirms payment only; no physical grocery delivery was arranged.</p>
                 <div className="inline-block mt-2 bg-paper text-ink-muted px-3 py-1 rounded-lg tabular-nums font-semibold text-xs border border-secondary-tint">
-                  PayPal order {orderId} {checkoutModal.timestamp ? `• ${checkoutModal.timestamp}` : ''}
+                  Simulated order {orderId} {checkoutModal.orderCreatedAt ? `• ${new Date(checkoutModal.orderCreatedAt).toLocaleString('en-IN')}` : ''}
                 </div>
               </div>
+              {checkoutModal.deliveryAddress && <div className="rounded-xl border border-secondary-tint bg-surface p-3 text-left"><p className="flex items-center gap-2 text-xs font-bold text-ink"><MapPin className="h-4 w-4 text-brand" />Delivery address · {checkoutModal.deliveryAddress.label}</p><p className="mt-1 text-xs font-semibold text-ink">{checkoutModal.deliveryAddress.fullName} · {checkoutModal.deliveryAddress.mobileNumber}</p><p className="mt-1 text-xs leading-relaxed text-ink-muted">{formatDeliveryAddress(checkoutModal.deliveryAddress)}, {checkoutModal.deliveryAddress.country}</p></div>}
               <div className="bg-paper rounded-xl border border-secondary-tint p-4 text-left space-y-3 shadow-soft">
                 <div className="flex items-center gap-2 font-bold text-ink text-xs border-b border-secondary-tint pb-2">
                   <PackageCheck className="w-4 h-4 text-good" />
@@ -286,6 +306,15 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
                       ? 'Sandbox payment, no real money — test transaction only; no live funds will be charged.'
                       : 'Mock checkout mode — no live transaction will be processed.'}
                 </p>
+              </div>
+
+              <div className="rounded-xl border border-secondary-tint bg-surface p-3.5 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2"><p className="flex items-center gap-2 text-xs font-bold text-ink"><MapPin className="h-4 w-4 text-brand" />Delivery address</p>{!selectedAddress && <Button size="sm" variant="outline" onClick={() => setShowAddressForm(true)} icon={<Plus className="h-3.5 w-3.5" />}>Add address</Button>}</div>
+                {selectedAddress ? <>
+                  <label className="block text-[11px] font-medium text-ink-muted">Selected address<select aria-label="Select delivery address" value={selectedAddress.id} disabled={isPreparing} onChange={event => { void select(event.target.value).catch((error: any) => setErrorMessage(error.message || 'Could not change the address.')); }} className="mt-1 w-full rounded-lg border border-secondary-tint bg-paper px-3 py-2 text-xs text-ink min-h-[40px]">{addresses.map(address => <option key={address.id} value={address.id}>{address.label} · {address.city}, {address.state} {address.pinCode}</option>)}</select></label>
+                  <p className="text-xs text-ink-muted">{selectedAddress.fullName} · {selectedAddress.mobileNumber}<br />{formatDeliveryAddress(selectedAddress)}, India</p>
+                </> : <p className="text-xs text-ink-muted">Save an address to continue. You can enter any valid Indian PIN code; catalog prices remain simulated reference data.</p>}
+                <p className="text-[10px] leading-relaxed text-ink-muted">Product listings and prices are simulated demo data based on the Katraj, Pune reference catalog. Actual marketplace availability and delivery coverage are not verified.</p>
               </div>
 
               {needsApproval ? (
@@ -418,7 +447,7 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
                   {!providerConfig?.clientId && providerConfig && (
                     <p className="text-center text-xs text-danger">PayPal Client ID is missing. Set PAYPAL_CLIENT_ID in backend/.env.</p>
                   )}
-                  {orderId && <div ref={paypalButtonContainer} className={needsApproval ? 'pointer-events-none opacity-40' : ''} />}
+                  {orderId && selectedAddress && <div ref={paypalButtonContainer} className={needsApproval ? 'pointer-events-none opacity-40' : ''} />}
                   {approvalUrl && (
                     <div className="rounded-xl border border-secondary-tint bg-paper p-4 flex flex-col sm:flex-row items-center gap-4">
                       <div className="w-32 h-32 bg-surface border border-secondary-tint rounded-xl flex items-center justify-center shrink-0 shadow-soft">
@@ -467,7 +496,7 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
                   variant="primary"
                   size="md"
                   onClick={handleMockPayment}
-                  disabled={isPreparing || needsApproval}
+                  disabled={isPreparing || needsApproval || !selectedAddress}
                   className="w-full"
                 >
                   {isPreparing ? 'Processing mock checkout…' : 'Run mock checkout (no PayPal transaction)'}
@@ -477,6 +506,7 @@ export const CheckoutModal: React.FC<{ onNavigateToApprovals?: () => void }> = (
           )}
         </div>
       </div>
+      {showAddressForm && <DeliveryAddressFormDialog selectOnSave onClose={() => setShowAddressForm(false)} />}
     </div>
   );
 };

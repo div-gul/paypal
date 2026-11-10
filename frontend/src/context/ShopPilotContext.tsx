@@ -25,7 +25,7 @@ import {
   getSwapDecisionKey,
 } from '@shared/services/orderBucketService';
 import { advancePantryState } from '@shared/services/consumptionEngine';
-import { api, CatalogPantryQuantities, PlanRunOverrides } from '../api/client';
+import { api, CatalogPantryQuantities, DeliveryAddressSnapshot, PlanRunOverrides } from '../api/client';
 import { getFriendlyErrorMessage } from '../lib/errorHelper';
 
 interface CheckoutModalDetails {
@@ -39,6 +39,8 @@ interface CheckoutModalDetails {
   chargedAmount?: string;
   timestamp?: string;
   itemsPurchased?: BasketItem[];
+  deliveryAddress?: DeliveryAddressSnapshot | null;
+  orderCreatedAt?: string;
 }
 
 export interface ShopPilotContextType {
@@ -86,11 +88,11 @@ export interface ShopPilotContextType {
   openCheckoutModal: (strategy: BasketStrategyResult, runId?: string) => void;
   prepareUpcomingOrderCheckout: () => Promise<void>;
   closeCheckoutModal: () => void;
-  createPayPalOrder: (runId: string, strategy: BasketStrategyResult) => Promise<Awaited<ReturnType<typeof api.createCheckoutOrder>>>;
+  createPayPalOrder: (runId: string, strategy: BasketStrategyResult, addressId: string) => Promise<Awaited<ReturnType<typeof api.createCheckoutOrder>>>;
   capturePayPalOrder: (orderId: string, runId: string, strategy: BasketStrategyResult) => Promise<void>;
   getCheckoutStatus: (runId: string, strategy: BasketStrategyResult) => Promise<Awaited<ReturnType<typeof api.getCheckoutStatus>>>;
   cancelPayPalOrder: (runId: string, orderId?: string) => Promise<void>;
-  confirmMockPayment: (strategy: BasketStrategyResult) => Promise<void>;
+  confirmMockPayment: (strategy: BasketStrategyResult, addressId: string) => Promise<void>;
   resetToInitialDemo: () => Promise<void>;
   setShowDemoInfoModal: (show: boolean) => void;
   clearError: () => void;
@@ -767,8 +769,8 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode; userRole?:
     setCheckoutModal({ isOpen: false });
   }, []);
 
-  const createPayPalOrder = useCallback(async (runId: string, strategy: BasketStrategyResult) => {
-    const result = await api.createCheckoutOrder(runId);
+  const createPayPalOrder = useCallback(async (runId: string, strategy: BasketStrategyResult, addressId: string) => {
+    const result = await api.createCheckoutOrder(runId, addressId);
     const serverStrategy = result.run.selectedStrategyDetails || strategy;
     setCheckoutModal(previous => ({
       ...previous,
@@ -782,13 +784,15 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode; userRole?:
       paymentState: result.status === 'APPROVED' ? 'APPROVED' : 'PENDING',
       currency: result.currency,
       chargedAmount: result.chargedAmount,
+      deliveryAddress: result.run.addressSnapshot || null,
+      orderCreatedAt: result.run.createdAt,
     }));
     return result;
   }, []);
 
   const capturePayPalOrder = useCallback(
     async (orderId: string, runId: string, strategy: BasketStrategyResult) => {
-      await api.captureCheckoutOrder(orderId);
+      const result = await api.captureCheckoutOrder(orderId);
       setCheckoutModal(previous => ({
         ...previous,
         isOpen: true,
@@ -798,6 +802,8 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode; userRole?:
         paymentState: 'CAPTURED',
         timestamp: new Date().toLocaleTimeString(),
         itemsPurchased: strategy.storeBaskets.flatMap(basket => basket.items),
+        deliveryAddress: result.run.addressSnapshot || null,
+        orderCreatedAt: result.run.createdAt,
       }));
       upcomingCheckoutRunIdRef.current = null;
       await markUpcomingOrderPaid();
@@ -819,6 +825,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode; userRole?:
         paymentState: status.paymentState,
         currency: status.currency || previous.currency,
         chargedAmount: status.chargedAmount || previous.chargedAmount,
+        deliveryAddress: status.addressSnapshot || previous.deliveryAddress || null,
         ...(status.paymentState === 'CAPTURED' ? {
           timestamp: previous.timestamp || new Date().toLocaleTimeString(),
           itemsPurchased: strategy.storeBaskets.flatMap(basket => basket.items),
@@ -844,7 +851,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode; userRole?:
 
   // Explicit mock-only checkout for local development when PAYPAL_MODE=mock.
   const confirmMockPayment = useCallback(
-    async (strategy: BasketStrategyResult) => {
+    async (strategy: BasketStrategyResult, addressId: string) => {
       setIsLoading(true);
       try {
         let runId = activeRun?.id;
@@ -853,7 +860,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode; userRole?:
           runId = planRes.run.id;
         }
 
-        const orderRes = await api.createCheckoutOrder(runId);
+        const orderRes = await api.createCheckoutOrder(runId, addressId);
         await api.captureCheckoutOrder(orderRes.orderId);
 
         upcomingCheckoutRunIdRef.current = null;
@@ -871,6 +878,8 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode; userRole?:
           chargedAmount: orderRes.chargedAmount,
           timestamp: new Date().toLocaleTimeString(),
           itemsPurchased: allPurchasedItems,
+          deliveryAddress: orderRes.run.addressSnapshot || null,
+          orderCreatedAt: orderRes.run.createdAt,
         });
       } catch (err: any) {
         setError(getFriendlyErrorMessage(err));

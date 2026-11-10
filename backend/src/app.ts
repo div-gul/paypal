@@ -20,6 +20,7 @@ import { createAiRouter } from './routes/ai.js';
 import { authRouter } from './routes/auth.js';
 import { workspaceRouter } from './routes/workspace.js';
 import { productsRouter } from './routes/products.js';
+import { addressesRouter } from './routes/addresses.js';
 import { config } from './config.js';
 import { rateLimit, unauthenticatedApiRateLimit } from './middleware/rateLimit.js';
 
@@ -95,6 +96,7 @@ export function createApp(options: { testAuth?: boolean } = {}): Express {
   app.use('/api', auditRouter);
   app.use('/api', workspaceRouter);
   app.use('/api', productsRouter);
+  app.use('/api', addressesRouter);
   app.use('/api', checkoutRouter);
   app.use('/api/ai', createAiRouter());
 

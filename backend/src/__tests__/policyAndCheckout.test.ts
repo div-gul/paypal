@@ -113,8 +113,12 @@ describe('Phase 4: Policy Enforcement & Checkout Flow', () => {
       DELETE FROM policies;
       DELETE FROM sim_clock;
       DELETE FROM webhook_events;
+      DELETE FROM delivery_addresses;
     `);
     seedDatabase(db, 'demo-user');
+    db.prepare(`INSERT INTO delivery_addresses (id, user_id, full_name, mobile_number, house_building, street_locality, landmark, city, state, pin_code, country, label, is_default, created_at, updated_at)
+      VALUES ('test-address', 'demo-user', 'Demo User', '9876543210', 'Flat 1', 'MG Road', '', 'Pune', 'Maharashtra', '411045', 'India', 'Home', 1, ?, ?)`)
+      .run(new Date().toISOString(), new Date().toISOString());
   });
 
   async function createPendingCheckout() {
@@ -125,7 +129,7 @@ describe('Phase 4: Policy Enforcement & Checkout Flow', () => {
     }
     const orderResponse = await fetch(`${baseUrl}/api/checkout/create-order`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ runId: plan.run.id }),
+      body: JSON.stringify({ runId: plan.run.id, addressId: 'test-address' }),
     });
     return { runId: plan.run.id, order: await orderResponse.json() as any };
   }
@@ -304,7 +308,7 @@ describe('Phase 4: Policy Enforcement & Checkout Flow', () => {
         const orderRes = await fetch(`${baseUrl}/api/checkout/create-order`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ runId }),
+          body: JSON.stringify({ runId, addressId: 'test-address' }),
         });
 
         expect(orderRes.status).toBe(403);
@@ -318,7 +322,7 @@ describe('Phase 4: Policy Enforcement & Checkout Flow', () => {
       getDatabase().prepare('UPDATE policies SET blocked_categories = ? WHERE user_id = ?').run('["Dairy"]', 'demo-user');
       const response = await fetch(`${baseUrl}/api/checkout/create-order`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ runId }),
+        body: JSON.stringify({ runId, addressId: 'test-address' }),
       });
       expect(response.status).toBe(403);
       expect((await response.json() as any).error.code).toBe('POLICY_VIOLATION_BLOCKED');
@@ -381,7 +385,7 @@ describe('Phase 4: Policy Enforcement & Checkout Flow', () => {
       const createOrderRes = await fetch(`${baseUrl}/api/checkout/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ runId }),
+        body: JSON.stringify({ runId, addressId: 'test-address' }),
       });
       expect(createOrderRes.status).toBe(200);
       const orderData: any = await createOrderRes.json();

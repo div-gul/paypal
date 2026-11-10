@@ -77,12 +77,18 @@ The backend stores and serves a curated static demo catalog in SQLite for **Katr
 
 The **Browse Products** view lets users search the catalog and filter by category or platform. Offers are grouped into unique product cards; adding one opens the pantry quantity dialog and saves it to that user's pantry. New accounts still start with an empty pantry. Prices do not represent verified current offers or stock.
 
+### Delivery addresses and simulated orders
+
+Users can save, edit, delete, and select multiple India delivery addresses, with one default address per account. Manual entry works without location access. **Use my current location** requests browser permission only after a click, then asks the backend to look up an approximate address through OpenStreetMap Nominatim; the returned fields remain editable, and raw coordinates are not stored. The public geocoder may be unavailable or imprecise, so manual entry remains available.
+
+Checkout requires a selected saved address, which is attached to the existing simulated order and saved as an order-time snapshot. Later edits or deletion of the address do not change the historical order. PayPal Sandbox still handles the payment test; a successful payment does not place a grocery order or arrange physical delivery. Any valid Indian PIN code is accepted and does not affect access to the catalog, Shopping Agent, or checkout. Catalog prices remain illustrative Katraj, Pune – 411046 reference data; marketplace availability and delivery coverage are not verified.
+
 ## Architecture
 
 ```mermaid
 flowchart TD
     subgraph Browser ["Browser Client"]
-        UI["React SPA (Home, Approvals, Pantry, Browse Products)"]
+        UI["React SPA (Home, Approvals, Pantry, Browse Products, Addresses)"]
         Context["ShopPilot Context & Polling"]
         SDK["PayPal JS SDK & QR Display"]
     end
@@ -251,6 +257,12 @@ Configured in [`backend/src/config.ts`](backend/src/config.ts):
 | `GET` | `/api/pantry` | Session | List household pantry items. |
 | `POST` | `/api/pantry` | Session | Add new pantry staple with burn rate. |
 | `POST` | `/api/pantry/from-catalog/:productId` | Session | Add a catalog product to the current user's pantry using submitted quantity settings. |
+| `GET` | `/api/addresses` | Session | List the current user's saved delivery addresses. |
+| `POST` | `/api/addresses` | Session | Add an India delivery address; the first address becomes the default. |
+| `PUT` | `/api/addresses/:id` | Session | Edit an address owned by the current user. |
+| `DELETE` | `/api/addresses/:id` | Session | Delete an owned address; choose a remaining address as default if needed. |
+| `POST` | `/api/addresses/:id/default` | Session | Select an owned address as the default for future checkout. |
+| `POST` | `/api/addresses/reverse-geocode` | Session | Request an approximate address from OpenStreetMap Nominatim using coordinates supplied after explicit browser consent. |
 | `PUT` | `/api/pantry/:id` | Session | Update stock quantity or consumption rate. |
 | `DELETE` | `/api/pantry/:id` | Session | Remove staple from pantry. |
 | `GET` | `/api/policy` | Session | Get restocking rules and spending caps. |
@@ -297,6 +309,7 @@ Security controls implemented in code:
 
 - **Cookie sessions**: 7-day session tokens stored as SHA-256 hashes in SQLite; cookies use `HttpOnly`, `SameSite=Lax`, and `Secure` in production ([`backend/src/middleware/auth.ts`](backend/src/middleware/auth.ts)).
 - **User isolation**: All queries partition records strictly by authenticated user ID ([`backend/src/repositories/`](backend/src/repositories/)).
+- **Delivery address ownership**: Address routes scope every read and write to the authenticated session; order-time address snapshots are stored with the user-scoped run.
 - **Atomic settlement**: Payment capture, settled receipt generation, pantry replenishment, and audit logging execute inside a single SQLite transaction ([`backend/src/services/payment/PaymentService.ts`](backend/src/services/payment/PaymentService.ts)).
 - **Request throttling**: In-memory rate limits on auth routes, checkout creation (10/hr), AI endpoints (10/min), and unauthenticated traffic ([`backend/src/middleware/rateLimit.ts`](backend/src/middleware/rateLimit.ts)).
 - **Origin verification**: State-changing requests validate `Origin` against `PUBLIC_APP_URL` / `APP_BASE_URL` ([`backend/src/app.ts`](backend/src/app.ts)).
@@ -319,8 +332,8 @@ paypal/
 │   └── src/__tests__/        # Backend Vitest automated test suites
 ├── frontend/                 # React 19 single-page application
 │   ├── src/api/              # HTTP client and error handlers
-│   ├── src/components/       # UI views (Home, Approvals, Pantry, Browse Products, CheckoutModal)
-│   ├── src/context/          # Application state provider and recovery polling
+│   ├── src/components/       # UI views (Home, Approvals, Pantry, Browse Products, Delivery Addresses, CheckoutModal)
+│   ├── src/context/          # Application state, saved address, and recovery polling
 │   └── src/tests/            # Autonomous verification test suite
 ├── shared/                   # Pure business logic shared across client and server
 │   ├── adapters/             # Quick-commerce store adapters (Blinkit, Zepto, Instamart)

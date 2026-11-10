@@ -1,5 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useShopPilot } from '../context/ShopPilotContext';
+import { api } from '../api/client';
+import { formatDeliveryAddress } from '../context/DeliveryAddressContext';
+import { formatPaise } from '../services/currency';
 import { Card, Badge, EmptyState } from './ui';
 import {
   Activity,
@@ -13,6 +16,8 @@ import {
 
 export const ActivityView: React.FC = () => {
   const { activityLog } = useShopPilot();
+  const [orders, setOrders] = useState<any[]>([]);
+  useEffect(() => { void api.getRuns(50).then(result => setOrders(result.runs)).catch(() => setOrders([])); }, []);
 
   const getEventIcon = (type: string) => {
     switch (type) {
@@ -105,6 +110,20 @@ export const ActivityView: React.FC = () => {
           })}
         </Card>
       )}
+      <section className="space-y-3" aria-labelledby="simulated-order-history-heading">
+        <div><h2 id="simulated-order-history-heading" className="text-xl font-bold text-ink">Simulated order history</h2><p className="mt-1 text-xs text-ink-muted">Payment records and the address snapshot saved with each checkout. No physical delivery is arranged.</p></div>
+        {orders.length === 0 ? <Card className="p-5 text-sm text-ink-muted">No simulated orders yet.</Card> : <div className="space-y-3">{orders.map(order => {
+          const lineItems = order.selectedStrategyDetails?.storeBaskets?.flatMap((basket: any) => basket.items || []) || [];
+          const snapshot = order.addressSnapshot;
+          const created = new Date(order.createdAt);
+          return <Card key={order.id} className="space-y-3">
+            <div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="text-sm font-bold text-ink">Order {order.orderId || order.id}</h3><p className="mt-1 text-[11px] text-ink-muted">{Number.isNaN(created.getTime()) ? order.createdAt : created.toLocaleString('en-IN')}</p></div><Badge variant={order.paymentState === 'CAPTURED' ? 'success' : order.status === 'blocked' ? 'danger' : 'neutral'}>{order.paymentState === 'CAPTURED' ? 'Simulated payment complete' : `Simulated ${String(order.status).replace(/_/g, ' ')}`}</Badge></div>
+            {lineItems.length > 0 && <div className="space-y-1 border-t border-secondary-tint pt-2">{lineItems.map((item: any, index: number) => <div key={`${item.product?.id || item.product?.name || 'item'}-${index}`} className="flex justify-between gap-3 text-xs"><span className="text-ink-muted">{item.quantity} × {item.product?.name || item.productName || 'Grocery item'}</span><span className="shrink-0 font-medium text-ink">{formatPaise(item.totalPaise || 0)}</span></div>)}</div>}
+            <div className="flex justify-between border-t border-secondary-tint pt-2 text-xs"><span className="text-ink-muted">Final simulated total</span><strong className="text-ink">{formatPaise(order.grandTotalPaise || 0)}</strong></div>
+            <div className="rounded-lg bg-paper p-3 text-xs"><p className="font-semibold text-ink">Address used for this order</p>{snapshot ? <p className="mt-1 text-ink-muted">{snapshot.fullName} · {snapshot.mobileNumber}<br />{formatDeliveryAddress(snapshot)}, {snapshot.country}</p> : <p className="mt-1 text-ink-muted">No address snapshot was recorded for this older order.</p>}</div>
+          </Card>;
+        })}</div>}
+      </section>
     </div>
   );
 };

@@ -2,6 +2,20 @@ import Database from 'better-sqlite3';
 import { BasketStrategyResult, BasketStrategyType } from '@shared/types';
 import type { PaymentState } from '../services/payment/PaymentProvider.js';
 
+export interface DeliveryAddressSnapshot {
+  addressId: string;
+  fullName: string;
+  mobileNumber: string;
+  houseBuilding: string;
+  streetLocality: string;
+  landmark: string;
+  city: string;
+  state: string;
+  pinCode: string;
+  country: 'India';
+  label: 'Home' | 'Work' | 'Other';
+}
+
 export type RunStatus =
   | 'planned'
   | 'needs_approval'
@@ -34,6 +48,7 @@ export interface RunRecord {
   paymentCurrency?: string | null;
   paypalCaptureId?: string | null;
   paymentDetails?: string | null;
+  addressSnapshot: DeliveryAddressSnapshot | null;
   simulatedDate: string;
   createdAt: string;
   updatedAt: string;
@@ -60,6 +75,7 @@ interface RunRow {
   payment_currency?: string | null;
   paypal_capture_id?: string | null;
   payment_details?: string | null;
+  address_snapshot_json?: string | null;
   simulated_date: string;
   created_at: string;
   updated_at: string;
@@ -87,6 +103,11 @@ function rowToRun(row: RunRow): RunRecord {
     allStrategies = null;
   }
 
+  let addressSnapshot: DeliveryAddressSnapshot | null = null;
+  try {
+    addressSnapshot = row.address_snapshot_json ? JSON.parse(row.address_snapshot_json) : null;
+  } catch { addressSnapshot = null; }
+
   return {
     id: row.id,
     userId: row.user_id,
@@ -108,6 +129,7 @@ function rowToRun(row: RunRow): RunRecord {
     paymentCurrency: row.payment_currency || null,
     paypalCaptureId: row.paypal_capture_id || null,
     paymentDetails: row.payment_details || null,
+    addressSnapshot,
     simulatedDate: row.simulated_date,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -225,20 +247,29 @@ export class RunRepository {
     approvalUrl?: string;
     amount?: string;
     currency?: string;
+    addressSnapshot?: DeliveryAddressSnapshot;
   }): RunRecord {
     const now = new Date().toISOString();
     const stmt = this.db.prepare(`
       UPDATE runs
       SET order_id = ?, status = 'payment_pending', payment_state = 'PENDING',
           paypal_approval_url = ?, payment_amount = ?, payment_currency = ?,
-          paypal_capture_id = NULL, payment_details = NULL, updated_at = ?
+          paypal_capture_id = NULL, payment_details = NULL, address_snapshot_json = ?, updated_at = ?
       WHERE user_id = ? AND id = ?
       RETURNING *
     `);
-    const row = stmt.get(payment.orderId, payment.approvalUrl || null, payment.amount || null, payment.currency || null, now, userId, id) as RunRow | undefined;
+    const row = stmt.get(payment.orderId, payment.approvalUrl || null, payment.amount || null, payment.currency || null,
+      payment.addressSnapshot ? JSON.stringify(payment.addressSnapshot) : null, now, userId, id) as RunRow | undefined;
     if (!row) {
       throw new Error(`Run ${id} not found for user ${userId}`);
     }
+    return rowToRun(row);
+  }
+
+  setAddressSnapshot(userId: string, id: string, snapshot: DeliveryAddressSnapshot): RunRecord {
+    const row = this.db.prepare('UPDATE runs SET address_snapshot_json = ?, updated_at = ? WHERE user_id = ? AND id = ? RETURNING *')
+      .get(JSON.stringify(snapshot), new Date().toISOString(), userId, id) as RunRow | undefined;
+    if (!row) throw new Error(`Run ${id} not found for user ${userId}`);
     return rowToRun(row);
   }
 

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useShopPilot } from '../context/ShopPilotContext';
-import { Bot, Sliders, Info, CheckCircle2, AlertTriangle, LogOut, Sparkles } from 'lucide-react';
+import { useDeliveryAddresses } from '../context/DeliveryAddressContext';
+import { Bot, Sliders, Info, CheckCircle2, AlertTriangle, LogOut, Sparkles, MapPin, ChevronDown, Plus } from 'lucide-react';
 import { Button } from './ui/Button';
 
 export interface HeaderProps {
@@ -9,10 +10,13 @@ export interface HeaderProps {
   onLogout: () => void;
   onOpenLanding?: () => void;
   onOpenProfile?: () => void;
+  onOpenAddresses?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onOpenDemoDrawer, user, onLogout, onOpenLanding, onOpenProfile }) => {
+export const Header: React.FC<HeaderProps> = ({ onOpenDemoDrawer, user, onLogout, onOpenLanding, onOpenProfile, onOpenAddresses }) => {
   const { simulationState, activeRun, recommendations, setShowDemoInfoModal, isLoading } = useShopPilot();
+  const { addresses, selectedAddress, select } = useDeliveryAddresses();
+  const [isAddressMenuOpen, setIsAddressMenuOpen] = useState(false);
 
   // Pending approvals counter
   const pendingApprovalsCount =
@@ -154,6 +158,23 @@ export const Header: React.FC<HeaderProps> = ({ onOpenDemoDrawer, user, onLogout
           >
             <Info className="w-4 h-4" />
           </button>
+        </div>
+      </div>
+      <div className="border-t border-secondary-tint/70">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-1.5">
+          <button type="button" onClick={() => setIsAddressMenuOpen(open => !open)} aria-expanded={isAddressMenuOpen} className="mx-auto flex min-h-[36px] max-w-full items-center gap-2 rounded-lg px-2 text-left text-xs text-ink hover:bg-secondary-tint/40">
+            <MapPin className="h-4 w-4 shrink-0 text-brand" />
+            <span className="text-ink-muted">Delivering to</span>
+            <span className="max-w-[58vw] truncate font-semibold text-ink">{selectedAddress ? `${selectedAddress.city}, ${selectedAddress.state} · ${selectedAddress.pinCode}` : 'Add delivery address'}</span>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-ink-muted" />
+          </button>
+          {isAddressMenuOpen && <div className="absolute left-1/2 top-full z-50 mt-1 w-[min(24rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-secondary-tint bg-surface p-2 shadow-card">
+            {addresses.map(address => <button key={address.id} type="button" onClick={() => void select(address.id).then(() => setIsAddressMenuOpen(false)).catch(error => console.warn('Address selection could not be saved:', error))} className="flex w-full items-start justify-between gap-3 rounded-lg p-3 text-left hover:bg-paper">
+              <span className="min-w-0"><span className="block truncate text-xs font-semibold text-ink">{address.label} · {address.fullName}</span><span className="mt-0.5 block truncate text-[11px] text-ink-muted">{address.city}, {address.state} {address.pinCode}</span></span>
+              {address.isDefault && <span className="text-[10px] font-semibold text-good">Selected</span>}
+            </button>)}
+            <button type="button" onClick={() => { setIsAddressMenuOpen(false); onOpenAddresses?.(); }} className="mt-1 flex w-full items-center gap-2 rounded-lg border-t border-secondary-tint px-3 py-3 text-left text-xs font-semibold text-brand hover:bg-paper"><Plus className="h-4 w-4" />{addresses.length ? 'Manage addresses' : 'Add delivery address'}</button>
+          </div>}
         </div>
       </div>
     </header>

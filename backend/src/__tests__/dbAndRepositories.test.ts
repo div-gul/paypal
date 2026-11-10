@@ -7,6 +7,7 @@ import { runMigrations } from '../db/migrate.js';
 import { seedDatabase } from '../db/seed.js';
 import { RunService } from '../services/RunService.js';
 import { PaymentService } from '../services/payment/PaymentService.js';
+import { DeliveryAddressRepository } from '../repositories/DeliveryAddressRepository.js';
 import {
   UserRepository,
   SimClockRepository,
@@ -48,6 +49,7 @@ describe('Phase 2: Database Schema, Seed, and Repositories', () => {
       'runs',
       'run_items',
       'receipts',
+      'delivery_addresses',
       'approvals',
       'audit_log',
       'webhook_events',
@@ -271,6 +273,11 @@ describe('Phase 2: Database Schema, Seed, and Repositories', () => {
       const runService = new RunService(freshDb);
       const paymentService = new PaymentService(freshDb);
       const receiptRepo = new ReceiptRepository(freshDb);
+      const deliveryAddress = new DeliveryAddressRepository(freshDb).create('demo-user', 'test-address', {
+        fullName: 'Demo User', mobileNumber: '9876543210', houseBuilding: 'Flat 4',
+        streetLocality: 'MG Road', landmark: '', city: 'Pune', state: 'Maharashtra',
+        pinCode: '411045', label: 'Home', isDefault: true,
+      });
 
       // Plan run
       const plan = await runService.planRun('demo-user');
@@ -281,9 +288,23 @@ describe('Phase 2: Database Schema, Seed, and Repositories', () => {
       expect(approved.status).toBe('approved');
 
       // Create checkout order
-      const order = await paymentService.createCheckoutOrder('demo-user', plan.run.id);
+      const order = await paymentService.createCheckoutOrder('demo-user', plan.run.id, deliveryAddress.id);
       expect(order.orderId).toBeDefined();
       expect(order.provider).toBe('mock');
+      expect(order.run.addressSnapshot?.pinCode).toBe('411045');
+      new DeliveryAddressRepository(freshDb).delete('demo-user', deliveryAddress.id);
+      expect(new RunRepository(freshDb).getById('demo-user', plan.run.id)?.addressSnapshot?.city).toBe('Pune');
+
+      const changedAddress = new DeliveryAddressRepository(freshDb).create('demo-user', 'test-address-2', {
+        fullName: 'Demo User', mobileNumber: '9876543210', houseBuilding: 'Flat 9',
+        streetLocality: 'Park Street', landmark: '', city: 'Kolkata', state: 'West Bengal',
+        pinCode: '700016', label: 'Work', isDefault: true,
+      });
+      const updatedOrder = await paymentService.createCheckoutOrder('demo-user', plan.run.id, changedAddress.id);
+      expect(updatedOrder.orderId).toBe(order.orderId);
+      expect(updatedOrder.run.addressSnapshot?.city).toBe('Kolkata');
+      new DeliveryAddressRepository(freshDb).delete('demo-user', changedAddress.id);
+      expect(new RunRepository(freshDb).getById('demo-user', plan.run.id)?.addressSnapshot?.city).toBe('Kolkata');
 
       // Capture checkout order
       const capture = await paymentService.captureCheckoutOrder('demo-user', order.orderId);

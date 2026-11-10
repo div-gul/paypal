@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ShopPilotProvider, useShopPilot } from './context/ShopPilotContext';
+import { DeliveryAddressProvider } from './context/DeliveryAddressContext';
 import { Header } from './components/Header';
 import { HomeView } from './components/HomeView';
 import { ApprovalsView } from './components/ApprovalsView';
@@ -98,6 +99,7 @@ const MainLayout: React.FC<{
         onLogout={onLogout}
         onOpenLanding={onOpenLanding}
         onOpenProfile={() => setActiveTab('profile')}
+        onOpenAddresses={() => setActiveTab('settings')}
       />
       {logoutError && <div role="alert" className="mx-auto mt-3 w-full max-w-7xl px-4 text-sm text-danger">{logoutError}</div>}
 
@@ -500,14 +502,16 @@ const App: React.FC = () => {
 
   return (
     <ShopPilotProvider key={user.id} userRole={user.role}>
-      <MainLayout
-        user={user}
-        logoutError={logoutError}
-        onLogout={() => { void logout(); }}
-        onOpenLanding={() => setViewMode('landing')}
-        onUserUpdated={setUser}
-        onAccountDeleted={handleAccountDeleted}
-      />
+      <DeliveryAddressProvider>
+        <MainLayout
+          user={user}
+          logoutError={logoutError}
+          onLogout={() => { void logout(); }}
+          onOpenLanding={() => setViewMode('landing')}
+          onUserUpdated={setUser}
+          onAccountDeleted={handleAccountDeleted}
+        />
+      </DeliveryAddressProvider>
     </ShopPilotProvider>
   );
 };

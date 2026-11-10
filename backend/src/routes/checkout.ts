@@ -9,6 +9,7 @@ export const checkoutRouter = Router();
 
 const CreateOrderSchema = z.object({
   runId: z.string().min(1),
+  addressId: z.string().min(1),
 }).strict();
 
 const CaptureOrderSchema = z.object({
@@ -31,9 +32,9 @@ checkoutRouter.get('/checkout/config', (_req: Request, res: Response) => {
 
 checkoutRouter.post('/checkout/create-order', rateLimit({ windowMs: 60 * 60 * 1000, max: 10 }, 'checkout-create'), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { runId } = CreateOrderSchema.parse(req.body);
+    const { runId, addressId } = CreateOrderSchema.parse(req.body);
     const paymentService = new PaymentService(getDatabase());
-    const result = await paymentService.createCheckoutOrder(req.user!.id, runId);
+    const result = await paymentService.createCheckoutOrder(req.user!.id, runId, addressId);
     res.json(result);
   } catch (err) {
     next(err);

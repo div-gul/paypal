@@ -94,6 +94,22 @@ export interface CatalogPantryQuantities {
   allowFractions?: boolean;
 }
 
+export type AddressLabel = 'Home' | 'Work' | 'Other';
+
+export interface DeliveryAddress {
+  id: string; userId: string; fullName: string; mobileNumber: string; houseBuilding: string;
+  streetLocality: string; landmark: string; city: string; state: string; pinCode: string;
+  country: 'India'; label: AddressLabel; isDefault: boolean; createdAt: string; updatedAt: string;
+}
+
+export type DeliveryAddressInput = Omit<DeliveryAddress, 'id' | 'userId' | 'country' | 'isDefault' | 'createdAt' | 'updatedAt'> & { isDefault?: boolean };
+
+export interface DeliveryAddressSnapshot {
+  addressId: string; fullName: string; mobileNumber: string; houseBuilding: string;
+  streetLocality: string; landmark: string; city: string; state: string; pinCode: string;
+  country: 'India'; label: AddressLabel;
+}
+
 export interface AiPolicyProposal {
   preferredShoppingDay?: number;
   shoppingFrequency?: 'weekly' | 'biweekly';
@@ -288,13 +304,26 @@ export const api = {
     request<{ run: any }>(`/runs/${encodeURIComponent(id)}/reject`, { method: 'POST' }),
 
   // Checkout & Payments
+  getDeliveryAddresses: () => request<{ addresses: DeliveryAddress[] }>('/addresses'),
+  createDeliveryAddress: (address: DeliveryAddressInput) => request<{ address: DeliveryAddress }>('/addresses', {
+    method: 'POST', body: JSON.stringify(address),
+  }),
+  updateDeliveryAddress: (id: string, address: DeliveryAddressInput) => request<{ address: DeliveryAddress }>(`/addresses/${encodeURIComponent(id)}`, {
+    method: 'PUT', body: JSON.stringify(address),
+  }),
+  deleteDeliveryAddress: (id: string) => request<{ success: boolean }>(`/addresses/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  setDefaultDeliveryAddress: (id: string) => request<{ address: DeliveryAddress }>(`/addresses/${encodeURIComponent(id)}/default`, { method: 'POST' }),
+  reverseGeocode: (latitude: number, longitude: number) => request<{
+    address: Pick<DeliveryAddressInput, 'houseBuilding' | 'streetLocality' | 'landmark' | 'city' | 'state' | 'pinCode'>;
+    provider: string; attribution: string;
+  }>('/addresses/reverse-geocode', { method: 'POST', body: JSON.stringify({ latitude, longitude }) }),
   getCheckoutConfig: () => request<{
     mode: 'mock' | 'sandbox' | 'live';
     clientId: string | null;
     currency: string;
     provider: 'mock' | 'paypal_sandbox' | 'paypal_live';
   }>('/checkout/config'),
-  createCheckoutOrder: (runId: string) =>
+  createCheckoutOrder: (runId: string, addressId: string) =>
     request<{
       orderId: string;
       approvalUrl?: string;
@@ -306,7 +335,7 @@ export const api = {
       run: any;
     }>('/checkout/create-order', {
       method: 'POST',
-      body: JSON.stringify({ runId }),
+      body: JSON.stringify({ runId, addressId }),
     }),
   captureCheckoutOrder: (orderId: string) =>
     request<{
@@ -325,6 +354,7 @@ export const api = {
       paymentState: 'PENDING' | 'APPROVED' | 'CAPTURED' | 'FAILED' | 'CANCELLED';
       approvalUrl?: string | null;
       receipt?: any;
+      addressSnapshot?: DeliveryAddressSnapshot | null;
       chargedAmount?: string;
       currency?: string;
     }>(`/checkout/status/${encodeURIComponent(runId)}`),

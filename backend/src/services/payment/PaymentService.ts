@@ -13,6 +13,8 @@ import { evaluatePolicy } from '@shared/policy';
 import { AppError } from '../../middleware/errorHandler.js';
 import { formatPaise } from '@shared/services/currency';
 import { config } from '../../config.js';
+import { DeliveryAddressRepository } from '../../repositories/DeliveryAddressRepository.js';
+import { DeliveryAddressSnapshot } from '../../repositories/RunRepository.js';
 
 export class PaymentService {
   private provider: IPaymentProvider;
@@ -39,9 +41,16 @@ export class PaymentService {
     return this.provider.providerId;
   }
 
-  async createCheckoutOrder(userId: string, runId: string): Promise<PaymentOrderResult & { run: RunRecord }> {
+  async createCheckoutOrder(userId: string, runId: string, addressId: string): Promise<PaymentOrderResult & { run: RunRecord }> {
     let run = this.runRepo.getById(userId, runId);
     if (!run) throw new AppError('RUN_NOT_FOUND', `Run "${runId}" not found`, 404);
+    const address = new DeliveryAddressRepository(this.db).get(userId, addressId);
+    if (!address) throw new AppError('DELIVERY_ADDRESS_REQUIRED', 'Choose a saved delivery address before checkout.', 400);
+    const addressSnapshot: DeliveryAddressSnapshot = {
+      addressId: address.id, fullName: address.fullName, mobileNumber: address.mobileNumber,
+      houseBuilding: address.houseBuilding, streetLocality: address.streetLocality, landmark: address.landmark,
+      city: address.city, state: address.state, pinCode: address.pinCode, country: 'India', label: address.label,
+    };
 
     // A checkout must have purchasable lines and a positive total. This also
     // catches old or inconsistent runs before returning a cached PayPal order.
@@ -73,6 +82,7 @@ export class PaymentService {
       if (run.status !== 'payment_pending') {
         throw new AppError('INVALID_STATE_TRANSITION', 'The existing checkout is not in a payable state.', 409);
       }
+      run = this.runRepo.setAddressSnapshot(userId, runId, addressSnapshot);
       return {
         orderId: run.orderId,
         approvalUrl: run.paypalApprovalUrl || undefined,
@@ -98,6 +108,7 @@ export class PaymentService {
       approvalUrl: orderResult.approvalUrl,
       amount: orderResult.chargedAmount || (orderResult.amountPaise / 100).toFixed(2),
       currency: orderResult.currency,
+      addressSnapshot,
     });
     return { ...orderResult, run };
   }
@@ -142,25 +153,25 @@ export class PaymentService {
     if (!run) throw new AppError('RUN_NOT_FOUND', `Run "${runId}" not found`, 404);
     const receipt = run.orderId ? this.receiptRepo.findByOrderId(userId, run.orderId) : null;
     if (receipt || run.paymentState === 'CAPTURED') {
-      return { runId, orderId: run.orderId, paymentState: 'CAPTURED' as const, approvalUrl: run.paypalApprovalUrl, receipt };
+      return { runId, orderId: run.orderId, paymentState: 'CAPTURED' as const, approvalUrl: run.paypalApprovalUrl, receipt, addressSnapshot: run.addressSnapshot };
     }
     if (!run.orderId) {
-      return { runId, orderId: null, paymentState: run.paymentState, approvalUrl: null, receipt: null };
+      return { runId, orderId: null, paymentState: run.paymentState, approvalUrl: null, receipt: null, addressSnapshot: run.addressSnapshot };
     }
 
     if (this.provider.providerId === 'mock') {
-      return { runId, orderId: run.orderId, paymentState: run.paymentState, approvalUrl: run.paypalApprovalUrl, receipt: null };
+      return { runId, orderId: run.orderId, paymentState: run.paymentState, approvalUrl: run.paypalApprovalUrl, receipt: null, addressSnapshot: run.addressSnapshot };
     }
 
     const paypal = await this.provider.getOrderStatus(run.orderId, run);
     if (paypal.status === 'APPROVED') {
       this.runRepo.setPaymentState(userId, run.id, 'APPROVED');
       const captured = await this.captureCheckoutOrder(userId, run.orderId);
-      return { runId, orderId: run.orderId, paymentState: 'CAPTURED' as const, approvalUrl: run.paypalApprovalUrl, receipt: captured.receipt };
+      return { runId, orderId: run.orderId, paymentState: 'CAPTURED' as const, approvalUrl: run.paypalApprovalUrl, receipt: captured.receipt, addressSnapshot: run.addressSnapshot };
     }
     if (paypal.status === 'COMPLETED' && paypal.capture) {
       const captured = await this.finalizeCapture(userId, run, paypal.capture);
-      return { runId, orderId: run.orderId, paymentState: 'CAPTURED' as const, approvalUrl: run.paypalApprovalUrl, receipt: captured.receipt };
+      return { runId, orderId: run.orderId, paymentState: 'CAPTURED' as const, approvalUrl: run.paypalApprovalUrl, receipt: captured.receipt, addressSnapshot: run.addressSnapshot };
     }
     if (paypal.status === 'VOIDED') this.runRepo.setPaymentState(userId, run.id, 'CANCELLED');
     return {
@@ -169,6 +180,7 @@ export class PaymentService {
       paymentState: paypal.status === 'VOIDED' ? 'CANCELLED' as const : run.paymentState,
       approvalUrl: run.paypalApprovalUrl || paypal.approvalUrl,
       receipt: null,
+      addressSnapshot: run.addressSnapshot,
       chargedAmount: run.paymentAmount,
       currency: run.paymentCurrency,
     };

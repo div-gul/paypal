@@ -228,6 +228,28 @@ export function runMigrations(db: Database.Database): void {
     );
     CREATE INDEX IF NOT EXISTS idx_product_catalog_platform ON product_catalog(platform);
     CREATE INDEX IF NOT EXISTS idx_product_catalog_category ON product_catalog(category);
+
+    CREATE TABLE IF NOT EXISTS delivery_addresses (
+      id TEXT NOT NULL,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      full_name TEXT NOT NULL,
+      mobile_number TEXT NOT NULL,
+      house_building TEXT NOT NULL,
+      street_locality TEXT NOT NULL,
+      landmark TEXT NOT NULL DEFAULT '',
+      city TEXT NOT NULL,
+      state TEXT NOT NULL,
+      pin_code TEXT NOT NULL,
+      country TEXT NOT NULL DEFAULT 'India',
+      label TEXT NOT NULL DEFAULT 'Home' CHECK (label IN ('Home', 'Work', 'Other')),
+      is_default INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0, 1)),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_delivery_addresses_user ON delivery_addresses(user_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_delivery_addresses_one_default
+      ON delivery_addresses(user_id) WHERE is_default = 1;
   `);
 
   function addColumnIfNotExists(table: string, column: string, definition: string): void {
@@ -257,6 +279,7 @@ export function runMigrations(db: Database.Database): void {
   addColumnIfNotExists('runs', 'paypal_capture_id', 'TEXT');
   addColumnIfNotExists('runs', 'payment_details', 'TEXT');
   addColumnIfNotExists('runs', 'all_strategies', 'TEXT');
+  addColumnIfNotExists('runs', 'address_snapshot_json', 'TEXT');
 
   // Idempotent column additions for receipts
   addColumnIfNotExists('receipts', 'capture_id', 'TEXT');

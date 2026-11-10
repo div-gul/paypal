@@ -451,6 +451,12 @@ describe('cookie authentication, isolation, and guest simulation permissions', (
       }),
     });
 
+    const addressResponse = await fetch(`${baseUrl}/api/addresses`, {
+      method: 'POST', headers: { Cookie: reg.cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fullName: 'Export User', mobileNumber: '9876543210', houseBuilding: 'Flat 1', streetLocality: 'MG Road', landmark: '', city: 'Pune', state: 'Maharashtra', pinCode: '411045', label: 'Home' }),
+    });
+    expect(addressResponse.status).toBe(201);
+
     const exportRes = await fetch(`${baseUrl}/api/auth/export`, {
       headers: { Cookie: reg.cookie },
     });
@@ -463,6 +469,8 @@ describe('cookie authentication, isolation, and guest simulation permissions', (
     expect(Array.isArray(exportData.pantry)).toBe(true);
     expect(exportData.pantry.length).toBe(1);
     expect(exportData.pantry[0].name).toBe('Export Almond Milk');
+    expect(exportData.deliveryAddresses).toHaveLength(1);
+    expect(exportData.deliveryAddresses[0].pinCode).toBe('411045');
 
     // Verify sensitive properties are NOT leaked
     const serialized = JSON.stringify(exportData);

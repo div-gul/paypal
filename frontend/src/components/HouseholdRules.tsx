@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '../api/client';
+import { DeliveryAddressManager } from './DeliveryAddressManager';
 
 const DAYS_OF_WEEK = [
   'Sunday',
@@ -334,6 +335,8 @@ export const HouseholdRules: React.FC = () => {
           </label>
         </div>
       </Card>
+
+      <DeliveryAddressManager />
 
       {/* AI Proposal Review Modal */}
       {aiProposal && (

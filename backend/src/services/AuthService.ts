@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { createHash, randomBytes, scryptSync, timingSafeEqual, randomUUID } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { AppError } from '../middleware/errorHandler.js';
+import { DeliveryAddressRepository } from '../repositories/DeliveryAddressRepository.js';
 
 const SESSION_DAYS = 7;
 const GUEST_EMAIL = 'guest_paypal@example.com';
@@ -366,6 +367,7 @@ export class AuthService {
     if (!user) throw new AppError('NOT_FOUND', 'User not found.', 404);
 
     const pantry = this.db.prepare('SELECT * FROM pantry_items WHERE user_id = ?').all(userId);
+    const deliveryAddresses = new DeliveryAddressRepository(this.db).list(userId);
     const policy = this.db.prepare('SELECT * FROM policies WHERE user_id = ?').get(userId);
     const runs = this.db.prepare('SELECT * FROM runs WHERE user_id = ?').all(userId);
     const runItems = this.db.prepare('SELECT * FROM run_items WHERE user_id = ?').all(userId);
@@ -388,6 +390,7 @@ export class AuthService {
         updatedAt: user.updatedAt,
       },
       pantry,
+      deliveryAddresses,
       policy,
       runs: runs.map((run: any) => ({
         ...run,
