@@ -28,8 +28,14 @@ const ConfigSchema = z.object({
     value => typeof value === 'string' && value.trim() === '' ? undefined : value,
     z.coerce.number().positive().optional()
   ),
-  APP_BASE_URL: z.string().url().default('http://localhost:5173'),
-  PUBLIC_APP_URL: z.string().url().optional(),
+  APP_BASE_URL: z.preprocess(
+    value => (typeof value === 'string' && value.trim() !== '' ? value : process.env.RENDER_EXTERNAL_URL),
+    z.string().url().default('http://localhost:5173')
+  ),
+  PUBLIC_APP_URL: z.preprocess(
+    value => (typeof value === 'string' && value.trim() !== '' ? value : process.env.RENDER_EXTERNAL_URL),
+    z.string().url().optional()
+  ),
 
   // Google OAuth Configuration
   GOOGLE_CLIENT_ID: z.string().optional(),
