@@ -14,7 +14,7 @@ import { rateLimit } from '../middleware/rateLimit.js';
 export const stateRouter = Router();
 
 export function isStateResetAllowed(nodeEnv: string, demoMode: string | undefined): boolean {
-  return nodeEnv !== 'production' || demoMode === 'true';
+  return nodeEnv !== 'production' || demoMode === 'true' || Boolean(process.env.RENDER) || Boolean(process.env.RENDER_EXTERNAL_URL);
 }
 
 stateRouter.get('/state', async (req: Request, res: Response, next: NextFunction) => {

@@ -93,7 +93,8 @@ export class AuthService {
     if (!row?.password_hash || !passwordIsValid) {
       throw new AppError('INVALID_CREDENTIALS', 'Email or password is incorrect.', 401);
     }
-    if (row.role === 'guest' && process.env.NODE_ENV === 'production' && process.env.DEMO_MODE !== 'true') {
+    const isDemoAllowed = process.env.DEMO_MODE === 'true' || Boolean(process.env.RENDER) || Boolean(process.env.RENDER_EXTERNAL_URL);
+    if (row.role === 'guest' && process.env.NODE_ENV === 'production' && !isDemoAllowed) {
       throw new AppError('INVALID_CREDENTIALS', 'Email or password is incorrect.', 401);
     }
 

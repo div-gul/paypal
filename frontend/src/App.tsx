@@ -466,7 +466,12 @@ const App: React.FC = () => {
   if (viewMode === 'landing') {
     return (
       <LandingPage
-        onEnterDemo={() => {
+        onEnterDemo={(demoUser) => {
+          if (demoUser) {
+            setUser(demoUser);
+            setViewMode('app');
+            return;
+          }
           api.getCurrentUser().then(({ user: u }) => {
             setUser(u);
             setViewMode('app');

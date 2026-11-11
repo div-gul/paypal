@@ -11,7 +11,8 @@ const db = getDatabase();
 console.log('📦 Initializing SQLite database');
 runMigrations(db);
 seedProductCatalog(db);
-if (config.NODE_ENV !== 'production' || process.env.DEMO_MODE === 'true') {
+const isDemoAllowed = config.NODE_ENV !== 'production' || process.env.DEMO_MODE === 'true' || Boolean(process.env.RENDER) || Boolean(process.env.RENDER_EXTERNAL_URL);
+if (isDemoAllowed) {
   const guestAlreadySeeded = db.prepare('SELECT 1 FROM users WHERE LOWER(email) = ?').get('guest_paypal@example.com');
   if (!guestAlreadySeeded) seedDatabase(db);
   new AuthService(db).seedGuest();

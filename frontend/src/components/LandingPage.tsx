@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 
 interface LandingPageProps {
-  onEnterDemo: () => void;
+  onEnterDemo: (user?: any) => void;
   onOpenAuth: (mode?: 'login' | 'register' | 'forgot' | 'reset' | 'verify') => void;
 }
 
@@ -77,14 +77,20 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     setIsDemoLaunching(true);
     setDemoError('');
     try {
-      await api.login('guest_paypal@example.com', 'GUEST_paypal@1502');
-      onEnterDemo();
-    } catch {
+      const res = await api.login('guest_paypal@example.com', 'GUEST_paypal@1502');
+      onEnterDemo(res.user);
+    } catch (err: any) {
+      console.error('Demo launch error:', err);
       try {
-        onEnterDemo();
-      } catch (err: any) {
-        setDemoError(err?.message || 'Could not launch demo. Please try logging in manually.');
+        const me = await api.getCurrentUser();
+        if (me?.user) {
+          onEnterDemo(me.user);
+          return;
+        }
+      } catch {
+        // ignore
       }
+      setDemoError(err?.message || 'Could not launch demo. Please try logging in manually.');
     } finally {
       setIsDemoLaunching(false);
     }

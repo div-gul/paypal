@@ -39,7 +39,8 @@ function resolveSessionUser(req: Request): AuthenticatedUser | undefined {
     FROM auth_sessions s JOIN users u ON u.id = s.user_id
     WHERE s.token_hash = ? AND s.expires_at > ?
   `).get(tokenHash, new Date().toISOString()) as any;
-  if (!row || (row.role === 'guest' && process.env.NODE_ENV === 'production' && process.env.DEMO_MODE !== 'true')) return undefined;
+  const isDemoAllowed = process.env.DEMO_MODE === 'true' || Boolean(process.env.RENDER) || Boolean(process.env.RENDER_EXTERNAL_URL);
+  if (!row || (row.role === 'guest' && process.env.NODE_ENV === 'production' && !isDemoAllowed)) return undefined;
   return {
     id: row.id,
     name: row.name,
