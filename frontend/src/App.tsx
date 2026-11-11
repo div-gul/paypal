@@ -466,7 +466,6 @@ const App: React.FC = () => {
   if (viewMode === 'landing') {
     return (
       <LandingPage
-        currentUser={user}
         onEnterDemo={() => {
           api.getCurrentUser().then(({ user: u }) => {
             setUser(u);
@@ -477,7 +476,6 @@ const App: React.FC = () => {
           setAuthInitialMode(mode || 'login');
           setViewMode('auth');
         }}
-        onGoToApp={() => setViewMode('app')}
       />
     );
   }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AuthUser, api } from '../api/client';
+import { api } from '../api/client';
 import {
   ArrowRight,
   ArrowLeft,
@@ -14,15 +14,11 @@ import {
 interface LandingPageProps {
   onEnterDemo: () => void;
   onOpenAuth: (mode?: 'login' | 'register' | 'forgot' | 'reset' | 'verify') => void;
-  currentUser?: AuthUser | null;
-  onGoToApp?: () => void;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({
   onEnterDemo,
   onOpenAuth,
-  currentUser,
-  onGoToApp,
 }) => {
   const [isDemoLaunching, setIsDemoLaunching] = useState(false);
   const [demoError, setDemoError] = useState('');
@@ -215,21 +211,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
           {/* Desktop Right Actions with Glass Capsule */}
           <div className="hidden lg:flex items-center gap-3 p-1.5 pl-4 rounded-full border border-white/25 bg-white/12 backdrop-blur-[14px] shadow-landing-soft">
-            {currentUser ? (
-              <button
-                onClick={onGoToApp}
-                className="text-sm font-medium text-white hover:text-sand transition cursor-pointer px-2 py-1"
-              >
-                Dashboard
-              </button>
-            ) : (
-              <button
-                onClick={() => onOpenAuth('login')}
-                className="text-sm font-medium text-white/90 hover:text-white transition cursor-pointer px-2 py-1"
-              >
-                Sign in
-              </button>
-            )}
+            <button
+              onClick={() => onOpenAuth('login')}
+              className="text-sm font-medium text-white/90 hover:text-white transition cursor-pointer px-2 py-1"
+            >
+              Sign in
+            </button>
             <button
               onClick={handleInstantDemo}
               disabled={isDemoLaunching}
@@ -406,17 +393,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               >
                 Under the hood
               </a>
-              {!currentUser && (
-                <button
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    onOpenAuth('login');
-                  }}
-                  className="text-left text-white/90 hover:text-white transition cursor-pointer pt-4 border-t border-white/15"
-                >
-                  Sign in
-                </button>
-              )}
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenAuth('login');
+                }}
+                className="text-left text-white/90 hover:text-white transition cursor-pointer pt-4 border-t border-white/15"
+              >
+                Sign in
+              </button>
             </div>
             <div className="pt-4 border-t border-white/15">
               <button
