@@ -4,7 +4,7 @@ import { ProductCatalogOffer } from '../api/client';
 import { api } from '../api/client';
 import { useShopPilot } from '../context/ShopPilotContext';
 import { groupCatalogOffers } from '../lib/productCatalog';
-import { getItemStep, isCountableUnit } from '../lib/pantryHelpers';
+import { getCompatibleItemStep, isCountableUnit } from '../lib/pantryHelpers';
 import { formatPaise } from '../services/currency';
 import { PantryItemFormValues, PantryItemDialog } from './PantryItemDialog';
 import { Badge, Button, Card, ProductImage } from './ui';
@@ -21,14 +21,7 @@ function packageQuantity(offer: ProductCatalogOffer) {
   if (measured) {
     const unit = measured[2].toLowerCase() === 'l' ? 'L' : measured[2].toLowerCase();
     const quantity = Number(measured[1]);
-    let step = getItemStep(unit);
-    if (quantity > 0 && Math.abs(quantity / step - Math.round(quantity / step)) > 1e-5) {
-      if (quantity % 50 === 0) step = 50;
-      else if (quantity % 25 === 0) step = 25;
-      else if (quantity % 10 === 0) step = 10;
-      else if (Number.isInteger(quantity)) step = 1;
-      else step = 0.5;
-    }
+    const step = getCompatibleItemStep(unit, quantity);
     return { unit, quantity, step, allowFractions: !isCountableUnit(unit) } as const;
   }
   const pieces = packageText.match(/(\d+)\s*(?:pcs?|pieces?|eggs?)\b/i);
@@ -118,13 +111,16 @@ export const BrowseProducts: React.FC = () => {
     if (!selectedOffer) return null;
     setAddingId(selectedOffer.productGroupId);
     setSuccess('');
-    const result = await addCatalogProduct(selectedOffer.id, values);
-    setAddingId('');
-    if (result) {
-      setSelectedOffer(null);
-      setSuccess(`${result.name} added to your pantry.`);
+    try {
+      const result = await addCatalogProduct(selectedOffer.id, values);
+      if (result) {
+        setSelectedOffer(null);
+        setSuccess(`${result.name} added to your pantry.`);
+      }
+      return result;
+    } finally {
+      setAddingId('');
     }
-    return result;
   };
 
   return (

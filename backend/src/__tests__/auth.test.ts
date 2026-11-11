@@ -162,10 +162,13 @@ describe('cookie authentication, isolation, and guest simulation permissions', (
     const guestId = (getDatabase().prepare('SELECT id FROM users WHERE email = ?').get('guest_paypal@example.com') as any).id;
     const pantryBefore = (getDatabase().prepare('SELECT COUNT(*) AS n FROM pantry_items WHERE user_id = ?').get(guestId) as any).n;
     expect(pantryBefore).toBeGreaterThan(0);
+    getDatabase().prepare('DELETE FROM pantry_items WHERE user_id = ?').run(guestId);
     new AuthService(getDatabase()).seedGuest();
+    const pantryReseeded = (getDatabase().prepare('SELECT COUNT(*) AS n FROM pantry_items WHERE user_id = ?').get(guestId) as any).n;
+    expect(pantryReseeded).toBeGreaterThan(0);
     new AuthService(getDatabase()).seedGuest();
     expect((getDatabase().prepare('SELECT COUNT(*) AS n FROM users WHERE email = ?').get('guest_paypal@example.com') as any).n).toBe(1);
-    expect((getDatabase().prepare('SELECT COUNT(*) AS n FROM pantry_items WHERE user_id = ?').get(guestId) as any).n).toBe(pantryBefore);
+    expect((getDatabase().prepare('SELECT COUNT(*) AS n FROM pantry_items WHERE user_id = ?').get(guestId) as any).n).toBe(pantryReseeded);
     const advance = await fetch(`${baseUrl}/api/time/advance`, {
       method: 'POST', headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ days: 1 }),
     });

@@ -3,6 +3,7 @@ import { createHash, randomBytes, scryptSync, timingSafeEqual, randomUUID } from
 import bcrypt from 'bcryptjs';
 import { AppError } from '../middleware/errorHandler.js';
 import { DeliveryAddressRepository } from '../repositories/DeliveryAddressRepository.js';
+import { seedDatabase } from '../db/seed.js';
 
 const SESSION_DAYS = 7;
 const GUEST_EMAIL = 'guest_paypal@example.com';
@@ -415,15 +416,18 @@ export class AuthService {
     if (guest) {
       this.db.prepare("UPDATE users SET name = ?, password_hash = ?, role = 'guest', email_verified = 1, updated_at = ? WHERE id = ?")
         .run('Guest Household', hashPassword(GUEST_PASSWORD), now, guest.id);
+      seedDatabase(this.db, guest.id);
       return;
-    }
-    if (legacy) {
+    } else if (legacy) {
       this.db.prepare("UPDATE users SET name = ?, email = ?, password_hash = ?, role = 'guest', email_verified = 1, updated_at = ? WHERE id = ?")
         .run('Guest Household', GUEST_EMAIL, hashPassword(GUEST_PASSWORD), now, legacy.id);
+      seedDatabase(this.db, legacy.id);
       return;
+    } else {
+      const id = 'guest-user';
+      this.db.prepare("INSERT INTO users(id, name, email, password_hash, role, email_verified, created_at, updated_at) VALUES (?, ?, ?, ?, 'guest', 1, ?, ?)")
+        .run(id, 'Guest Household', GUEST_EMAIL, hashPassword(GUEST_PASSWORD), now, now);
+      seedDatabase(this.db, id);
     }
-    const id = 'guest-user';
-    this.db.prepare("INSERT INTO users(id, name, email, password_hash, role, email_verified, created_at, updated_at) VALUES (?, ?, ?, ?, 'guest', 1, ?, ?)")
-      .run(id, 'Guest Household', GUEST_EMAIL, hashPassword(GUEST_PASSWORD), now, now);
   }
 }

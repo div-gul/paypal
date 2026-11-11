@@ -257,32 +257,40 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode; userRole?:
       };
 
       const stateRes = await api.getState();
-      const [planRes, workspaceRes] = await Promise.all([
-        stateRes.pantry.length > 0 ? api.planRun(effectiveOverrides) : Promise.resolve(null),
-        api.getWorkspace(),
-      ]);
-
-      swapDecisionsRef.current = workspaceRes.swapDecisions || {};
-
+      // Apply persisted household data before optional planning calls. A run-history
+      // or workspace error must never prevent saved pantry items from appearing.
       applyDomainSnapshot({
         pantryItems: stateRes.pantry,
         schedulerConfig: stateRes.policy,
         simulationState: stateRes.clock,
       });
       setActivityLog(stateRes.recentAuditLog);
-      if (workspaceRes.upcomingOrder) {
-        const refreshedOrder = computeUpcomingOrderBucket({
-          pantryItems: stateRes.pantry,
-          schedulerConfig: stateRes.policy,
-          simulationState: stateRes.clock,
-          existingBucket: workspaceRes.upcomingOrder,
-          swapDecisions: swapDecisionsRef.current,
-        });
-        setUpcomingOrder(refreshedOrder.bucket);
-        setPendingSwaps(workspaceRes.upcomingOrder.paidAt ? [] : refreshedOrder.pendingSwaps);
+
+      const [planResult, workspaceResult] = await Promise.allSettled([
+        stateRes.pantry.length > 0 ? api.planRun(effectiveOverrides) : Promise.resolve(null),
+        api.getWorkspace(),
+      ]);
+
+      if (workspaceResult.status === 'fulfilled') {
+        const workspaceRes = workspaceResult.value;
+        swapDecisionsRef.current = workspaceRes.swapDecisions || {};
+        if (workspaceRes.upcomingOrder) {
+          const refreshedOrder = computeUpcomingOrderBucket({
+            pantryItems: stateRes.pantry,
+            schedulerConfig: stateRes.policy,
+            simulationState: stateRes.clock,
+            existingBucket: workspaceRes.upcomingOrder,
+            swapDecisions: swapDecisionsRef.current,
+          });
+          setUpcomingOrder(refreshedOrder.bucket);
+          setPendingSwaps(workspaceRes.upcomingOrder.paidAt ? [] : refreshedOrder.pendingSwaps);
+        }
+      } else {
+        setError(getFriendlyErrorMessage(workspaceResult.reason));
       }
 
-      if (planRes) {
+      if (planResult.status === 'fulfilled' && planResult.value) {
+        const planRes = planResult.value;
         setActiveRun(planRes.run);
         setRecommendations(planRes.recommendations);
         setOptimizationResult({ strategies: planRes.strategies, recommendedStrategy: planRes.recommendedStrategy });
@@ -293,10 +301,15 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode; userRole?:
           setSelectedStrategyType(planRes.recommendedStrategy.type);
           selectedStrategyTypeRef.current = planRes.recommendedStrategy.type;
         }
-      } else {
-        setActiveRun(null);
+      } else if (planResult.status === 'fulfilled') {
+        setActiveRun(stateRes.activeRun);
         setRecommendations([]);
         setOptimizationResult(null);
+      } else {
+        setActiveRun(stateRes.activeRun);
+        setRecommendations([]);
+        setOptimizationResult(null);
+        setError(getFriendlyErrorMessage(planResult.reason));
       }
     } catch (err: any) {
       console.error('Failed to sync state with backend API:', err);
@@ -394,7 +407,7 @@ export const ShopPilotProvider: React.FC<{ children: React.ReactNode; userRole?:
         return item;
       } catch (err: any) {
         setError(getFriendlyErrorMessage(err));
-        return null;
+        throw err;
       }
     },
     [applyDomainSnapshot, schedulePlanRefresh]
