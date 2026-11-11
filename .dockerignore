@@ -12,3 +12,4 @@ docs/screenshots
 backend/.env
 frontend/.env
 npm-debug.log*
+

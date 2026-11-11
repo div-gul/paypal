@@ -24,3 +24,4 @@ ENV DATABASE_PATH=./data/shoppilot.db
 EXPOSE 3001
 
 CMD ["npm", "--prefix", "backend", "start"]
+
