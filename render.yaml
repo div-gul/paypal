@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     region: oregon
-    buildCommand: npm install && npm run build
+    buildCommand: npm install --include=dev && npm run build
     startCommand: npm --prefix backend start
     healthCheckPath: /api/health
     envVars:
@@ -12,6 +12,8 @@ services:
         value: production
       - key: DATABASE_PATH
         value: ./data/shoppilot.db
+      - key: DEMO_MODE
+        value: "true"
 
       # PayPal Sandbox Configuration (Live payments strictly prohibited)
       - key: PAYPAL_MODE

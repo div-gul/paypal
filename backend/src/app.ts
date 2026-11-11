@@ -65,7 +65,11 @@ export function createApp(options: { testAuth?: boolean } = {}): Express {
   app.use(requestLogger);
   app.use((req, res, next) => {
     const origin = req.headers.origin;
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && origin && origin !== publicOrigin) {
+    const reqHost = req.get('host');
+    const isSameHost = Boolean(origin && reqHost && (() => {
+      try { return new URL(origin).host === reqHost; } catch { return false; }
+    })());
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && origin && origin !== publicOrigin && !isSameHost) {
       res.status(403).json({ error: { code: 'ORIGIN_NOT_ALLOWED', message: 'Request origin is not allowed.' } });
       return;
     }

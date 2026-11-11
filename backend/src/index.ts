@@ -11,7 +11,7 @@ const db = getDatabase();
 console.log('📦 Initializing SQLite database');
 runMigrations(db);
 seedProductCatalog(db);
-if (config.NODE_ENV !== 'production') {
+if (config.NODE_ENV !== 'production' || process.env.DEMO_MODE === 'true') {
   const guestAlreadySeeded = db.prepare('SELECT 1 FROM users WHERE LOWER(email) = ?').get('guest_paypal@example.com');
   if (!guestAlreadySeeded) seedDatabase(db);
   new AuthService(db).seedGuest();
@@ -20,7 +20,7 @@ console.log('✅ Database migrations & seed completed.');
 
 const app = createApp();
 
-const server = app.listen(config.PORT, () => {
+const server = app.listen(config.PORT, '0.0.0.0', () => {
   console.log(`🚀 ShopPilot AI Backend running on http://localhost:${config.PORT}`);
   console.log(`   - Environment: ${config.NODE_ENV}`);
   console.log(`   - PayPal Mode: ${config.PAYPAL_MODE}`);

@@ -13,19 +13,17 @@
   "dependencies": {
     "@fontsource/bricolage-grotesque": "^5.3.0",
     "@fontsource/instrument-serif": "^5.3.0",
-    "lucide-react": "^1.16.0",
-    "qrcode": "^1.5.4",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
-  },
-  "devDependencies": {
     "@types/node": "^26.6.5",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.21",
+    "lucide-react": "^1.16.0",
     "postcss": "^8.5.3",
+    "qrcode": "^1.5.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "sharp": "^0.35.5",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
