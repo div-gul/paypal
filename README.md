@@ -2,7 +2,7 @@
 
 Autonomous household grocery restocking agent that forecasts pantry depletion, optimizes multi-store baskets with delivery-fee-aware arithmetic, and executes policy-compliant checkout through PayPal Sandbox.
 
-[Live demo]([[HOSTED_DEMO_URL]]) · [Demo video]([[YOUTUBE_URL]]) · [GitHub repository]([[GITHUB_URL]])
+[Live demo](https://shoppilot-naa4.onrender.com/) · [Demo video](https://youtu.be/f6_ReQfaLtg) · [GitHub repository](https://github.com/div-gul/paypal)
 
 ![ShopPilot AI pantry dashboard and restock order card](docs/screenshots/landing_page_1.jpg)
 
@@ -76,7 +76,7 @@ Users can customize restocking schedules, emergency buffer thresholds, and weekl
 
 Follow this path on the hosted demo to test the complete loop in three minutes:
 
-1. **Open the demo**: Visit [[HOSTED_DEMO_URL]] to view the landing page overview.
+1. **Open the demo**: Visit [the hosted demo](https://shoppilot-naa4.onrender.com/) to view the landing page overview.
 2. **Use the guest demo**: Click **Instant Demo** to enter the pre-seeded demo household without registration.
 3. **Advance time**: Open the **Time Machine** drawer in the header and click **+3 Days**; watch milk and daily staples deplete toward stockout.
 4. **Review the restock order**: Check the **Upcoming Restock Order** card on the Home dashboard; notice depleted staples automatically queued with fee-optimized store routing and suggested quantities.
@@ -85,6 +85,16 @@ Follow this path on the hosted demo to test the complete loop in three minutes:
 7. **Pay with PayPal Sandbox**: Click **Approve & Pay**, review the store breakdown and delivery address snapshot, select the PayPal button, and complete payment in the sandbox modal.
 8. **See the pantry restock**: After payment capture confirms, observe the confirmation receipt, replenished pantry stock gauges, and the new entry in the **Activity** audit log.
 9. **Verify in PayPal**: Log into the Sandbox seller account listed above to verify the completed capture transaction under sandbox activity.
+
+### PayPal Sandbox test accounts
+
+Use these test accounts only with the PayPal Sandbox checkout flow:
+
+| Role | Email | Password |
+|---|---|---|
+| Buyer | `buyer@shoppilot.com` | `buyer@123@1507` |
+| Seller | `seller@shoppilot.com` | `seller123` |
+| Alternate buyer | `buyer2@shoppilot.com` | `buyer2@123@1507` |
 
 ## How it uses PayPal
 
@@ -220,7 +230,7 @@ sequenceDiagram
 
 ```bash
 # 1. Clone repository
-git clone [[GITHUB_URL]]
+git clone https://github.com/div-gul/paypal.git
 cd paypal
 
 # 2. Install dependencies (root, backend, and frontend)
