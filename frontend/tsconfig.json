@@ -15,7 +15,6 @@
     "jsx": "react-jsx",
 
     /* Path Aliases */
-    "baseUrl": ".",
     "paths": {
       "@shared": ["../shared/index.ts"],
       "@shared/*": ["../shared/*"]

@@ -76,6 +76,11 @@ export function createApp(options: { testAuth?: boolean } = {}): Express {
   // the persistent, HTTP-only cookie session.
   app.use('/api/auth', authRouter);
 
+  // Lightweight health check endpoint for keep-alive pingers (cron-job.org, UptimeRobot, Google Apps Script)
+  app.get('/health', (_req, res) => {
+    res.status(200).send('OK');
+  });
+
   // Mount API routers
   app.use('/api', healthRouter);
   // PayPal's signed webhook is an external callback and has its own signature validation.

@@ -56,4 +56,20 @@ describe('GET /api/health', () => {
       server.close();
     }
   });
+
+  it('returns 200 OK from lightweight /health endpoint for external keep-alive pingers', async () => {
+    const app = createApp({ testAuth: true });
+    const server = app.listen(0);
+    const address = server.address();
+    const port = typeof address === 'object' && address ? address.port : 0;
+
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/health`);
+      expect(res.status).toBe(200);
+      const text = await res.text();
+      expect(text).toBe('OK');
+    } finally {
+      server.close();
+    }
+  });
 });
