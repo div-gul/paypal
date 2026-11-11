@@ -2,7 +2,7 @@
 
 Autonomous household grocery restocking agent that forecasts pantry depletion, optimizes multi-store baskets with delivery-fee-aware arithmetic, and executes policy-compliant checkout through PayPal Sandbox.
 
-[Live demo]([[HOSTED_DEMO_URL]]) · [Demo video]([[YOUTUBE_URL]]) · [GitHub repository]([[GITHUB_URL]])
+[Live demo](https://shoppilot-naa4.onrender.com/) · [Demo video](https://youtu.be/f6_ReQfaLtg) · [GitHub repository](https://github.com/div-gul/paypal/)
 
 ![ShopPilot AI pantry dashboard and restock order card](docs/screenshots/landing_page_1.jpg)
 
