@@ -1041,6 +1041,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               >
                 GitHub
               </a>
+              <button type="button" onClick={() => onOpenAuth('login')} className="hover:text-teal transition">
+                Sign in
+              </button>
             </div>
           </div>
 
