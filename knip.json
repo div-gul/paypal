@@ -6,11 +6,13 @@
     "frontend": {
       "entry": [
         "src/main.tsx",
+        "src/index.css",
         "src/tests/**/*.ts",
         "vite.config.ts"
       ],
       "project": ["src/**/*.{ts,tsx}"],
-      "ignore": ["src/components/ApprovalsView.tsx"]
+      "ignore": ["src/components/ApprovalsView.tsx", "src/components/BackendHealthBadge.tsx"],
+      "ignoreDependencies": ["sharp"]
     },
     "backend": {
       "entry": [
@@ -18,7 +20,8 @@
         "src/__tests__/**/*.ts",
         "vitest.config.ts"
       ],
-      "project": ["src/**/*.ts"]
+      "project": ["src/**/*.ts"],
+      "ignoreDependencies": ["@types/bcryptjs"]
     }
   }
 }

@@ -4,7 +4,7 @@ Autonomous household grocery restocking agent that forecasts pantry depletion, o
 
 [Live demo]([[HOSTED_DEMO_URL]]) · [Demo video]([[YOUTUBE_URL]]) · [GitHub repository]([[GITHUB_URL]])
 
-![ShopPilot AI pantry dashboard and restock order card]([[SCREENSHOT: home-order-card]])
+![ShopPilot AI pantry dashboard and restock order card](docs/screenshots/landing_page_1.jpg)
 
 ## What it does
 
@@ -15,6 +15,63 @@ Households repeatedly run out of staples at unpredictable hours, triggering rush
 3. **Finds the cheapest basket**: Compares split-store and single-store consolidation to minimize combined item and delivery costs.
 4. **Asks before big changes**: Requests user approval for brand substitutions or budget cap exceptions, then pays with PayPal.
 
+## Project Demonstration & Visual Walkthrough
+
+### 1. Autonomous Restock Planning & Basket Optimization
+ShopPilot continuously forecasts household consumption rates. When inventory is projected to run out before the next scheduled delivery day, the agent bundles depleted items into a single, fee-optimized order. It dynamically compares fulfillment across **Zepto**, **Blinkit**, and **Instamart**, calculating tiered delivery, surge, and handling fees to determine whether store consolidation or split baskets save the most money.
+
+![ShopPilot AI Home Dashboard](docs/screenshots/Home_1.png)
+
+*The Home dashboard features a single hero order card with the recommended store strategy, delivery timing, fee breakdown, real-time budget progress bar, and "Running low" pantry countdowns.*
+
+---
+
+### 2. Human-in-the-Loop Brand Swap Approvals
+ShopPilot operates with strict human oversight: it never swaps brands without user authorization. When a preferred brand is out of stock or an identical staple is available at significant savings, the agent presents an explainable swap suggestion with exact price deltas and plain-English reasoning.
+
+| Swap Review & Rationale | Order Customization & Approval |
+|:---:|:---:|
+| ![Brand Swap Review](docs/screenshots/approval_1.png) | ![Swap Options Dialog](docs/screenshots/approval_2.png) |
+
+---
+
+### 3. Secure PayPal Sandbox Checkout & Verification
+Checkout is completely server-authoritative and idempotent. The backend computes order totals from verified catalog items, converts INR paise to USD at current conversion rates, locks the snapshot against customer delivery addresses, and mounts official PayPal JavaScript SDK buttons with instant QR codes for cross-device mobile testing.
+
+| Store-Grouped Checkout Modal | PayPal Sandbox Approval Flow |
+|:---:|:---:|
+| ![PayPal Checkout Dialog](docs/screenshots/paypal_payment.png) | ![PayPal Sandbox Payment](docs/screenshots/paypal_sandbox.png) |
+
+*Upon successful capture, ShopPilot atomically updates the local SQLite database, issues a settled order receipt, replenishes pantry stock, and logs an immutable audit event.*
+
+---
+
+### 4. Real-Time Household Pantry Inventory
+The Pantry view provides a centralized inventory dashboard displaying current stock levels, daily burn rates, safety thresholds, and days remaining before stockout. Items can be rapidly adjusted using continuous stepper controls or edited with fine-grained consumption rules.
+
+![Pantry Management View](docs/screenshots/pantry.png)
+
+---
+
+### 5. Multi-Store Grocery Catalog & Product Discovery
+Users can explore 88 platform offers across 33 product categories in Katraj, Pune (PIN `411046`). The catalog provides real product photography, category filtering (*Dairy, Fresh Produce, Staples, Beverages, Snacks, Personal Care*), and multi-store price comparisons across Blinkit, Zepto, and Instamart with instant one-click pantry integration.
+
+![Browse Products Catalog](docs/screenshots/browse_product.png)
+
+---
+
+### 6. Autonomous Restock Activity & Audit Trail
+Every autonomous evaluation, simulation clock advancement, policy modification, and payment confirmation is recorded in a transparent chronological timeline.
+
+![Activity Audit Trail](docs/screenshots/activity.png)
+
+---
+
+### 7. Household Policies & AI Rule Configuration
+Users can customize restocking schedules, emergency buffer thresholds, and weekly spending caps using intuitive controls or natural language prompts powered by Google Gemini.
+
+![Policy Settings](docs/screenshots/settings.png)
+
 ## For judges: try it in 3 minutes
 
 Follow this path on the hosted demo to test the complete loop in three minutes:
@@ -22,10 +79,10 @@ Follow this path on the hosted demo to test the complete loop in three minutes:
 1. **Open the demo**: Visit [[HOSTED_DEMO_URL]] to view the landing page overview.
 2. **Use the guest demo**: Click **Instant Demo** to enter the pre-seeded demo household without registration.
 3. **Advance time**: Open the **Time Machine** drawer in the header and click **+3 Days**; watch milk and daily staples deplete toward stockout.
-4. **Review the order**: Check the **Upcoming Restock Order** card on the Home dashboard; notice depleted staples automatically queued with suggested quantities.
-5. **Approve swaps**: Open the **Approvals** tab and approve any pending brand substitution (such as Quaker to Kellogg's oats); see the basket update immediately.
-6. **Compare store baskets**: Review the **Store Comparison** matrix on the Home tab to see how delivery fees impact total basket costs across Zepto, Blinkit, and Instamart.
-7. **Pay with PayPal Sandbox**: Click **Confirm and Pay for Order**, select the PayPal button, and sign in with either buyer account listed above.
+4. **Review the restock order**: Check the **Upcoming Restock Order** card on the Home dashboard; notice depleted staples automatically queued with fee-optimized store routing and suggested quantities.
+5. **Review brand swaps**: If a brand substitution is recommended (e.g. Quaker to Kellogg's oats), click **Review swaps** directly on the order card to view price deltas and AI reasoning, then approve or keep original.
+6. **Inspect fulfillment strategy**: Click **Change order** on the Home card to compare consolidated vs split-store delivery strategies across Zepto, Blinkit, and Instamart.
+7. **Pay with PayPal Sandbox**: Click **Approve & Pay**, review the store breakdown and delivery address snapshot, select the PayPal button, and complete payment in the sandbox modal.
 8. **See the pantry restock**: After payment capture confirms, observe the confirmation receipt, replenished pantry stock gauges, and the new entry in the **Activity** audit log.
 9. **Verify in PayPal**: Log into the Sandbox seller account listed above to verify the completed capture transaction under sandbox activity.
 

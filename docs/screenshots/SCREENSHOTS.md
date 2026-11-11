@@ -1,19 +1,23 @@
-# Screenshot Capture Guidelines
+# Screenshots & Demonstration Assets
 
-All screenshots should be captured at 1440×900 viewport resolution with clean demo state to illustrate the user flow.
+This directory contains high-resolution demonstration screenshots of ShopPilot AI captured for project documentation, Devpost submission, and the project README.
 
-## Required Screenshots
+## Captured Screenshots Inventory
 
-| Name | Screen / Component | State / Context | Viewport | What to Blur / Redact |
-|---|---|---|---|---|
-| `home-order-card` | Home dashboard (`/`) | Seeded guest account with upcoming order bucket populated, depletion warning on Milk, and strategy badge | 1440×900 | Any personal email if visible in header |
-| `time-machine-drawer` | Time Machine slide-out drawer | Simulation clock advanced by 3 days, showing depletion countdowns and days elapsed | 1440×900 | None |
-| `approvals-swaps` | Approvals view (`/approvals`) | Pending brand substitution card (e.g. Quaker Oats vs Kellogg's Oats) showing price comparison and reasoning | 1440×900 | None |
-| `store-comparison-optimizer` | Store Comparison component | Comparison matrix of Strategy A (split stores) vs Strategy B (Zepto consolidation) with item and fee breakdowns | 1440×900 | None |
-| `paypal-checkout-modal` | Checkout modal dialog | PayPal Sandbox mode active, showing INR total, converted USD amount, PayPal Buttons, and approval QR code | 1440×900 | Any personal test credentials |
-| `activity-audit-log` | Activity view (`/activity`) | Audit log table showing "Payment Captured", "Order Planned", and "Time Advanced" entries | 1440×900 | Test transaction IDs if sensitive |
-
-## File Placement
-
-Save captured PNG or WebP files in `docs/screenshots/` matching the names above (e.g. `docs/screenshots/home-order-card.png`).
+| File | Screen / View | Description / Key Elements |
+|---|---|---|
+| `Home_1.png` | Home Dashboard (`/`) | Hero restock order card, Zepto consolidation recommendation, fee breakdown, budget progress bar, running low items countdown |
+| `Home_2.png` | Home Dashboard (Alternate) | Alternate view of upcoming restock basket with multiple item lines |
+| `approval_1.png` | Brand Swap Review | Side-by-side comparison of original item vs cheaper in-stock brand (e.g. Quaker vs Kellogg's Oats) with price delta and AI reasoning |
+| `approval_2.png` | Swap Options Dialog | Detailed swap review popover with option to keep original or approve replacement |
+| `pantry.png` | Pantry Manager (`/pantry`) | Active inventory list, stockout countdown badges, burn rates, target stock, and continuous quantity steppers |
+| `browse_product.png` | Product Catalog (`/products`) | Curated Katraj, Pune multi-store catalog with category and platform filters, store prices, and "Add to Pantry" action |
+| `paypal_payment.png` | Checkout Modal | Server-derived order breakdown, INR to USD conversion, address snapshot, and official PayPal Sandbox buttons |
+| `paypal_sandbox.png` | PayPal Sandbox Flow | Live PayPal Sandbox authentication and buyer approval interface |
+| `paypal_sandbox_2.png` | PayPal Confirmation | Completed payment capture confirmation and settled receipt view |
+| `activity.png` | Restock Activity (`/activity`) | Chronological audit log of autonomous decisions, time advancement, and order placements |
+| `settings.png` | Settings & Policies (`/settings`) | Weekly spending cap, scheduled shopping days, and Gemini natural language rule parser |
+| `profile.png` | Delivery Addresses (`/profile`) | Saved delivery addresses, default selection, and reverse geocoding controls |
+| `landing_page_1.jpg` – `landing_page_7.jpg` | Marketing Landing Page | Public marketing pages illustrating autonomous kitchen and household replenishment concepts |
+| `login.jpg` / `signup.jpg` | Authentication | Secure email/password and Google OAuth entry points |
 

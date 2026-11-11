@@ -46,6 +46,7 @@ shared/**/*.js.map
 server/
 
 # SQLite databases
+data/
 backend/data/
 *.db
 *.db-journal
