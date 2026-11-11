@@ -2,22 +2,16 @@ services:
   - type: web
     name: shoppilot-ai
     runtime: node
-    plan: starter # Persistent disks require Render Starter plan or above
+    plan: free
     region: oregon
     buildCommand: npm install && npm run build
     startCommand: npm --prefix backend start
-    disk:
-      name: shoppilot-data
-      mountPath: /var/data
-      sizeGB: 1
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 3001
       - key: DATABASE_PATH
-        value: /var/data/shoppilot.db
+        value: ./data/shoppilot.db
 
       # PayPal Sandbox Configuration (Live payments strictly prohibited)
       - key: PAYPAL_MODE
