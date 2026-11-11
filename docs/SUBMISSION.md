@@ -13,7 +13,7 @@ Choose one option (under 60 characters):
 ShopPilot AI forecasts household grocery depletion, schedules weekly replenishment, and compares local stores to minimize combined delivery and item fees. It requests approval for brand swaps, enforces household budget limits, and completes checkout through PayPal Sandbox.
 
 ## Inspiration
-Running out of pantry staples causes late-night emergency runs and extra delivery fees. We built an autonomous agent to manage restocks sensibly: tracking burn rates, respecting budgets, finding the cheapest multi-store basket, and requiring user approval before money moves.
+Running out of pantry staples causes late-night emergency runs and extra delivery fees. We built an autonomous agent to manage restocks sensibly: tracking burn rates, respecting budgets, finding the cheapest basket, and requiring user approval before money moves.
 
 ## What it does
 ShopPilot AI tracks pantry inventory and predicts stockouts from daily burn rates. It groups replenishments into weekly cycles to eliminate unnecessary delivery charges. Its basket optimizer evaluates simulated catalogs across Zepto, Blinkit, and Instamart, comparing four strategies: split-store item savings, single-store fee consolidation, fastest delivery, and balanced cost. A deterministic policy engine enforces spending caps and flags substitutions for approval. Once confirmed, checkout completes through PayPal Sandbox via PayPal JavaScript SDK buttons or a mobile QR code. Upon verified capture, pantry inventory automatically replenishes.
@@ -39,13 +39,14 @@ We used Google Gemini (`gemini-3.5-flash-lite`) via REST API for two tasks:
 All outputs are validated with Zod. Hallucinated product IDs outside the server allow-list are rejected. If no API key is set, deterministic NLP and heuristics run locally. The AI proposes; code and the user decide.
 
 ## Challenges we ran into
-- **PayPal Currency Support**: PayPal Sandbox does not accept INR in Orders v2. We calculate integer paise totals, convert to USD cents using an explicit configuration rate, and verify round-trip conversion on capture.
+- **Multi-store checkout limitations**: While our optimizer models multi-store splits, executing concurrent checkouts across multiple distinct stores simultaneously is not supported in our checkout flow right now; orders must be consolidated for checkout.
+- **US Sandbox accounts vs INR currency**: Our application displays Indian Rupees (INR), but all available PayPal Sandbox accounts are US-based (USD only) and Orders v2 does not accept INR. While we convert amounts, we use a fixed demo conversion rate rather than live real-time FX, which causes conversion approximations between the domestic INR total and the USD charge.
 - **Local Webhook Verification**: PayPal cannot dispatch webhooks directly to local developer ports. We combined status polling with production webhook signature verification.
 - **Cart Consistency**: Reconciling optimizer estimates with saved database lines across screen changes required unifying cart math in shared pure services.
 - **Production Bundling**: Configuring `esbuild` for Node 20 with native SQLite addons required marking native packages external.
 
 ## Accomplishments
-- Delivered a full autonomous restocking loop: depletion forecasting, multi-store fee optimization, approvals, and verified PayPal capture.
+- Delivered a full autonomous restocking loop: depletion forecasting, fee optimization, approvals, and verified PayPal capture.
 - Built an immutable audit log recording clock advances, policy proposals, approvals, and captures.
 - Maintained strict boundaries separating AI proposals from financial execution.
 
@@ -54,10 +55,11 @@ All outputs are validated with Zod. Hallucinated product IDs outside the server 
 - Autonomous agents require strict boundaries: schema validation, candidate allow-lists, and human approvals ensure reliable behavior.
 
 ## What's next
-- Real grocery store API partnerships when available.
-- Receipt OCR for automatic pantry updates.
-- Multi-user household accounts with shared approvals.
-- PayPal Vault integration for pre-authorized recurring restocks.
+- **True multi-store split payments**: Support multi-capture or parallel payouts to checkout from multiple grocery stores in one session.
+- **Live dynamic currency conversion**: Integrate real-time FX feeds and native localized payment methods once INR is supported.
+- **Real grocery store partnerships**: Direct catalog sync with quick-commerce APIs.
+- **Receipt OCR**: Photo scanning for automatic pantry updates.
+- **PayPal Vault integration**: Pre-authorized recurring restocks within strict spending limits.
 
 ## Built with
 Node.js, Express, TypeScript, React 19, Vite, Tailwind CSS, SQLite, better-sqlite3, Zod, bcryptjs, Vitest, Lucide React, Google Gemini API, PayPal REST API, PayPal JavaScript SDK.

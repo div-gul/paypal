@@ -21,7 +21,14 @@ function packageQuantity(offer: ProductCatalogOffer) {
   if (measured) {
     const unit = measured[2].toLowerCase() === 'l' ? 'L' : measured[2].toLowerCase();
     const quantity = Number(measured[1]);
-    const step = getItemStep(unit);
+    let step = getItemStep(unit);
+    if (quantity > 0 && Math.abs(quantity / step - Math.round(quantity / step)) > 1e-5) {
+      if (quantity % 50 === 0) step = 50;
+      else if (quantity % 25 === 0) step = 25;
+      else if (quantity % 10 === 0) step = 10;
+      else if (Number.isInteger(quantity)) step = 1;
+      else step = 0.5;
+    }
     return { unit, quantity, step, allowFractions: !isCountableUnit(unit) } as const;
   }
   const pieces = packageText.match(/(\d+)\s*(?:pcs?|pieces?|eggs?)\b/i);

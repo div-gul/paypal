@@ -18,7 +18,7 @@ export function getItemStep(unit: string, customStep?: number): number {
   if (isCountableUnit(lower)) return 1;
   if (lower === 'kg' || lower === 'l') return 0.5;
   if (lower === 'g') return 50;
-  if (lower === 'ml') return 100;
+  if (lower === 'ml') return 50;
   return 1;
 }
 

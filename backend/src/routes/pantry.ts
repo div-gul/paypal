@@ -218,7 +218,7 @@ pantryRouter.post('/pantry/from-catalog/:productId', pantryWriteLimit, (req: Req
       allowSubstitutions: validated.allowSubstitutions,
       requireApprovalForBrandChange: validated.requireApprovalForBrandChange,
       lastRestockedDate: new Date().toISOString(),
-      quantityStep: validated.quantityStep ?? (isCountable ? 1 : validated.unit === 'g' ? 50 : validated.unit === 'ml' ? 100 : 0.5),
+      quantityStep: validated.quantityStep ?? (isCountable ? 1 : validated.unit === 'g' ? 50 : validated.unit === 'ml' ? 50 : 0.5),
       allowFractions: validated.allowFractions ?? !isCountable,
       imageUrl: product.imageUrl || undefined,
     });
